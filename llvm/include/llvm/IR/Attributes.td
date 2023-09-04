@@ -218,6 +218,8 @@ def ReadNone : EnumAttr<"readnone", [ParamAttr]>;
 /// Function only reads from memory.
 def ReadOnly : EnumAttr<"readonly", [ParamAttr]>;
 
+def Realtime : EnumAttr<"realtime", [FnAttr]>;
+
 /// Return value is always equal to this argument.
 def Returned : EnumAttr<"returned", [ParamAttr]>;
 
