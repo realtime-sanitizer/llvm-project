@@ -3,11 +3,11 @@
 
 using namespace __sanitizer;
 
-// We must define our own implementation of this method for our tuntime.
-//T This one is just copied from UBSan.
+// We must define our own implementation of this method for our runtime.
+// This one is just copied from UBSan.
 
 namespace __sanitizer {
-    void BufferedStackTrace::UnwindImpl(uptr pc, uptr bp, void *context, 
+    void BufferedStackTrace::UnwindImpl(uptr pc, uptr bp, void *context,
                                         bool request_fast, u32 max_depth) {
     uptr top =0;
     uptr bottom =0;

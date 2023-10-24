@@ -1,6 +1,9 @@
+#include <radsan/radsan_interceptors.h>
+
+#include <sanitizer_common/sanitizer_platform.h>
+
 #include <interception/interception.h>
 #include <radsan/radsan_context.h>
-#include <sanitizer_common/sanitizer_platform.h>
 
 #if !SANITIZER_LINUX && !SANITIZER_APPLE
 #error Sorry, radsan does not yet support this platform
@@ -119,4 +122,34 @@ INTERCEPTOR(void *, valloc, SIZE_T size) {
 INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
   radsan::abortIfRealtime("aligned_alloc");
   return REAL(aligned_alloc)(alignment, size);
+}
+
+namespace radsan {
+void initialiseInterceptors()
+{
+  INTERCEPT_FUNCTION(open);
+  INTERCEPT_FUNCTION(close);
+
+#if SANITIZER_APPLE
+  INTERCEPT_FUNCTION(OSSpinLockLock);
+#endif
+
+  INTERCEPT_FUNCTION(pthread_create);
+  INTERCEPT_FUNCTION(pthread_mutex_lock);
+  INTERCEPT_FUNCTION(pthread_mutex_unlock);
+  INTERCEPT_FUNCTION(pthread_join);
+
+  INTERCEPT_FUNCTION(sleep);
+  INTERCEPT_FUNCTION(usleep);
+  INTERCEPT_FUNCTION(nanosleep);
+
+  INTERCEPT_FUNCTION(calloc);
+  INTERCEPT_FUNCTION(free);
+  INTERCEPT_FUNCTION(malloc);
+  INTERCEPT_FUNCTION(realloc);
+  INTERCEPT_FUNCTION(reallocf);
+  INTERCEPT_FUNCTION(valloc);
+  INTERCEPT_FUNCTION(aligned_alloc);
+  INTERCEPT_FUNCTION(aligned_alloc);
+}
 }
