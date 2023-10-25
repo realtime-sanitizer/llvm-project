@@ -23,6 +23,7 @@ namespace {
         CommonFlags cf;
         cf.CopyFrom(*common_flags());
         cf.stack_trace_format = "DEFAULT";
+        cf.external_symbolizer_path = GetEnv("RADSAN_SYMBOLIZER_PATH");
         OverrideCommonFlags(cf);
     }
 } // namespace
