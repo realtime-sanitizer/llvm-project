@@ -81,3 +81,7 @@ else()
     CFLAGS ${RADSAN_CFLAGS}
     PARENT_TARGET radsan)
 endif()
+
+if(COMPILER_RT_INCLUDE_TESTS)
+  add_subdirectory(tests)
+endif()
