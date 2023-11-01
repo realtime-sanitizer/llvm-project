@@ -20,6 +20,9 @@ set(RADSAN_UNITTESTS
     radsan_test_interceptors.cpp
     radsan_test_main.cpp)
 
+set(RADSAN_UNITTEST_HEADERS
+    radsan_test_utilities.h)
+
 add_custom_target(RadsanUnitTests)
 set_target_properties(RadsanUnitTests PROPERTIES FOLDER "Compiler-RT Tests")
 
@@ -46,6 +49,7 @@ if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST RADSAN_SUPPORTED_ARCH)
   set(RadsanTestObjects)
   generate_compiler_rt_tests(RadsanTestObjects
     RadsanUnitTests "Radsan-${arch}-Test" ${arch}
+    COMPILE_DEPS ${RADSAN_UNITTEST_HEADERS}
     SOURCES ${RADSAN_UNITTESTS} ${COMPILER_RT_GTEST_SOURCE}
     DEPS llvm_gtest radsan
     CFLAGS ${RADSAN_UNITTEST_CFLAGS} ${TEST_CFLAGS}
