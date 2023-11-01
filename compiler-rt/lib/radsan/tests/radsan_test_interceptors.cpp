@@ -8,6 +8,10 @@
 using namespace testing;
 using namespace radsan_testing;
 
+namespace {
+void *fake_thread_entry_point(void *) { return nullptr; }
+} // namespace
+
 /*
     Allocation and deallocation
 */
@@ -120,3 +124,71 @@ TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
   expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);
 }
+
+/*
+    Concurrency
+*/
+
+TEST(TestRadsanInterceptors, pthreadCreateDiesWhenRealtime) {
+  auto func = []() {
+    auto thread = pthread_t{};
+    auto const attr = pthread_attr_t{};
+    struct thread_info *tinfo;
+
+    pthread_create(&thread, &attr, &fake_thread_entry_point, tinfo);
+  };
+
+  expectRealtimeDeath(func, "pthread_create");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadMutexLockDiesWhenRealtime) {
+  auto func = []() {
+    auto mutex = pthread_mutex_t{};
+    pthread_mutex_lock(&mutex);
+  };
+
+  expectRealtimeDeath(func, "pthread_mutex_lock");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadMutexUnlockDiesWhenRealtime) {
+  auto func = []() {
+    auto mutex = pthread_mutex_t{};
+    pthread_mutex_unlock(&mutex);
+  };
+
+  expectRealtimeDeath(func, "pthread_mutex_unlock");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadMutexJoinDiesWhenRealtime) {
+  auto func = []() {
+    auto thread = pthread_t{};
+    pthread_join(thread, nullptr);
+  };
+
+  expectRealtimeDeath(func, "pthread_join");
+  expectNonrealtimeSurvival(func);
+}
+
+/*
+
+
+TODO: maybe
+
+pthread_spin_lock
+pthread_spin_unlock?????
+
+pthread_cond_signal
+pthread_cond_broadcast
+
+pthread_cond_wait
+pthread_cond_timed_wait
+
+pthread_rwlock_rdlock
+pthread_rwlock_unlock
+
+pthread_rwlock_wrlock
+
+*/
