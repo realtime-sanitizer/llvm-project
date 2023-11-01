@@ -9,16 +9,16 @@ public:
     void realtimePush();
     void realtimePop();
 
-    void abortIfRealtime(const char *interpreted_function_name);
+    void exitIfRealtime(const char *interpreted_function_name);
 
 private:
     bool inRealtimeContext() const;
-    bool notAlreadyAborting() const;
-    void initiateAbort();
+    bool alreadyExiting() const;
+    void initiateExit();
     void printDiagnostics(const char * intercepted_function_name);
 
     int realtime_depth_{0};
-    bool already_aborting_{false};
+    bool already_exiting_{false};
 };
 
 Context &getContextForThisThread();

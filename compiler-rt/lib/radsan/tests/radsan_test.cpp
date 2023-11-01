@@ -33,3 +33,9 @@ TEST(TestRadsan, sleepingAThreadDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
+
+TEST(TestRadsan, fopenDiesWhenRealtime) {
+  auto func = []() { fopen("./file.txt", "w"); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
