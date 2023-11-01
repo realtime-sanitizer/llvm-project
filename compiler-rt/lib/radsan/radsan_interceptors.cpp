@@ -17,6 +17,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
 
     using namespace __sanitizer;
 
@@ -38,6 +39,14 @@ INTERCEPTOR(int, open, const char *path, int oflag, ...) {
   va_start(args, oflag);
   auto result = REAL(open)(path, oflag, args);
   va_end(args);
+  return result;
+}
+
+INTERCEPTOR(int, creat, const char *path, mode_t mode) {
+  // TODO Establish whether we should intercept here if the flag contains
+  // O_NONBLOCK
+  radsan::abortIfRealtime("open");
+  auto result = REAL(creat)(path, mode);
   return result;
 }
 
