@@ -16,6 +16,7 @@ set(RADSAN_UNITTEST_CFLAGS
 
 set(RADSAN_UNITTESTS
     radsan_test.cpp
+    radsan_test_interceptors.cpp
     radsan_test_main.cpp)
 
 add_custom_target(RadsanUnitTests)

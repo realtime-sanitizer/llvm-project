@@ -26,8 +26,13 @@ void abortIfRealtime(const char *intercepted_function_name) {
 }
 } // namespace radsan
 
-// Filesystem
+/*
+    Filesystem
+*/
+
 INTERCEPTOR(int, open, const char *path, int oflag, ...) {
+  // TODO Establish whether we should intercept here if the flag contains
+  // O_NONBLOCK
   radsan::abortIfRealtime("open");
   va_list args;
   va_start(args, oflag);
@@ -41,7 +46,10 @@ INTERCEPTOR(int, close, int filedes) {
   return REAL(close)(filedes);
 }
 
-// Concurrency
+/*
+    Concurrency
+*/
+
 #if SANITIZER_APPLE
 INTERCEPTOR(void, OSSpinLockLock, volatile OSSpinLock *lock) {
   radsan::abortIfRealtime("OSSpinLockLock");
@@ -87,7 +95,9 @@ INTERCEPTOR(int, nanosleep, const struct timespec *rqtp,
   return REAL(nanosleep)(rqtp, rmtp);
 }
 
-// Allocation
+/*
+    Memory
+*/
 
 INTERCEPTOR(void *, calloc, SIZE_T num, SIZE_T size) {
   radsan::abortIfRealtime("calloc");
@@ -124,6 +134,10 @@ INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
   return REAL(aligned_alloc)(alignment, size);
 }
 
+/*
+    Preinit
+*/
+
 namespace radsan {
 void initialiseInterceptors()
 {
@@ -149,7 +163,6 @@ void initialiseInterceptors()
   INTERCEPT_FUNCTION(realloc);
   INTERCEPT_FUNCTION(reallocf);
   INTERCEPT_FUNCTION(valloc);
-  INTERCEPT_FUNCTION(aligned_alloc);
   INTERCEPT_FUNCTION(aligned_alloc);
 }
 }
