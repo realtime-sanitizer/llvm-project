@@ -4,6 +4,7 @@
 
 #include <array>
 #include <chrono>
+#include <fstream>
 #include <thread>
 
 using namespace testing;
@@ -36,6 +37,25 @@ TEST(TestRadsan, sleepingAThreadDiesWhenRealtime) {
 
 TEST(TestRadsan, fopenDiesWhenRealtime) {
   auto func = []() { fopen("./file.txt", "w"); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, fcloseDiesWhenRealtime) {
+  auto fd = fopen("./file.txt", "r");
+  auto func = [fd]() { fclose(fd); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, ifstreamCreationDiesWhenRealtime) {
+  auto func = []() { auto ifs = std::ifstream("./file.txt"); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, ofstreamCreationDiesWhenRealtime) {
+  auto func = []() { auto ofs = std::ofstream("./file.txt"); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }

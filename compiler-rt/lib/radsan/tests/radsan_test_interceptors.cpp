@@ -3,6 +3,7 @@
 #include "radsan_test_utilities.h"
 
 #include <fcntl.h>
+#include <stdio.h>
 
 using namespace testing;
 using namespace radsan_testing;
@@ -110,5 +111,12 @@ TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
 TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
   auto func = []() { close(0); };
   expectRealtimeDeath(func, "close");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
+  auto fd = fopen("./file.txt", "r");
+  auto func = [fd]() { fclose(fd); };
+  expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);
 }

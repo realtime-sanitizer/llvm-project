@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -65,7 +66,7 @@ INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
   radsan::exitIfRealtime("fcntl");
   va_list args;
   va_start(args, cmd);
-  auto result = REAL(fcntl)(filedes, cmd, args);
+  auto result = REAL(fcntl)(filedes, cmd, args[0]);
   va_end(args);
   return result;
 }
@@ -73,6 +74,11 @@ INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
 INTERCEPTOR(int, close, int filedes) {
   radsan::exitIfRealtime("close");
   return REAL(close)(filedes);
+}
+
+INTERCEPTOR(int, fclose, FILE *stream) {
+  radsan::exitIfRealtime("fclose");
+  return REAL(fclose)(stream);
 }
 
 /*
@@ -170,7 +176,11 @@ INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
 namespace radsan {
 void initialiseInterceptors() {
   INTERCEPT_FUNCTION(open);
+  INTERCEPT_FUNCTION(openat);
   INTERCEPT_FUNCTION(close);
+  INTERCEPT_FUNCTION(fclose);
+  INTERCEPT_FUNCTION(fcntl);
+  INTERCEPT_FUNCTION(creat);
 
 #if SANITIZER_APPLE
   INTERCEPT_FUNCTION(OSSpinLockLock);
