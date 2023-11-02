@@ -75,6 +75,11 @@ TEST(TestRadsanInterceptors, freeDiesWhenRealtime) {
   ASSERT_NE(nullptr, ptr_2);
 }
 
+TEST(TestRadsanInterceptors, freeSurvivesWhenRealtimeIfArgumentIsNull) {
+  realtimeInvoke([]() { free(NULL); });
+  expectNonrealtimeSurvival([]() { free(NULL); });
+}
+
 /*
     Sleeping
 */

@@ -97,7 +97,7 @@ INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
   return REAL(os_unfair_lock_lock)(lock);
 }
 #elif SANITIZER_LINUX
-INTERCEPTOR(int, pthread_spin_lock, pthread_spinlock_t * spinlock) {
+INTERCEPTOR(int, pthread_spin_lock, pthread_spinlock_t *spinlock) {
   radsan::exitIfRealtime("pthread_spin_lock");
   return REAL(pthread_spin_lock)(spinlock);
 }
@@ -191,7 +191,9 @@ INTERCEPTOR(void *, calloc, SIZE_T num, SIZE_T size) {
 }
 
 INTERCEPTOR(void, free, void *ptr) {
-  radsan::exitIfRealtime("free");
+  if (ptr != NULL) {
+    radsan::exitIfRealtime("free");
+  }
   return REAL(free)(ptr);
 }
 
