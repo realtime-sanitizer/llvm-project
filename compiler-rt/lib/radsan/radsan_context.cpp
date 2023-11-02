@@ -16,6 +16,11 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 } // namespace detail
 
 namespace radsan {
+void Context::init() 
+{
+  realtime_depth_ = 0;
+  already_exiting_ = false;
+}
 void Context::realtimePush() { realtime_depth_++; }
 void Context::realtimePop() { realtime_depth_--; }
 void Context::exitIfRealtime(const char *intercepted_function_name) {
@@ -48,6 +53,7 @@ Context &getContextForThisThread() {
   if (ptr == nullptr) {
     ptr = static_cast<Context *>(InternalAlloc(sizeof(Context)));
     pthread_setspecific(detail::key, ptr);
+    ptr->init();
   }
 
   return *ptr;
