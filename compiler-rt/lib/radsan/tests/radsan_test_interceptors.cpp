@@ -239,12 +239,10 @@ TEST(TestRadsanInterceptors, pthreadCondBroadcastDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
-  auto cond_attr = pthread_condattr_t{};
-  auto mutex_attr = pthread_mutexattr_t{};
   auto cond = pthread_cond_t{};
   auto mutex = pthread_mutex_t{};
-  ASSERT_EQ(0, pthread_cond_init(&cond, &cond_attr));
-  ASSERT_EQ(0, pthread_mutex_init(&mutex, &mutex_attr));
+  ASSERT_EQ(0, pthread_cond_init(&cond, nullptr));
+  ASSERT_EQ(0, pthread_mutex_init(&mutex, nullptr));
   auto func = [&]() { pthread_cond_wait(&cond, &mutex); };
   expectRealtimeDeath(func, "pthread_cond_wait");
   // It's very difficult to test the success case here without doing some
