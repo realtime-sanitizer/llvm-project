@@ -38,6 +38,8 @@ if (APPLE)
   # solution that we're running with until we have a full understanding of what
   # macOS versions we wish to support.
   list(APPEND RADSAN_UNITTEST_CFLAGS -mmacosx-version-min=10.15)
+else()
+  append_list_if(COMPILER_RT_HAS_LIBATOMIC -latomic RADSAN_UNITTEST_LINK_FLAGS)
 endif()
 
 list(APPEND RADSAN_UNITTEST_LINK_FLAGS -fsanitize=realtime)

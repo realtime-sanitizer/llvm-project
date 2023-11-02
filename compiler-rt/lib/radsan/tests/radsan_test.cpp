@@ -3,8 +3,10 @@
 #include "radsan_test_utilities.h"
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <fstream>
+#include <mutex>
 #include <thread>
 
 using namespace testing;
@@ -58,4 +60,32 @@ TEST(TestRadsan, ofstreamCreationDiesWhenRealtime) {
   auto func = []() { auto ofs = std::ofstream("./file.txt"); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, lockingAMutexDiesWhenRealtime) {
+  auto mutex = std::mutex{};
+  auto func = [&]() { mutex.lock(); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
+  auto mutex = std::mutex{};
+  mutex.lock();
+  auto func = [&]() { mutex.unlock(); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, accessingALargeAtomicVariableDiesWhenRealtime) {
+  auto large_atomic = std::atomic<std::array<float, 2048>>{{}};
+  auto func = [&]() { auto x = large_atomic.load(); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, accessingASmallAtomicVariableSurvivesWhenRealtime) {
+  auto small_atomic = std::atomic<float>{0.0f};
+  auto func = [&]() { auto x = small_atomic.load(); };
+  realtimeInvoke(func);
 }
