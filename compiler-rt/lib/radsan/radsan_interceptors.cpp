@@ -11,6 +11,7 @@
 
 #if SANITIZER_APPLE
 #include <libkern/OSAtomic.h>
+#include <os/lock.h>
 #endif
 
 #include <fcntl.h>
@@ -90,8 +91,13 @@ INTERCEPTOR(void, OSSpinLockLock, volatile OSSpinLock *lock) {
   radsan::exitIfRealtime("OSSpinLockLock");
   return REAL(OSSpinLockLock)(lock);
 }
+INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
+  radsan::exitIfRealtime("os_unfair_lock_lock");
+  return REAL(os_unfair_lock_lock)(lock);
+}
+#elif SANITIZER_LINUX
+// TODO pthread_spin_lock
 #endif
-// TODO spin lock stuff for linux: is it pthread_spin_lock and friends?
 
 INTERCEPTOR(int, pthread_create, pthread_t *thread, const pthread_attr_t *attr,
             void *(*start_routine)(void *), void *arg) {
@@ -113,6 +119,47 @@ INTERCEPTOR(int, pthread_join, pthread_t thread, void **value_ptr) {
   radsan::exitIfRealtime("pthread_join");
   return REAL(pthread_join)(thread, value_ptr);
 }
+
+INTERCEPTOR(int, pthread_cond_signal, pthread_cond_t *cond) {
+  radsan::exitIfRealtime("pthread_cond_signal");
+  return REAL(pthread_cond_signal)(cond);
+}
+
+INTERCEPTOR(int, pthread_cond_broadcast, pthread_cond_t *cond) {
+  radsan::exitIfRealtime("pthread_cond_broadcast");
+  return REAL(pthread_cond_broadcast)(cond);
+}
+
+INTERCEPTOR(int, pthread_cond_wait, pthread_cond_t *cond,
+            pthread_mutex_t *mutex) {
+  radsan::exitIfRealtime("pthread_cond_wait");
+  return REAL(pthread_cond_wait)(cond, mutex);
+}
+
+INTERCEPTOR(int, pthread_cond_timedwait, pthread_cond_t *cond,
+            pthread_mutex_t *mutex, const timespec *ts) {
+  radsan::exitIfRealtime("pthread_cond_timedwait");
+  return REAL(pthread_cond_timedwait)(cond, mutex, ts);
+}
+
+INTERCEPTOR(int, pthread_rwlock_rdlock, pthread_rwlock_t *lock) {
+  radsan::exitIfRealtime("pthread_rwlock_rdlock");
+  return REAL(pthread_rwlock_rdlock)(lock);
+}
+
+INTERCEPTOR(int, pthread_rwlock_unlock, pthread_rwlock_t *lock) {
+  radsan::exitIfRealtime("pthread_rwlock_unlock");
+  return REAL(pthread_rwlock_unlock)(lock);
+}
+
+INTERCEPTOR(int, pthread_rwlock_wrlock, pthread_rwlock_t *lock) {
+  radsan::exitIfRealtime("pthread_rwlock_wrlock");
+  return REAL(pthread_rwlock_wrlock)(lock);
+}
+
+/*
+    Sleeping
+*/
 
 INTERCEPTOR(unsigned int, sleep, unsigned int s) {
   radsan::exitIfRealtime("sleep");
@@ -184,12 +231,22 @@ void initialiseInterceptors() {
 
 #if SANITIZER_APPLE
   INTERCEPT_FUNCTION(OSSpinLockLock);
+  INTERCEPT_FUNCTION(os_unfair_lock_lock);
+#elif SANITIZER_LINUX
+  // INTERCEPT_FUNCTION(pthread_spin_lock);
 #endif
 
   INTERCEPT_FUNCTION(pthread_create);
   INTERCEPT_FUNCTION(pthread_mutex_lock);
   INTERCEPT_FUNCTION(pthread_mutex_unlock);
   INTERCEPT_FUNCTION(pthread_join);
+  INTERCEPT_FUNCTION(pthread_cond_signal);
+  INTERCEPT_FUNCTION(pthread_cond_broadcast);
+  INTERCEPT_FUNCTION(pthread_cond_wait);
+  INTERCEPT_FUNCTION(pthread_cond_timedwait);
+  INTERCEPT_FUNCTION(pthread_rwlock_rdlock);
+  INTERCEPT_FUNCTION(pthread_rwlock_unlock);
+  INTERCEPT_FUNCTION(pthread_rwlock_wrlock);
 
   INTERCEPT_FUNCTION(sleep);
   INTERCEPT_FUNCTION(usleep);

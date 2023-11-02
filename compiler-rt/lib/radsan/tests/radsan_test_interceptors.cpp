@@ -1,8 +1,16 @@
 #include "gtest/gtest.h"
 
+#include <sanitizer_common/sanitizer_platform.h>
+
 #include "radsan_test_utilities.h"
 
+#if SANITIZER_APPLE
+#include <libkern/OSAtomic.h>
+#include <os/lock.h>
+#endif
+
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 
 using namespace testing;
@@ -172,23 +180,107 @@ TEST(TestRadsanInterceptors, pthreadMutexJoinDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+#if SANITIZER_APPLE
+
+#pragma clang diagnostic push
+// OSSpinLockLock is deprecated, but still in use in libc++
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+TEST(TestRadsanInterceptors, osSpinLockLockDiesWhenRealtime) {
+  auto func = []() {
+    auto spin_lock = OSSpinLock{};
+    OSSpinLockLock(&spin_lock);
+  };
+  expectRealtimeDeath(func, "OSSpinLockLock");
+  expectNonrealtimeSurvival(func);
+}
+#pragma clang diagnostic pop
+
+TEST(TestRadsanInterceptors, osUnfairLockLockDiesWhenRealtime) {
+  auto func = []() {
+    auto unfair_lock = os_unfair_lock_s{};
+    os_unfair_lock_lock(&unfair_lock);
+  };
+  expectRealtimeDeath(func, "os_unfair_lock_lock");
+  expectNonrealtimeSurvival(func);
+}
+#endif
+
+#if SANITIZER_LINUX
+TEST(TestRadsanInterceptors, spinLockLockDiesWhenRealtime) {
+  auto func = []() {};
+  expectRealtimeDeath(func, "pthread_spin_lock");
+  expectNonrealtimeSurvival(func);
+}
+#endif
+
+TEST(TestRadsanInterceptors, pthreadCondSignalDiesWhenRealtime) {
+  auto func = []() {
+    auto cond = pthread_cond_t{};
+    pthread_cond_signal(&cond);
+  };
+  expectRealtimeDeath(func, "pthread_cond_signal");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadCondBroadcastDiesWhenRealtime) {
+  auto func = []() {
+    auto cond = pthread_cond_t{};
+    pthread_cond_broadcast(&cond);
+  };
+  expectRealtimeDeath(func, "pthread_cond_broadcast");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
+  auto func = []() {
+    auto cond = pthread_cond_t{};
+    auto mutex = pthread_mutex_t{};
+    pthread_cond_wait(&cond, &mutex);
+  };
+  expectRealtimeDeath(func, "pthread_cond_wait");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadRwlockRdlockDiesWhenRealtime) {
+  auto func = []() {
+    auto rwlock = pthread_rwlock_t{};
+    pthread_rwlock_rdlock(&rwlock);
+  };
+  expectRealtimeDeath(func, "pthread_rwlock_rdlock");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadRwlockUnlockDiesWhenRealtime) {
+  auto func = []() {
+    auto rwlock = pthread_rwlock_t{};
+    pthread_rwlock_unlock(&rwlock);
+  };
+  expectRealtimeDeath(func, "pthread_rwlock_unlock");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, pthreadRwlockWrlockDiesWhenRealtime) {
+  auto func = []() {
+    auto rwlock = pthread_rwlock_t{};
+    pthread_rwlock_wrlock(&rwlock);
+  };
+  expectRealtimeDeath(func, "pthread_rwlock_wrlock");
+  expectNonrealtimeSurvival(func);
+}
+
 /*
 
+[o] pthread_spin_lock
+    - waiting for linux build
+[N] pthread_spin_unlock?????
+    - NO - it should be block free
 
-TODO: maybe
-
-pthread_spin_lock
-pthread_spin_unlock?????
-
-pthread_cond_signal
-pthread_cond_broadcast
-
-pthread_cond_wait
-pthread_cond_timed_wait
-
-pthread_rwlock_rdlock
-pthread_rwlock_unlock
-
-pthread_rwlock_wrlock
+[x] pthread_cond_signal
+[x] pthread_cond_broadcast
+[x] pthread_cond_wait
+[x] pthread_cond_timed_wait
+[ ] pthread_rwlock_rdlock
+[ ] pthread_rwlock_unlock
+[ ] pthread_rwlock_wrlock
 
 */
