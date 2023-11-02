@@ -9,12 +9,17 @@
 #include <os/lock.h>
 #endif
 
+#include <atomic>
+#include <chrono>
+#include <thread>
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
 
 using namespace testing;
 using namespace radsan_testing;
+using namespace std::chrono_literals;
 
 namespace {
 void *fake_thread_entry_point(void *) { return nullptr; }
@@ -37,12 +42,14 @@ TEST(TestRadsanInterceptors, reallocDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+#if SANITIZER_APPLE
 TEST(TestRadsanInterceptors, reallocfDiesWhenRealtime) {
   auto *ptr_1 = malloc(1);
   auto func = [ptr_1]() { EXPECT_NE(nullptr, reallocf(ptr_1, 8)); };
   expectRealtimeDeath(func, "reallocf");
   expectNonrealtimeSurvival(func);
 }
+#endif
 
 TEST(TestRadsanInterceptors, vallocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(nullptr, valloc(4)); };
@@ -142,10 +149,8 @@ TEST(TestRadsanInterceptors, pthreadCreateDiesWhenRealtime) {
     auto thread = pthread_t{};
     auto const attr = pthread_attr_t{};
     struct thread_info *tinfo;
-
     pthread_create(&thread, &attr, &fake_thread_entry_point, tinfo);
   };
-
   expectRealtimeDeath(func, "pthread_create");
   expectNonrealtimeSurvival(func);
 }
@@ -207,7 +212,9 @@ TEST(TestRadsanInterceptors, osUnfairLockLockDiesWhenRealtime) {
 
 #if SANITIZER_LINUX
 TEST(TestRadsanInterceptors, spinLockLockDiesWhenRealtime) {
-  auto func = []() {};
+  auto spinlock = pthread_spinlock_t{};
+  pthread_spin_init(&spinlock, PTHREAD_PROCESS_SHARED);
+  auto func = [&]() { pthread_spin_lock(&spinlock); };
   expectRealtimeDeath(func, "pthread_spin_lock");
   expectNonrealtimeSurvival(func);
 }
@@ -232,13 +239,17 @@ TEST(TestRadsanInterceptors, pthreadCondBroadcastDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
-  auto func = []() {
-    auto cond = pthread_cond_t{};
-    auto mutex = pthread_mutex_t{};
-    pthread_cond_wait(&cond, &mutex);
-  };
+  auto cond_attr = pthread_condattr_t{};
+  auto mutex_attr = pthread_mutexattr_t{};
+  auto cond = pthread_cond_t{};
+  auto mutex = pthread_mutex_t{};
+  ASSERT_EQ(0, pthread_cond_init(&cond, &cond_attr));
+  ASSERT_EQ(0, pthread_mutex_init(&mutex, &mutex_attr));
+  auto func = [&]() { pthread_cond_wait(&cond, &mutex); };
   expectRealtimeDeath(func, "pthread_cond_wait");
-  expectNonrealtimeSurvival(func);
+  // It's very difficult to test the success case here without doing some
+  // sleeping, which is at the mercy of the scheduler. What's really important
+  // here is the interception - so we're only testing that for now.
 }
 
 TEST(TestRadsanInterceptors, pthreadRwlockRdlockDiesWhenRealtime) {
@@ -267,20 +278,3 @@ TEST(TestRadsanInterceptors, pthreadRwlockWrlockDiesWhenRealtime) {
   expectRealtimeDeath(func, "pthread_rwlock_wrlock");
   expectNonrealtimeSurvival(func);
 }
-
-/*
-
-[o] pthread_spin_lock
-    - waiting for linux build
-[N] pthread_spin_unlock?????
-    - NO - it should be block free
-
-[x] pthread_cond_signal
-[x] pthread_cond_broadcast
-[x] pthread_cond_wait
-[x] pthread_cond_timed_wait
-[ ] pthread_rwlock_rdlock
-[ ] pthread_rwlock_unlock
-[ ] pthread_rwlock_wrlock
-
-*/

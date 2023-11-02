@@ -32,16 +32,15 @@ set(RADSAN_UNITTEST_LINK_FLAGS
   ${SANITIZER_TEST_CXX_LIBRARIES})
 
 if (APPLE)
+  list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${DARWIN_osx_LINK_FLAGS})
   list(APPEND RADSAN_UNITTEST_CFLAGS ${DARWIN_osx_CFLAGS})
-
   # aligned_alloc is only available in macOS 10.15 and later. This is a temporary
   # solution that we're running with until we have a full understanding of what
   # macOS versions we wish to support.
   list(APPEND RADSAN_UNITTEST_CFLAGS -mmacosx-version-min=10.15)
-
-  list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${DARWIN_osx_LINK_FLAGS})
-  list(APPEND RADSAN_UNITTEST_LINK_FLAGS -fsanitize=realtime)
 endif()
+
+list(APPEND RADSAN_UNITTEST_LINK_FLAGS -fsanitize=realtime)
 
 if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST RADSAN_SUPPORTED_ARCH)
   set(arch ${COMPILER_RT_DEFAULT_TARGET_ARCH})

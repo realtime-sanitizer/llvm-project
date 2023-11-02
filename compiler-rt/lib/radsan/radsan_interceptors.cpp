@@ -91,12 +91,16 @@ INTERCEPTOR(void, OSSpinLockLock, volatile OSSpinLock *lock) {
   radsan::exitIfRealtime("OSSpinLockLock");
   return REAL(OSSpinLockLock)(lock);
 }
+
 INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
   radsan::exitIfRealtime("os_unfair_lock_lock");
   return REAL(os_unfair_lock_lock)(lock);
 }
 #elif SANITIZER_LINUX
-// TODO pthread_spin_lock
+INTERCEPTOR(int, pthread_spin_lock, pthread_spinlock_t * spinlock) {
+  radsan::exitIfRealtime("pthread_spin_lock");
+  return REAL(pthread_spin_lock)(spinlock);
+}
 #endif
 
 INTERCEPTOR(int, pthread_create, pthread_t *thread, const pthread_attr_t *attr,
@@ -233,7 +237,7 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(OSSpinLockLock);
   INTERCEPT_FUNCTION(os_unfair_lock_lock);
 #elif SANITIZER_LINUX
-  // INTERCEPT_FUNCTION(pthread_spin_lock);
+  INTERCEPT_FUNCTION(pthread_spin_lock);
 #endif
 
   INTERCEPT_FUNCTION(pthread_create);
