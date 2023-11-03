@@ -6,7 +6,6 @@ namespace radsan {
 
 class Context {
 public:
-    void init();
     void realtimePush();
     void realtimePop();
 
