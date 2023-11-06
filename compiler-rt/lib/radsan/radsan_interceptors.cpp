@@ -77,6 +77,11 @@ INTERCEPTOR(int, close, int filedes) {
   return REAL(close)(filedes);
 }
 
+INTERCEPTOR(FILE *, fopen, const char *path, const char * mode) {
+  radsan::exitIfRealtime("fopen");
+  return REAL(fopen)(path, mode);
+}
+
 INTERCEPTOR(int, fclose, FILE *stream) {
   radsan::exitIfRealtime("fclose");
   return REAL(fclose)(stream);

@@ -138,6 +138,12 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
+  auto func = []() { fopen("./file.txt", "r"); };
+  expectRealtimeDeath(func, "fopen");
+  expectNonrealtimeSurvival(func);
+}
+
 TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
   auto fd = fopen("./file.txt", "r");
   auto func = [fd]() { fclose(fd); };
