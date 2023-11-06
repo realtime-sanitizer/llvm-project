@@ -44,13 +44,19 @@ TEST(TestRadsan, sleepingAThreadDiesWhenRealtime) {
 }
 
 TEST(TestRadsan, fopenDiesWhenRealtime) {
-  auto func = []() { fopen("./file.txt", "w"); };
+  auto func = []() {
+    auto fd = fopen("./file.txt", "w");
+    EXPECT_THAT(fd, Ne(nullptr));
+    if (fd != nullptr)
+      fclose(fd);
+  };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
 
 TEST(TestRadsan, fcloseDiesWhenRealtime) {
   auto fd = fopen("./file.txt", "r");
+  ASSERT_THAT(fd, Ne(nullptr));
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
@@ -169,3 +175,4 @@ TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
+
