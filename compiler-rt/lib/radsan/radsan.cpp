@@ -18,4 +18,14 @@ RADSAN_EXPORT void radsan_realtime_exit()
 {
     radsan::getContextForThisThread().realtimePop();
 }
+
+RADSAN_EXPORT void radsan_off()
+{
+    radsan::getContextForThisThread().bypassPush();
+}
+
+RADSAN_EXPORT void radsan_on()
+{
+    radsan::getContextForThisThread().bypassPop();
+}
 }

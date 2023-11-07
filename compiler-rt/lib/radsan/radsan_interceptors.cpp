@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -77,9 +78,28 @@ INTERCEPTOR(int, close, int filedes) {
   return REAL(close)(filedes);
 }
 
+INTERCEPTOR(FILE *, fopen, const char *path, const char *mode) {
+  radsan::exitIfRealtime("fopen");
+  return REAL(fopen)(path, mode);
+}
+
 INTERCEPTOR(int, fclose, FILE *stream) {
   radsan::exitIfRealtime("fclose");
   return REAL(fclose)(stream);
+}
+
+INTERCEPTOR(int, fputs, const char *s, FILE *stream) {
+  radsan::exitIfRealtime("fputs");
+  return REAL(fputs)(s, stream);
+}
+
+/*
+    Streams
+*/
+
+INTERCEPTOR(int, puts, const char *s) {
+  radsan::exitIfRealtime("puts");
+  return REAL(puts)(s);
 }
 
 /*
@@ -223,6 +243,53 @@ INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
 }
 
 /*
+    Sockets
+*/
+
+INTERCEPTOR(int, socket, int domain, int type, int protocol) {
+  radsan::exitIfRealtime("socket");
+  return REAL(socket)(domain, type, protocol);
+}
+
+INTERCEPTOR(ssize_t, send, int sockfd, const void *buf, size_t len, int flags) {
+  radsan::exitIfRealtime("send");
+  return REAL(send)(sockfd, buf, len, flags);
+}
+
+INTERCEPTOR(ssize_t, sendmsg, int socket, const struct msghdr *message,
+            int flags) {
+  radsan::exitIfRealtime("sendmsg");
+  return REAL(sendmsg)(socket, message, flags);
+}
+
+INTERCEPTOR(ssize_t, sendto, int socket, const void *buffer, size_t length,
+            int flags, const struct sockaddr *dest_addr, socklen_t dest_len) {
+  radsan::exitIfRealtime("sendto");
+  return REAL(sendto)(socket, buffer, length, flags, dest_addr, dest_len);
+}
+
+INTERCEPTOR(ssize_t, recv, int socket, void *buffer, size_t length, int flags) {
+  radsan::exitIfRealtime("recv");
+  return REAL(recv)(socket, buffer, length, flags);
+}
+
+INTERCEPTOR(ssize_t, recvfrom, int socket, void *buffer, size_t length,
+            int flags, struct sockaddr *address, socklen_t *address_len) {
+  radsan::exitIfRealtime("recvfrom");
+  return REAL(recvfrom)(socket, buffer, length, flags, address, address_len);
+}
+
+INTERCEPTOR(ssize_t, recvmsg, int socket, struct msghdr *message, int flags) {
+  radsan::exitIfRealtime("recvmsg");
+  return REAL(recvmsg)(socket, message, flags);
+}
+
+INTERCEPTOR(int, shutdown, int socket, int how) {
+  radsan::exitIfRealtime("shutdown");
+  return REAL(shutdown)(socket, how);
+}
+
+/*
     Preinit
 */
 
@@ -231,9 +298,12 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(open);
   INTERCEPT_FUNCTION(openat);
   INTERCEPT_FUNCTION(close);
+  INTERCEPT_FUNCTION(fopen);
   INTERCEPT_FUNCTION(fclose);
   INTERCEPT_FUNCTION(fcntl);
   INTERCEPT_FUNCTION(creat);
+  INTERCEPT_FUNCTION(puts);
+  INTERCEPT_FUNCTION(fputs);
 
 #if SANITIZER_APPLE
   INTERCEPT_FUNCTION(OSSpinLockLock);
@@ -265,5 +335,14 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(reallocf);
   INTERCEPT_FUNCTION(valloc);
   INTERCEPT_FUNCTION(aligned_alloc);
+
+  INTERCEPT_FUNCTION(socket);
+  INTERCEPT_FUNCTION(send);
+  INTERCEPT_FUNCTION(sendmsg);
+  INTERCEPT_FUNCTION(sendto);
+  INTERCEPT_FUNCTION(recv);
+  INTERCEPT_FUNCTION(recvmsg);
+  INTERCEPT_FUNCTION(recvfrom);
+  INTERCEPT_FUNCTION(shutdown);
 }
 } // namespace radsan

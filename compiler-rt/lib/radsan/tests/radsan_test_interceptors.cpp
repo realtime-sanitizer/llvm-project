@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <sys/socket.h>
 
 using namespace testing;
 using namespace radsan_testing;
@@ -106,8 +107,9 @@ TEST(TestRadsanInterceptors, nanosleepDiesWhenRealtime) {
 }
 
 /*
-    Filesystem system calls
+    Filesystem
 */
+
 TEST(TestRadsanInterceptors, openDiesWhenRealtime) {
   auto func = []() { open("./file.txt", O_RDONLY); };
   expectRealtimeDeath(func, "open");
@@ -138,11 +140,33 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
+  auto func = []() { fopen("./file.txt", "r"); };
+  expectRealtimeDeath(func, "fopen");
+  expectNonrealtimeSurvival(func);
+}
+
 TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
   auto fd = fopen("./file.txt", "r");
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, putsDiesWhenRealtime) {
+  auto func = []() { puts("Hello, world!\n"); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, fputsDiesWhenRealtime) {
+  auto fd = fopen("./file.txt", "w");
+  ASSERT_THAT(fd, Ne(nullptr)) << errno;
+  auto func = [fd]() { fputs("Hello, world!\n", fd); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+  if (fd != nullptr)
+    fclose(fd);
 }
 
 /*
@@ -279,5 +303,62 @@ TEST(TestRadsanInterceptors, pthreadRwlockWrlockDiesWhenRealtime) {
     pthread_rwlock_wrlock(&rwlock);
   };
   expectRealtimeDeath(func, "pthread_rwlock_wrlock");
+  expectNonrealtimeSurvival(func);
+}
+
+/*
+    Sockets
+*/
+TEST(TestRadsanInterceptors, openingASocketDiesWhenRealtime) {
+  auto func = []() { socket(PF_INET, SOCK_STREAM, 0); };
+  expectRealtimeDeath(func, "socket");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, sendToASocketDiesWhenRealtime) {
+  auto func = []() { send(0, nullptr, 0, 0); };
+  expectRealtimeDeath(func, "send");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, sendmsgToASocketDiesWhenRealtime) {
+  auto const msg = msghdr{};
+  auto func = [&]() { sendmsg(0, &msg, 0); };
+  expectRealtimeDeath(func, "sendmsg");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, sendtoToASocketDiesWhenRealtime) {
+  auto const addr = sockaddr{};
+  auto const len = socklen_t{};
+  auto func = [&]() { sendto(0, nullptr, 0, 0, &addr, len); };
+  expectRealtimeDeath(func, "sendto");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, recvFromASocketDiesWhenRealtime) {
+  auto func = []() { recv(0, nullptr, 0, 0); };
+  expectRealtimeDeath(func, "recv");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, recvfromOnASocketDiesWhenRealtime) {
+  auto addr = sockaddr{};
+  auto len = socklen_t{};
+  auto func = [&]() { recvfrom(0, nullptr, 0, 0, &addr, &len); };
+  expectRealtimeDeath(func, "recvfrom");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, recvmsgOnASocketDiesWhenRealtime) {
+  auto msg = msghdr{};
+  auto func = [&]() { recvmsg(0, &msg, 0); };
+  expectRealtimeDeath(func, "recvmsg");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, shutdownOnASocketDiesWhenRealtime) {
+  auto func = [&]() { shutdown(0, 0); };
+  expectRealtimeDeath(func, "shutdown");
   expectNonrealtimeSurvival(func);
 }
