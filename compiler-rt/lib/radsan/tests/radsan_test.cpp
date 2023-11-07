@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "radsan_test_utilities.h"
+#include <radsan.h>
 #include <sanitizer_common/sanitizer_platform.h>
 
 #include <array>
@@ -176,3 +177,13 @@ TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+TEST(TestRadsan, doesNotDieIfTurnedOff) {
+  auto mutex = std::mutex{};
+  auto realtime_unsafe_func = [&]() {
+    radsan_off();
+    mutex.lock();
+    mutex.unlock();
+    radsan_on();
+  };
+  realtimeInvoke(realtime_unsafe_func);
+}
