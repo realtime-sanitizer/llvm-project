@@ -47,7 +47,7 @@ Context &getContextForThisThread() {
   auto *ptr = static_cast<Context *>(pthread_getspecific(detail::key));
   if (ptr == nullptr) {
     ptr = static_cast<Context *>(InternalAlloc(sizeof(Context)));
-    //*ptr = Context{};
+    *ptr = Context{};
     pthread_setspecific(detail::key, ptr);
   }
 
