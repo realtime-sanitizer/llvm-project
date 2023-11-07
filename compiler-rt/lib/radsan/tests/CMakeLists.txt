@@ -15,10 +15,16 @@ set(RADSAN_UNITTEST_CFLAGS
   -O2
   -fsanitize=realtime)
 
-set(RADSAN_UNITTESTS
+set(RADSAN_INST_TEST_SOURCES
     radsan_test.cpp
+    radsan_test_context.cpp
     radsan_test_interceptors.cpp
     radsan_test_main.cpp)
+
+set(RADSAN_NOINST_TEST_SOURCES
+    radsan_test_context.cpp
+    radsan_test_main.cpp)
+
 
 set(RADSAN_UNITTEST_HEADERS
     radsan_test_utilities.h)
@@ -30,6 +36,8 @@ set(RADSAN_UNITTEST_LINK_FLAGS
   ${COMPILER_RT_UNITTEST_LINK_FLAGS}
   ${COMPILER_RT_UNWINDER_LINK_LIBS}
   ${SANITIZER_TEST_CXX_LIBRARIES})
+add_weak_symbols("sanitizer_common" WEAK_SYMBOL_LINK_FLAGS)
+list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${WEAK_SYMBOL_LINK_FLAGS})
 
 if (APPLE)
   list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${DARWIN_osx_LINK_FLAGS})
@@ -51,10 +59,45 @@ if(COMPILER_RT_DEFAULT_TARGET_ARCH IN_LIST RADSAN_SUPPORTED_ARCH)
   generate_compiler_rt_tests(RadsanTestObjects
     RadsanUnitTests "Radsan-${arch}-Test" ${arch}
     COMPILE_DEPS ${RADSAN_UNITTEST_HEADERS}
-    SOURCES ${RADSAN_UNITTESTS} ${COMPILER_RT_GTEST_SOURCE}
+    SOURCES ${RADSAN_INST_TEST_SOURCES} ${COMPILER_RT_GTEST_SOURCE}
     DEPS llvm_gtest radsan
     CFLAGS ${RADSAN_UNITTEST_CFLAGS} ${TEST_CFLAGS}
     LINK_FLAGS ${RADSAN_UNITTEST_LINK_FLAGS})
+  set_target_properties(RadsanUnitTests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    set(RADSAN_TEST_RUNTIME RTRadsanTest.${arch})
+    if(APPLE)
+      set(RADSAN_TEST_RUNTIME_OBJECTS
+        $<TARGET_OBJECTS:RTRadsan.osx>
+        $<TARGET_OBJECTS:RTInterception.osx>
+        $<TARGET_OBJECTS:RTSanitizerCommon.osx>
+        $<TARGET_OBJECTS:RTSanitizerCommonLibc.osx>
+        $<TARGET_OBJECTS:RTSanitizerCommonCoverage.osx>
+        $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.osx>)
+    else()
+      set(RADSAN_TEST_RUNTIME_OBJECTS
+        $<TARGET_OBJECTS:RTRadsan.${arch}>
+        $<TARGET_OBJECTS:RTInterception.${arch}>
+        $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
+        $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+        $<TARGET_OBJECTS:RTSanitizerCommonCoverage.${arch}>
+        $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
+        $<TARGET_OBJECTS:RTSanitizerCommonSymbolizerInternal.${arch}>)
+    endif()
+    add_library(${RADSAN_TEST_RUNTIME} STATIC ${RADSAN_TEST_RUNTIME_OBJECTS})
+    set_target_properties(${RADSAN_TEST_RUNTIME} PROPERTIES
+      ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      FOLDER "Compiler-RT Runtime tests")
+
+  generate_compiler_rt_tests(RadsanNoInstTestObjects
+    RadsanUnitTests "Radsan-${arch}-NoInstTest" ${arch}
+    COMPILE_DEPS ${RADSAN_UNITTEST_HEADERS}
+    SOURCES ${RADSAN_NOINST_TEST_SOURCES} ${COMPILER_RT_GTEST_SOURCE}
+    DEPS llvm_gtest 
+    CFLAGS ${RADSAN_UNITTEST_CFLAGS} ${TEST_CFLAGS}
+    LINK_FLAGS ${RADSAN_UNITTEST_LINK_FLAGS}
+    RUNTIME ${RADSAN_TEST_RUNTIME})
   set_target_properties(RadsanUnitTests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
