@@ -1021,7 +1021,6 @@ foreach(f ${files})
 endforeach()
 
 add_custom_target(generate-cxx-headers ALL DEPENDS ${_all_includes})
-
 add_library(cxx-headers INTERFACE)
 target_link_libraries(cxx-headers INTERFACE libcxx-abi-headers)
 add_dependencies(cxx-headers generate-cxx-headers)

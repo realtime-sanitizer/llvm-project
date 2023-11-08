@@ -7,29 +7,29 @@ TEST (TestRadsanContext, canCreateContext)
     auto context = radsan::Context{};
 }
 
-TEST (TestRadsanContext, exitIfRealtimeDoesNotDieBeforeRealtimePush)
+TEST (TestRadsanContext, expectNotRealtimeDoesNotDieBeforeRealtimePush)
 {
     auto context = radsan::Context{};
-    context.exitIfRealtime("do_some_stuff");
+    context.expectNotRealtime("do_some_stuff");
 }
 
-TEST (TestRadsanContext, exitIfRealtimeDoesNotDieAfterPushAndPop)
+TEST (TestRadsanContext, expectNotRealtimeDoesNotDieAfterPushAndPop)
 {
     auto context = radsan::Context{};
     context.realtimePush();
     context.realtimePop();
-    context.exitIfRealtime("do_some_stuff");
+    context.expectNotRealtime("do_some_stuff");
 }
 
-TEST (TestRadsanContext, exitIfRealtimeDiesAfterRealtimePush)
+TEST (TestRadsanContext, expectNotRealtimeDiesAfterRealtimePush)
 {
     auto context = radsan::Context{};
 
     context.realtimePush();
-    EXPECT_DEATH (context.exitIfRealtime("do_some_stuff"), "");
+    EXPECT_DEATH (context.expectNotRealtime("do_some_stuff"), "");
 }
 
-TEST (TestRadsanContext, exitIfRealtimeDiesAfterRealtimeAfterMorePushesThanPops)
+TEST (TestRadsanContext, expectNotRealtimeDiesAfterRealtimeAfterMorePushesThanPops)
 {
     auto context = radsan::Context{};
 
@@ -38,19 +38,19 @@ TEST (TestRadsanContext, exitIfRealtimeDiesAfterRealtimeAfterMorePushesThanPops)
     context.realtimePush();
     context.realtimePop();
     context.realtimePop();
-    EXPECT_DEATH (context.exitIfRealtime("do_some_stuff"), "");
+    EXPECT_DEATH (context.expectNotRealtime("do_some_stuff"), "");
 }
 
-TEST (TestRadsanContext, exitIfRealtimeDoesNotDieAfterBypassPush)
+TEST (TestRadsanContext, expectNotRealtimeDoesNotDieAfterBypassPush)
 {
     auto context = radsan::Context{};
 
     context.realtimePush();
     context.bypassPush();
-    context.exitIfRealtime("do_some_stuff");
+    context.expectNotRealtime("do_some_stuff");
 }
 
-TEST (TestRadsanContext, exitIfRealtimeDoesNotDieIfBypassDepthIsGreaterThanZero)
+TEST (TestRadsanContext, expectNotRealtimeDoesNotDieIfBypassDepthIsGreaterThanZero)
 {
     auto context = radsan::Context{};
 
@@ -60,7 +60,7 @@ TEST (TestRadsanContext, exitIfRealtimeDoesNotDieIfBypassDepthIsGreaterThanZero)
     context.bypassPush();
     context.bypassPop();
     context.bypassPop();
-    context.exitIfRealtime("do_some_stuff");
+    context.expectNotRealtime("do_some_stuff");
     context.bypassPop();
-    EXPECT_DEATH (context.exitIfRealtime("do_some_stuff"), "");
+    EXPECT_DEATH (context.expectNotRealtime("do_some_stuff"), "");
 }

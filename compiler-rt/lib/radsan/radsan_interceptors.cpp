@@ -25,8 +25,8 @@
 using namespace __sanitizer;
 
 namespace radsan {
-void exitIfRealtime(const char *intercepted_function_name) {
-  getContextForThisThread().exitIfRealtime(intercepted_function_name);
+void expectNotRealtime(const char *intercepted_function_name) {
+  getContextForThisThread().expectNotRealtime(intercepted_function_name);
 }
 } // namespace radsan
 
@@ -37,7 +37,7 @@ void exitIfRealtime(const char *intercepted_function_name) {
 INTERCEPTOR(int, open, const char *path, int oflag, ...) {
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
-  radsan::exitIfRealtime("open");
+  radsan::expectNotRealtime("open");
   va_list args;
   va_start(args, oflag);
   auto result = REAL(open)(path, oflag, args);
@@ -48,7 +48,7 @@ INTERCEPTOR(int, open, const char *path, int oflag, ...) {
 INTERCEPTOR(int, openat, int fd, const char *path, int oflag, ...) {
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
-  radsan::exitIfRealtime("openat");
+  radsan::expectNotRealtime("openat");
   va_list args;
   va_start(args, oflag);
   auto result = REAL(openat)(fd, path, oflag, args);
@@ -59,13 +59,13 @@ INTERCEPTOR(int, openat, int fd, const char *path, int oflag, ...) {
 INTERCEPTOR(int, creat, const char *path, mode_t mode) {
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
-  radsan::exitIfRealtime("creat");
+  radsan::expectNotRealtime("creat");
   auto result = REAL(creat)(path, mode);
   return result;
 }
 
 INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
-  radsan::exitIfRealtime("fcntl");
+  radsan::expectNotRealtime("fcntl");
   va_list args;
   va_start(args, cmd);
   auto result = REAL(fcntl)(filedes, cmd, args[0]);
@@ -74,22 +74,22 @@ INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
 }
 
 INTERCEPTOR(int, close, int filedes) {
-  radsan::exitIfRealtime("close");
+  radsan::expectNotRealtime("close");
   return REAL(close)(filedes);
 }
 
 INTERCEPTOR(FILE *, fopen, const char *path, const char *mode) {
-  radsan::exitIfRealtime("fopen");
+  radsan::expectNotRealtime("fopen");
   return REAL(fopen)(path, mode);
 }
 
 INTERCEPTOR(int, fclose, FILE *stream) {
-  radsan::exitIfRealtime("fclose");
+  radsan::expectNotRealtime("fclose");
   return REAL(fclose)(stream);
 }
 
 INTERCEPTOR(int, fputs, const char *s, FILE *stream) {
-  radsan::exitIfRealtime("fputs");
+  radsan::expectNotRealtime("fputs");
   return REAL(fputs)(s, stream);
 }
 
@@ -98,7 +98,7 @@ INTERCEPTOR(int, fputs, const char *s, FILE *stream) {
 */
 
 INTERCEPTOR(int, puts, const char *s) {
-  radsan::exitIfRealtime("puts");
+  radsan::expectNotRealtime("puts");
   return REAL(puts)(s);
 }
 
@@ -108,76 +108,76 @@ INTERCEPTOR(int, puts, const char *s) {
 
 #if SANITIZER_APPLE
 INTERCEPTOR(void, OSSpinLockLock, volatile OSSpinLock *lock) {
-  radsan::exitIfRealtime("OSSpinLockLock");
+  radsan::expectNotRealtime("OSSpinLockLock");
   return REAL(OSSpinLockLock)(lock);
 }
 
 INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
-  radsan::exitIfRealtime("os_unfair_lock_lock");
+  radsan::expectNotRealtime("os_unfair_lock_lock");
   return REAL(os_unfair_lock_lock)(lock);
 }
 #elif SANITIZER_LINUX
 INTERCEPTOR(int, pthread_spin_lock, pthread_spinlock_t *spinlock) {
-  radsan::exitIfRealtime("pthread_spin_lock");
+  radsan::expectNotRealtime("pthread_spin_lock");
   return REAL(pthread_spin_lock)(spinlock);
 }
 #endif
 
 INTERCEPTOR(int, pthread_create, pthread_t *thread, const pthread_attr_t *attr,
             void *(*start_routine)(void *), void *arg) {
-  radsan::exitIfRealtime("pthread_create");
+  radsan::expectNotRealtime("pthread_create");
   return REAL(pthread_create)(thread, attr, start_routine, arg);
 }
 
 INTERCEPTOR(int, pthread_mutex_lock, pthread_mutex_t *mutex) {
-  radsan::exitIfRealtime("pthread_mutex_lock");
+  radsan::expectNotRealtime("pthread_mutex_lock");
   return REAL(pthread_mutex_lock)(mutex);
 }
 
 INTERCEPTOR(int, pthread_mutex_unlock, pthread_mutex_t *mutex) {
-  radsan::exitIfRealtime("pthread_mutex_unlock");
+  radsan::expectNotRealtime("pthread_mutex_unlock");
   return REAL(pthread_mutex_unlock)(mutex);
 }
 
 INTERCEPTOR(int, pthread_join, pthread_t thread, void **value_ptr) {
-  radsan::exitIfRealtime("pthread_join");
+  radsan::expectNotRealtime("pthread_join");
   return REAL(pthread_join)(thread, value_ptr);
 }
 
 INTERCEPTOR(int, pthread_cond_signal, pthread_cond_t *cond) {
-  radsan::exitIfRealtime("pthread_cond_signal");
+  radsan::expectNotRealtime("pthread_cond_signal");
   return REAL(pthread_cond_signal)(cond);
 }
 
 INTERCEPTOR(int, pthread_cond_broadcast, pthread_cond_t *cond) {
-  radsan::exitIfRealtime("pthread_cond_broadcast");
+  radsan::expectNotRealtime("pthread_cond_broadcast");
   return REAL(pthread_cond_broadcast)(cond);
 }
 
 INTERCEPTOR(int, pthread_cond_wait, pthread_cond_t *cond,
             pthread_mutex_t *mutex) {
-  radsan::exitIfRealtime("pthread_cond_wait");
+  radsan::expectNotRealtime("pthread_cond_wait");
   return REAL(pthread_cond_wait)(cond, mutex);
 }
 
 INTERCEPTOR(int, pthread_cond_timedwait, pthread_cond_t *cond,
             pthread_mutex_t *mutex, const timespec *ts) {
-  radsan::exitIfRealtime("pthread_cond_timedwait");
+  radsan::expectNotRealtime("pthread_cond_timedwait");
   return REAL(pthread_cond_timedwait)(cond, mutex, ts);
 }
 
 INTERCEPTOR(int, pthread_rwlock_rdlock, pthread_rwlock_t *lock) {
-  radsan::exitIfRealtime("pthread_rwlock_rdlock");
+  radsan::expectNotRealtime("pthread_rwlock_rdlock");
   return REAL(pthread_rwlock_rdlock)(lock);
 }
 
 INTERCEPTOR(int, pthread_rwlock_unlock, pthread_rwlock_t *lock) {
-  radsan::exitIfRealtime("pthread_rwlock_unlock");
+  radsan::expectNotRealtime("pthread_rwlock_unlock");
   return REAL(pthread_rwlock_unlock)(lock);
 }
 
 INTERCEPTOR(int, pthread_rwlock_wrlock, pthread_rwlock_t *lock) {
-  radsan::exitIfRealtime("pthread_rwlock_wrlock");
+  radsan::expectNotRealtime("pthread_rwlock_wrlock");
   return REAL(pthread_rwlock_wrlock)(lock);
 }
 
@@ -186,18 +186,18 @@ INTERCEPTOR(int, pthread_rwlock_wrlock, pthread_rwlock_t *lock) {
 */
 
 INTERCEPTOR(unsigned int, sleep, unsigned int s) {
-  radsan::exitIfRealtime("sleep");
+  radsan::expectNotRealtime("sleep");
   return REAL(sleep)(s);
 }
 
 INTERCEPTOR(int, usleep, useconds_t u) {
-  radsan::exitIfRealtime("usleep");
+  radsan::expectNotRealtime("usleep");
   return REAL(usleep)(u);
 }
 
 INTERCEPTOR(int, nanosleep, const struct timespec *rqtp,
             struct timespec *rmtp) {
-  radsan::exitIfRealtime("nanosleep");
+  radsan::expectNotRealtime("nanosleep");
   return REAL(nanosleep)(rqtp, rmtp);
 }
 
@@ -206,39 +206,39 @@ INTERCEPTOR(int, nanosleep, const struct timespec *rqtp,
 */
 
 INTERCEPTOR(void *, calloc, SIZE_T num, SIZE_T size) {
-  radsan::exitIfRealtime("calloc");
+  radsan::expectNotRealtime("calloc");
   return REAL(calloc)(num, size);
 }
 
 INTERCEPTOR(void, free, void *ptr) {
   if (ptr != NULL) {
-    radsan::exitIfRealtime("free");
+    radsan::expectNotRealtime("free");
   }
   return REAL(free)(ptr);
 }
 
 INTERCEPTOR(void *, malloc, SIZE_T size) {
-  radsan::exitIfRealtime("malloc");
+  radsan::expectNotRealtime("malloc");
   return REAL(malloc)(size);
 }
 
 INTERCEPTOR(void *, realloc, void *ptr, SIZE_T size) {
-  radsan::exitIfRealtime("realloc");
+  radsan::expectNotRealtime("realloc");
   return REAL(realloc)(ptr, size);
 }
 
 INTERCEPTOR(void *, reallocf, void *ptr, SIZE_T size) {
-  radsan::exitIfRealtime("reallocf");
+  radsan::expectNotRealtime("reallocf");
   return REAL(reallocf)(ptr, size);
 }
 
 INTERCEPTOR(void *, valloc, SIZE_T size) {
-  radsan::exitIfRealtime("valloc");
+  radsan::expectNotRealtime("valloc");
   return REAL(valloc)(size);
 }
 
 INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
-  radsan::exitIfRealtime("aligned_alloc");
+  radsan::expectNotRealtime("aligned_alloc");
   return REAL(aligned_alloc)(alignment, size);
 }
 
@@ -247,45 +247,45 @@ INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
 */
 
 INTERCEPTOR(int, socket, int domain, int type, int protocol) {
-  radsan::exitIfRealtime("socket");
+  radsan::expectNotRealtime("socket");
   return REAL(socket)(domain, type, protocol);
 }
 
 INTERCEPTOR(ssize_t, send, int sockfd, const void *buf, size_t len, int flags) {
-  radsan::exitIfRealtime("send");
+  radsan::expectNotRealtime("send");
   return REAL(send)(sockfd, buf, len, flags);
 }
 
 INTERCEPTOR(ssize_t, sendmsg, int socket, const struct msghdr *message,
             int flags) {
-  radsan::exitIfRealtime("sendmsg");
+  radsan::expectNotRealtime("sendmsg");
   return REAL(sendmsg)(socket, message, flags);
 }
 
 INTERCEPTOR(ssize_t, sendto, int socket, const void *buffer, size_t length,
             int flags, const struct sockaddr *dest_addr, socklen_t dest_len) {
-  radsan::exitIfRealtime("sendto");
+  radsan::expectNotRealtime("sendto");
   return REAL(sendto)(socket, buffer, length, flags, dest_addr, dest_len);
 }
 
 INTERCEPTOR(ssize_t, recv, int socket, void *buffer, size_t length, int flags) {
-  radsan::exitIfRealtime("recv");
+  radsan::expectNotRealtime("recv");
   return REAL(recv)(socket, buffer, length, flags);
 }
 
 INTERCEPTOR(ssize_t, recvfrom, int socket, void *buffer, size_t length,
             int flags, struct sockaddr *address, socklen_t *address_len) {
-  radsan::exitIfRealtime("recvfrom");
+  radsan::expectNotRealtime("recvfrom");
   return REAL(recvfrom)(socket, buffer, length, flags, address, address_len);
 }
 
 INTERCEPTOR(ssize_t, recvmsg, int socket, struct msghdr *message, int flags) {
-  radsan::exitIfRealtime("recvmsg");
+  radsan::expectNotRealtime("recvmsg");
   return REAL(recvmsg)(socket, message, flags);
 }
 
 INTERCEPTOR(int, shutdown, int socket, int how) {
-  radsan::exitIfRealtime("shutdown");
+  radsan::expectNotRealtime("shutdown");
   return REAL(shutdown)(socket, how);
 }
 
