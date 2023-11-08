@@ -40,3 +40,27 @@ TEST (TestRadsanContext, exitIfRealtimeDiesAfterRealtimeAfterMorePushesThanPops)
     context.realtimePop();
     EXPECT_DEATH (context.exitIfRealtime("do_some_stuff"), "");
 }
+
+TEST (TestRadsanContext, exitIfRealtimeDoesNotDieAfterBypassPush)
+{
+    auto context = radsan::Context{};
+
+    context.realtimePush();
+    context.bypassPush();
+    context.exitIfRealtime("do_some_stuff");
+}
+
+TEST (TestRadsanContext, exitIfRealtimeDoesNotDieIfBypassDepthIsGreaterThanZero)
+{
+    auto context = radsan::Context{};
+
+    context.realtimePush();
+    context.bypassPush();
+    context.bypassPush();
+    context.bypassPush();
+    context.bypassPop();
+    context.bypassPop();
+    context.exitIfRealtime("do_some_stuff");
+    context.bypassPop();
+    EXPECT_DEATH (context.exitIfRealtime("do_some_stuff"), "");
+}
