@@ -5,6 +5,7 @@
 
 #include <cctype>
 #include <iostream>
+#include <cstring>
 
 namespace radsan {
 
