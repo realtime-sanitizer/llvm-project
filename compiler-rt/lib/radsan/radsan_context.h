@@ -1,25 +1,16 @@
 #pragma once
 
-#include <pthread.h>
+#include <radsan/radsan_user_interface.h>
+
 #include <memory>
 
 namespace radsan {
 
-/*
-enum class OnErrorAction {
-    Continue,
-    LogToFile,
-    ExitWithFailure,
-};
-
-class IUserInterface {
-public:
-    virtual OnErrorAction getAction() = 0;
-};
-*/
-
 class Context {
 public:
+    Context();
+    Context(std::unique_ptr<IUserInterface> user);
+
     void realtimePush();
     void realtimePop();
 
@@ -35,7 +26,7 @@ private:
 
     int realtime_depth_{0};
     int bypass_depth_{0};
-    //std::unique_ptr<IUserInterface> user_;
+    std::unique_ptr<IUserInterface> user_;
 };
 
 Context &getContextForThisThread();

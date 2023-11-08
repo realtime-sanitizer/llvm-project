@@ -4,7 +4,8 @@ set(RADSAN_CXX_SOURCES
   radsan.cpp
   radsan_context.cpp
   radsan_stack.cpp
-  radsan_interceptors.cpp)
+  radsan_interceptors.cpp
+  radsan_user_interface.cpp)
 
 set(RADSAN_PREINIT_SOURCES
   radsan_preinit.cpp)
