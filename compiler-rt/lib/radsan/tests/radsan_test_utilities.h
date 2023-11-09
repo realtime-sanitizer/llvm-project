@@ -19,7 +19,8 @@ void expectRealtimeDeath(
 
   auto expected_error_substr = [&]() -> std::string {
     return intercepted_method_name.has_value()
-               ? "Intercepted call to realtime-unsafe function `" +
+               ? "Real-time violation: intercepted call to real-time unsafe "
+                 "function `" +
                      intercepted_method_name.value() + "`"
                : "";
   };

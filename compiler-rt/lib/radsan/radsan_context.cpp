@@ -51,8 +51,8 @@ bool Context::isBypassed() const { return bypass_depth_ > 0; }
 
 void Context::printDiagnostics(const char *intercepted_function_name) {
   fprintf(stderr,
-          "Intercepted call to realtime-unsafe function `%s` from realtime "
-          "context! Stack trace:\n",
+          "Real-time violation: intercepted call to real-time unsafe function "
+          "`%s` in real-time context! Stack trace:\n",
           intercepted_function_name);
   radsan::printStackTrace();
 }
