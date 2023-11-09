@@ -1,60 +1,47 @@
-#include <radsan/radsan_user_interface.h>
 #include <radsan/radsan.h>
+#include <radsan/radsan_user_interface.h>
 
 #include <sanitizer_common/sanitizer_common.h>
 
 #include <cctype>
-#include <iostream>
 #include <cstring>
+#include <iostream>
 
 namespace radsan {
 
-namespace {
-class SingleErrorActionUserInterface : public IUserInterface {
-public:
-    SingleErrorActionUserInterface (OnErrorAction action)
-        : action_ (action)
-    {}
+std::function<OnErrorAction()> createErrorActionGetter() {
+  auto const continue_getter = []() { return OnErrorAction::Continue; };
+  auto const exit_getter = []() { return OnErrorAction::ExitWithFailure; };
+  auto const interactive_getter = []() {
+    auto response = char{};
 
-    OnErrorAction getAction() override {
-        return action_;
-    }
+    std::cout << "Continue? (Y/n): ";
+    std::cin >> std::noskipws >> response;
 
-private:
-    OnErrorAction action_ {};
-};
+    if (std::toupper(response) == 'N')
+      return OnErrorAction::ExitWithFailure;
+    else
+      return OnErrorAction::Continue;
+  };
 
-class InteractiveUserInterface : public IUserInterface {
-public:
-    OnErrorAction getAction() override {
-        auto response = char {};
+  auto user_mode = __sanitizer::GetEnv("RADSAN_ERROR_MODE");
+  if (user_mode == nullptr) {
+    return exit_getter;
+  }
 
-        std::cout << "Continue? (Y/n): ";
-        std::cin >> std::noskipws >> response;
+  if (std::strcmp(user_mode, "interactive") == 0) {
+    return interactive_getter;
+  }
 
-        if (std::toupper (response) == 'N')
-            return OnErrorAction::ExitWithFailure;
-        else
-            return OnErrorAction::Continue;
-    }
-};
+  if (std::strcmp(user_mode, "continue") == 0) {
+    return continue_getter;
+  }
+
+  if (std::strcmp(user_mode, "exit") == 0) {
+    return exit_getter;
+  }
+
+  return exit_getter;
 }
 
-std::unique_ptr<IUserInterface> createUserInterface() {
-    auto user_mode = __sanitizer::GetEnv("RADSAN_ERROR_MODE");
-
-    if (std::strcmp(user_mode, "interactive") == 0) {
-        return std::make_unique<InteractiveUserInterface>();
-    } else if (std::strcmp(user_mode, "continue") == 0) {
-        return std::make_unique<SingleErrorActionUserInterface>(
-            OnErrorAction::Continue);
-    } else if (std::strcmp(user_mode, "exit") == 0) {
-        return std::make_unique<SingleErrorActionUserInterface>(
-            OnErrorAction::ExitWithFailure);
-    }
-
-    return std::make_unique<SingleErrorActionUserInterface>(
-        OnErrorAction::ExitWithFailure);
-}
-
-}
+} // namespace radsan

@@ -12,24 +12,33 @@
 using namespace __sanitizer;
 
 namespace detail {
+
 static pthread_key_t key;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+void internalFree(void *ptr) { InternalFree(ptr); }
+
 } // namespace detail
 
 namespace radsan {
-Context::Context() : Context(createUserInterface()) {}
-Context::Context(std::unique_ptr<IUserInterface> user)
-    : user_(std::move(user)) {}
+
+Context::Context() : Context(createErrorActionGetter()) {}
+
+Context::Context(std::function<OnErrorAction()> get_error_action)
+    : get_error_action_(std::move(get_error_action)) {}
 
 void Context::realtimePush() { realtime_depth_++; }
+
 void Context::realtimePop() { realtime_depth_--; }
+
 void Context::bypassPush() { bypass_depth_++; }
+
 void Context::bypassPop() { bypass_depth_--; }
+
 void Context::expectNotRealtime(const char *intercepted_function_name) {
   if (inRealtimeContext() && !isBypassed()) {
     bypassPush();
     printDiagnostics(intercepted_function_name);
-    if (user_->getAction() == OnErrorAction::ExitWithFailure) {
+    if (get_error_action_() == OnErrorAction::ExitWithFailure) {
       exit(EXIT_FAILURE);
     }
     bypassPop();
@@ -37,7 +46,9 @@ void Context::expectNotRealtime(const char *intercepted_function_name) {
 }
 
 bool Context::inRealtimeContext() const { return realtime_depth_ > 0; }
+
 bool Context::isBypassed() const { return bypass_depth_ > 0; }
+
 void Context::printDiagnostics(const char *intercepted_function_name) {
   fprintf(stderr,
           "Intercepted call to realtime-unsafe function `%s` from realtime "
@@ -48,7 +59,7 @@ void Context::printDiagnostics(const char *intercepted_function_name) {
 
 Context &getContextForThisThread() {
   auto make_tls_key = []() {
-    CHECK_EQ(pthread_key_create(&detail::key, nullptr), 0);
+    CHECK_EQ(pthread_key_create(&detail::key, detail::internalFree), 0);
   };
 
   pthread_once(&detail::key_once, make_tls_key);
@@ -61,4 +72,5 @@ Context &getContextForThisThread() {
 
   return *ptr;
 }
+
 } // namespace radsan

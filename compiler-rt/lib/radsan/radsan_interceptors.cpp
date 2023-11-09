@@ -107,10 +107,14 @@ INTERCEPTOR(int, puts, const char *s) {
 */
 
 #if SANITIZER_APPLE
+#pragma clang diagnostic push
+// OSSpinLockLock is deprecated, but still in use in libc++
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 INTERCEPTOR(void, OSSpinLockLock, volatile OSSpinLock *lock) {
   radsan::expectNotRealtime("OSSpinLockLock");
   return REAL(OSSpinLockLock)(lock);
 }
+#pragma clang diagnostic pop
 
 INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
   radsan::expectNotRealtime("os_unfair_lock_lock");

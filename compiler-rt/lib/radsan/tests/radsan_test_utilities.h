@@ -14,6 +14,7 @@ template <typename Function>
 template <typename Function>
 void expectRealtimeDeath(
     Function &&func, std::optional<std::string> intercepted_method_name = {}) {
+
   using namespace testing;
 
   auto expected_error_substr = [&]() -> std::string {

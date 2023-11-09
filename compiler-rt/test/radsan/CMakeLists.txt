@@ -28,7 +28,6 @@ if (COMPILER_RT_HAS_RADSAN)
   endforeach()
 endif()
 
-
 if(COMPILER_RT_INCLUDE_TESTS)
   configure_lit_site_cfg(
     ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in

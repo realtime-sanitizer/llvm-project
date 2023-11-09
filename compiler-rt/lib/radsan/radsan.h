@@ -5,8 +5,8 @@
 extern "C" {
 
 /**
-    Initialise radsan interceptors. A call to this method is added to the preinit
-    array on Linux systems.
+    Initialise radsan interceptors. A call to this method is added to the
+    preinit array on Linux systems.
 
     @warning Do not call this method as a user.
 */
@@ -38,9 +38,9 @@ RADSAN_EXPORT void radsan_realtime_exit();
     know that a mutex is never contested, and that locking it will never block
     on your particular system. Be careful!
 
-    A call to `radsan_off()` MUST be paired with a corresponding `radsan_on()` to
-    reactivate interception after the code in question. If you don't, radsan will
-    cease to work.
+    A call to `radsan_off()` MUST be paired with a corresponding `radsan_on()`
+    to reactivate interception after the code in question. If you don't, radsan
+    will cease to work.
 
     Example:
 
