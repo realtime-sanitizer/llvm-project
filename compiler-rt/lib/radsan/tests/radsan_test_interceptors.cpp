@@ -81,6 +81,15 @@ TEST(TestRadsanInterceptors, freeSurvivesWhenRealtimeIfArgumentIsNull) {
   expectNonrealtimeSurvival([]() { free(NULL); });
 }
 
+TEST(TestRadsanInterceptors, posixMemalignDiesWhenRealtime) {
+  auto func = []() {
+    void *mem;
+    posix_memalign(&mem, 4, 4);
+  };
+  expectRealtimeDeath(func, "posix_memalign");
+  expectNonrealtimeSurvival(func);
+}
+
 /*
     Sleeping
 */
@@ -141,8 +150,33 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
-  auto func = []() { fopen("./file.txt", "r"); };
+  auto func = []() {
+    auto fd = fopen("./file.txt", "r");
+    if (fd != nullptr)
+      fclose(fd);
+  };
   expectRealtimeDeath(func, "fopen");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
+  auto fd = fopen("./file.txt", "r");
+  auto func = [fd]() {
+    char c{};
+    fread(&c, 1, 1, fd);
+  };
+  expectRealtimeDeath(func, "fread");
+  expectNonrealtimeSurvival(func);
+  if (fd != nullptr)
+    fclose(fd);
+}
+
+TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
+  auto fd = fopen("./file.txt", "w");
+  ASSERT_NE(nullptr, fd);
+  auto message = "Hello, world!";
+  auto func = [&]() { fwrite(&message, 1, 4, fd); };
+  expectRealtimeDeath(func, "fwrite");
   expectNonrealtimeSurvival(func);
 }
 

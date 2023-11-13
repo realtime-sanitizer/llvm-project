@@ -46,7 +46,8 @@ if (APPLE)
   # macOS versions we wish to support.
   list(APPEND RADSAN_UNITTEST_CFLAGS -mmacosx-version-min=10.15)
 else()
-  append_list_if(COMPILER_RT_HAS_LIBATOMIC -latomic RADSAN_UNITTEST_LINK_FLAGS)
+  #append_list_if(COMPILER_RT_HAS_LIBATOMIC -latomic RADSAN_UNITTEST_LINK_FLAGS)
+  list(APPEND RADSAN_UNITTEST_LINK_FLAGS -latomic)
 endif()
 
 set(COMPILER_RT_GOOGLETEST_SOURCES ${COMPILER_RT_GTEST_SOURCE} ${COMPILER_RT_GMOCK_SOURCE})

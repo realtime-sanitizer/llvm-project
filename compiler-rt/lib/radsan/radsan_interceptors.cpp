@@ -83,6 +83,18 @@ INTERCEPTOR(FILE *, fopen, const char *path, const char *mode) {
   return REAL(fopen)(path, mode);
 }
 
+INTERCEPTOR(size_t, fread, void *ptr, size_t size, size_t nitems,
+            FILE *stream) {
+  radsan::expectNotRealtime("fread");
+  return REAL(fread)(ptr, size, nitems, stream);
+}
+
+INTERCEPTOR(size_t, fwrite, const void *ptr, size_t size, size_t nitems,
+            FILE *stream) {
+  radsan::expectNotRealtime("fwrite");
+  return REAL(fwrite)(ptr, size, nitems, stream);
+}
+
 INTERCEPTOR(int, fclose, FILE *stream) {
   radsan::expectNotRealtime("fclose");
   return REAL(fclose)(stream);
@@ -246,6 +258,11 @@ INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
   return REAL(aligned_alloc)(alignment, size);
 }
 
+INTERCEPTOR(int, posix_memalign, void **memptr, size_t alignment, size_t size) {
+  radsan::expectNotRealtime("posix_memalign");
+  return REAL(posix_memalign)(memptr, alignment, size);
+}
+
 /*
     Sockets
 */
@@ -299,10 +316,21 @@ INTERCEPTOR(int, shutdown, int socket, int how) {
 
 namespace radsan {
 void initialiseInterceptors() {
+  INTERCEPT_FUNCTION(calloc);
+  INTERCEPT_FUNCTION(free);
+  INTERCEPT_FUNCTION(malloc);
+  INTERCEPT_FUNCTION(realloc);
+  INTERCEPT_FUNCTION(reallocf);
+  INTERCEPT_FUNCTION(valloc);
+  INTERCEPT_FUNCTION(aligned_alloc);
+  INTERCEPT_FUNCTION(posix_memalign);
+
   INTERCEPT_FUNCTION(open);
   INTERCEPT_FUNCTION(openat);
   INTERCEPT_FUNCTION(close);
   INTERCEPT_FUNCTION(fopen);
+  INTERCEPT_FUNCTION(fread);
+  INTERCEPT_FUNCTION(fwrite);
   INTERCEPT_FUNCTION(fclose);
   INTERCEPT_FUNCTION(fcntl);
   INTERCEPT_FUNCTION(creat);
@@ -331,14 +359,6 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(sleep);
   INTERCEPT_FUNCTION(usleep);
   INTERCEPT_FUNCTION(nanosleep);
-
-  INTERCEPT_FUNCTION(calloc);
-  INTERCEPT_FUNCTION(free);
-  INTERCEPT_FUNCTION(malloc);
-  INTERCEPT_FUNCTION(realloc);
-  INTERCEPT_FUNCTION(reallocf);
-  INTERCEPT_FUNCTION(valloc);
-  INTERCEPT_FUNCTION(aligned_alloc);
 
   INTERCEPT_FUNCTION(socket);
   INTERCEPT_FUNCTION(send);

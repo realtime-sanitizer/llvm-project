@@ -154,8 +154,15 @@ TEST(TestRadsan, accessingALargeAtomicVariableDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsan, coutDiesWhenRealtime) {
+TEST(TestRadsan, firstCoutDiesWhenRealtime) {
   auto func = []() { std::cout << "Hello, world!" << std::endl; };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsan, secondCoutDiesWhenRealtime) {
+  std::cout << "Hello, world";
+  auto func = []() { std::cout << "Hello, again!" << std::endl; };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
