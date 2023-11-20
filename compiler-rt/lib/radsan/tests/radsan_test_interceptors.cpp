@@ -66,11 +66,13 @@ TEST(TestRadsanInterceptors, vallocDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+#if (!SANITIZER_APPLE || __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_10_15)
 TEST(TestRadsanInterceptors, alignedAllocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(nullptr, aligned_alloc(16, 32)); };
   expectRealtimeDeath(func, "aligned_alloc");
   expectNonrealtimeSurvival(func);
 }
+#endif
 
 // free_sized and free_aligned_sized (both C23) are not yet supported
 TEST(TestRadsanInterceptors, freeDiesWhenRealtime) {

@@ -20,16 +20,16 @@ template <typename Function>
 }
 
 template <typename Function>
-void expectRealtimeDeath(
-    Function &&func, std::optional<std::string> intercepted_method_name = {}) {
+void expectRealtimeDeath(Function &&func,
+                         std::string intercepted_method_name = {}) {
 
   using namespace testing;
 
   auto expected_error_substr = [&]() -> std::string {
-    return intercepted_method_name.has_value()
+    return !intercepted_method_name.empty()
                ? "Real-time violation: intercepted call to real-time unsafe "
                  "function `" +
-                     intercepted_method_name.value() + "`"
+                     intercepted_method_name + "`"
                : "";
   };
 

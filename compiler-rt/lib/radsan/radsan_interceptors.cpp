@@ -18,6 +18,7 @@
 #endif
 
 #if SANITIZER_APPLE
+#include <Availability.h>
 #include <libkern/OSAtomic.h>
 #include <os/lock.h>
 #endif
@@ -261,10 +262,12 @@ INTERCEPTOR(void *, valloc, SIZE_T size) {
   return REAL(valloc)(size);
 }
 
+#if (!SANITIZER_APPLE || __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_10_15)
 INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
   radsan::expectNotRealtime("aligned_alloc");
   return REAL(aligned_alloc)(alignment, size);
 }
+#endif
 
 INTERCEPTOR(int, posix_memalign, void **memptr, size_t alignment, size_t size) {
   radsan::expectNotRealtime("posix_memalign");

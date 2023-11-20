@@ -41,12 +41,7 @@ if (APPLE)
   list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${WEAK_SYMBOL_LINK_FLAGS})
   list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${DARWIN_osx_LINK_FLAGS})
   list(APPEND RADSAN_UNITTEST_CFLAGS ${DARWIN_osx_CFLAGS})
-  # aligned_alloc is only available in macOS 10.15 and later. This is a temporary
-  # solution that we're running with until we have a full understanding of what
-  # macOS versions we wish to support.
-  list(APPEND RADSAN_UNITTEST_CFLAGS -mmacosx-version-min=10.15)
 else()
-  #append_list_if(COMPILER_RT_HAS_LIBATOMIC -latomic RADSAN_UNITTEST_LINK_FLAGS)
   list(APPEND RADSAN_UNITTEST_LINK_FLAGS -latomic)
 endif()
 

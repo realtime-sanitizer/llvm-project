@@ -98,6 +98,7 @@ TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+#if (!SANITIZER_APPLE || __MAC_OS_X_VERSION_MIN_REQUIRED >= __MAC_10_12)
 TEST(TestRadsan, lockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   auto func = [&]() { mutex.lock(); };
@@ -127,6 +128,7 @@ TEST(TestRadsan, sharedUnlockingASharedMutexDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
+#endif
 
 TEST(TestRadsan, launchingAThreadDiesWhenRealtime) {
   auto func = [&]() {

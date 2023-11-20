@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 extern "C" {
+
 RADSAN_EXPORT void radsan_init() { radsan::initialiseInterceptors(); }
 
 RADSAN_EXPORT void radsan_realtime_enter() {
@@ -29,4 +30,5 @@ RADSAN_EXPORT void radsan_off() {
 RADSAN_EXPORT void radsan_on() {
   radsan::getContextForThisThread().bypassPop();
 }
+
 }
