@@ -1,5 +1,7 @@
 include_directories(..)
 
+message(FATAL_ERROR)
+
 set(RADSAN_CXX_SOURCES
   radsan.cpp
   radsan_context.cpp
@@ -27,7 +29,6 @@ set(RADSAN_LINK_LIBS
   ${COMPILER_RT_CXX_LINK_LIBS})
 
 if(APPLE)
-  list(APPEND RADSAN_CFLAGS -mmacosx-version-min=10.15)
   add_compiler_rt_object_libraries(RTRadsan
     OS ${SANITIZER_COMMON_SUPPORTED_OS}
     ARCHS ${RADSAN_SUPPORTED_ARCH}
