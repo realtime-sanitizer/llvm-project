@@ -1,7 +1,5 @@
 include_directories(..)
 
-message(FATAL_ERROR)
-
 set(RADSAN_CXX_SOURCES
   radsan.cpp
   radsan_context.cpp

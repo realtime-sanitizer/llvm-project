@@ -9,6 +9,7 @@
 #include <radsan/radsan_interceptors.h>
 
 #include <sanitizer_common/sanitizer_platform.h>
+#include <sanitizer_common/sanitizer_platform_interceptors.h>
 
 #include <interception/interception.h>
 #include <radsan/radsan_context.h>
@@ -256,7 +257,7 @@ INTERCEPTOR(void *, reallocf, void *ptr, SIZE_T size) {
   return REAL(reallocf)(ptr, size);
 }
 
-INTERCEPTOR(void *, FAKE!!, SIZE_T size) {
+INTERCEPTOR(void *, valloc, SIZE_T size) {
   radsan::expectNotRealtime("valloc");
   return REAL(valloc)(size);
 }
