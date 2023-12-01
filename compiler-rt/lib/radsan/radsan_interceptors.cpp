@@ -6,12 +6,12 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include <radsan/radsan_interceptors.h>
+#include "radsan/radsan_interceptors.h"
 
-#include <sanitizer_common/sanitizer_platform.h>
+#include "sanitizer_common/sanitizer_platform.h"
 
-#include <interception/interception.h>
-#include <radsan/radsan_context.h>
+#include "interception/interception.h"
+#include "radsan/radsan_context.h"
 
 #if !SANITIZER_LINUX && !SANITIZER_APPLE
 #error Sorry, radsan does not yet support this platform
