@@ -1154,6 +1154,15 @@ def Const : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def Realtime : InheritableAttr {
+  let Spellings = [CXX11<"clang", "realtime">, 
+                   C23<"clang", "realtime">,
+                   GCC<"reealtime">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 def ConstInit : InheritableAttr {
   // This attribute does not have a C [[]] spelling because it requires the
   // CPlusPlus language option.
