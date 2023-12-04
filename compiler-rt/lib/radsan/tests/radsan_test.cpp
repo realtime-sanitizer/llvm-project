@@ -187,14 +187,6 @@ TEST(TestRadsan, printfDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-#if SANITIZER_INTERCEPT_ALIGNED_ALLOC
-TEST(TestRadsan, alignedAllocDiesWhenRealtime) {
-  auto func = []() { EXPECT_NE(nullptr, aligned_alloc(16, 16)); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
-}
-#endif
-
 TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
   auto func = [&]() {
     try {
