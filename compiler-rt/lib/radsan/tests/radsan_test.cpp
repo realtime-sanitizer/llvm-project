@@ -11,6 +11,7 @@
 #include "radsan_test_utilities.h"
 #include <radsan.h>
 #include <sanitizer_common/sanitizer_platform.h>
+#include <sanitizer_common/sanitizer_platform_interceptors.h>
 
 #include <array>
 #include <atomic>
@@ -98,6 +99,9 @@ TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+
+#if SANITIZER_INTERCEPT_SHARED_MUTEX
+
 TEST(TestRadsan, lockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   auto func = [&]() { mutex.lock(); };
@@ -127,6 +131,8 @@ TEST(TestRadsan, sharedUnlockingASharedMutexDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
+
+#endif // SANITIZER_INTERCEPT_SHARED_MUTEX
 
 TEST(TestRadsan, launchingAThreadDiesWhenRealtime) {
   auto func = [&]() {
@@ -180,6 +186,14 @@ TEST(TestRadsan, printfDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
+
+#if SANITIZER_INTERCEPT_ALIGNED_ALLOC
+TEST(TestRadsan, alignedAllocDiesWhenRealtime) {
+  auto func = []() { auto ptr = aligned_alloc(16, 16); };
+  expectRealtimeDeath(func);
+  expectNonrealtimeSurvival(func);
+}
+#endif
 
 TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
   auto func = [&]() {

@@ -9,6 +9,7 @@
 #include "gtest/gtest.h"
 
 #include <sanitizer_common/sanitizer_platform.h>
+#include <sanitizer_common/sanitizer_platform_interceptors.h>
 
 #include "radsan_test_utilities.h"
 
@@ -66,11 +67,13 @@ TEST(TestRadsanInterceptors, vallocDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+#if SANITIZER_INTERCEPT_ALIGNED_ALLOC
 TEST(TestRadsanInterceptors, alignedAllocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(nullptr, aligned_alloc(16, 32)); };
   expectRealtimeDeath(func, "aligned_alloc");
   expectNonrealtimeSurvival(func);
 }
+#endif
 
 // free_sized and free_aligned_sized (both C23) are not yet supported
 TEST(TestRadsanInterceptors, freeDiesWhenRealtime) {
