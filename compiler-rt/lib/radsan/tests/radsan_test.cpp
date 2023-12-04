@@ -189,7 +189,7 @@ TEST(TestRadsan, printfDiesWhenRealtime) {
 
 #if SANITIZER_INTERCEPT_ALIGNED_ALLOC
 TEST(TestRadsan, alignedAllocDiesWhenRealtime) {
-  auto func = []() { auto ptr = aligned_alloc(16, 16); };
+  auto func = []() { EXPECT_NE(nullptr, aligned_alloc(16, 16)); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }

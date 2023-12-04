@@ -9,6 +9,7 @@
 #include "radsan/radsan_interceptors.h"
 
 #include "sanitizer_common/sanitizer_platform.h"
+#include "sanitizer_common/sanitizer_platform_interceptors.h"
 
 #include "interception/interception.h"
 #include "radsan/radsan_context.h"
