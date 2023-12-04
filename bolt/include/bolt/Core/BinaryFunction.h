@@ -192,9 +192,6 @@ public:
   static constexpr uint64_t COUNT_NO_PROFILE =
       BinaryBasicBlock::COUNT_NO_PROFILE;
 
-  /// We have to use at least 2-byte alignment for functions because of C++ ABI.
-  static constexpr unsigned MinAlign = 2;
-
   static const char TimerGroupName[];
   static const char TimerGroupDesc[];
 
@@ -1191,7 +1188,7 @@ public:
 
     if (!Islands->FunctionConstantIslandLabel) {
       Islands->FunctionConstantIslandLabel =
-          BC.Ctx->createNamedTempSymbol("func_const_island");
+          BC.Ctx->getOrCreateSymbol("func_const_island@" + getOneName());
     }
     return Islands->FunctionConstantIslandLabel;
   }
@@ -1201,7 +1198,7 @@ public:
 
     if (!Islands->FunctionColdConstantIslandLabel) {
       Islands->FunctionColdConstantIslandLabel =
-          BC.Ctx->createNamedTempSymbol("func_cold_const_island");
+          BC.Ctx->getOrCreateSymbol("func_cold_const_island@" + getOneName());
     }
     return Islands->FunctionColdConstantIslandLabel;
   }
@@ -1221,7 +1218,7 @@ public:
   }
 
   /// Update output values of the function based on the final \p Layout.
-  void updateOutputValues(const MCAsmLayout &Layout);
+  void updateOutputValues(const BOLTLinker &Linker);
 
   /// Register relocation type \p RelType at a given \p Address in the function
   /// against \p Symbol.
@@ -1720,8 +1717,17 @@ public:
     return *this;
   }
 
-  Align getAlign() const { return Align(Alignment); }
+  uint16_t getMinAlignment() const {
+    // Align data in code BFs minimum to CI alignment
+    if (!size() && hasIslandsInfo())
+      return getConstantIslandAlignment();
+    return BC.MIB->getMinFunctionAlignment();
+  }
+
+  Align getMinAlign() const { return Align(getMinAlignment()); }
+
   uint16_t getAlignment() const { return Alignment; }
+  Align getAlign() const { return Align(getAlignment()); }
 
   BinaryFunction &setMaxAlignmentBytes(uint16_t MaxAlignBytes) {
     MaxAlignmentBytes = MaxAlignBytes;
@@ -1767,7 +1773,7 @@ public:
 
   /// Returns if this function is a parent of \p Other function.
   bool isParentOf(const BinaryFunction &Other) const {
-    return llvm::is_contained(Fragments, &Other);
+    return Fragments.contains(&Other);
   }
 
   /// Return the child fragment form parent function

@@ -152,9 +152,9 @@ public:
       SourceLocation IncludeLoc = SM.getIncludeLoc(SM.getFileID(Loc));
       if (IncludeLoc.isValid()) {
         if (llvm::timeTraceProfilerEnabled()) {
-          const FileEntry *FE = SM.getFileEntryForID(SM.getFileID(Loc));
-          llvm::timeTraceProfilerBegin(
-              "Source", FE != nullptr ? FE->getName() : StringRef("<unknown>"));
+          OptionalFileEntryRef FE = SM.getFileEntryRefForID(SM.getFileID(Loc));
+          llvm::timeTraceProfilerBegin("Source", FE ? FE->getName()
+                                                    : StringRef("<unknown>"));
         }
 
         IncludeStack.push_back(IncludeLoc);
@@ -221,7 +221,6 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       CurScope(nullptr), Ident_super(nullptr) {
   assert(pp.TUKind == TUKind);
   TUScope = nullptr;
-  isConstantEvaluatedOverride = false;
 
   LoadedExternalKnownNamespaces = false;
   for (unsigned I = 0; I != NSAPI::NumNSNumberLiteralMethods; ++I)
@@ -483,7 +482,7 @@ Sema::~Sema() {
 
   // Delete cached satisfactions.
   std::vector<ConstraintSatisfaction *> Satisfactions;
-  Satisfactions.reserve(Satisfactions.size());
+  Satisfactions.reserve(SatisfactionCache.size());
   for (auto &Node : SatisfactionCache)
     Satisfactions.push_back(&Node);
   for (auto *Node : Satisfactions)
@@ -591,7 +590,11 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E) {
 
   if (Kind != CK_NullToPointer && Kind != CK_NullToMemberPointer)
     return;
-  if (E->IgnoreParenImpCasts()->getType()->isNullPtrType())
+
+  const Expr *EStripped = E->IgnoreParenImpCasts();
+  if (EStripped->getType()->isNullPtrType())
+    return;
+  if (isa<GNUNullExpr>(EStripped))
     return;
 
   if (Diags.isIgnored(diag::warn_zero_as_null_pointer_constant,
@@ -613,6 +616,8 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E) {
 
   // If it is a macro from system header, and if the macro name is not "NULL",
   // do not warn.
+  // Note that uses of "NULL" will be ignored above on systems that define it
+  // as __null.
   SourceLocation MaybeMacroLoc = E->getBeginLoc();
   if (Diags.getSuppressSystemWarnings() &&
       SourceMgr.isInSystemMacro(MaybeMacroLoc) &&
@@ -1245,6 +1250,28 @@ void Sema::ActOnEndOfTranslationUnit() {
       }
     }
 
+    // Now we can decide whether the modules we're building need an initializer.
+    if (Module *CurrentModule = getCurrentModule();
+        CurrentModule && CurrentModule->isInterfaceOrPartition()) {
+      auto DoesModNeedInit = [this](Module *M) {
+        if (!getASTContext().getModuleInitializers(M).empty())
+          return true;
+        for (auto [Exported, _] : M->Exports)
+          if (Exported->isNamedModuleInterfaceHasInit())
+            return true;
+        for (Module *I : M->Imports)
+          if (I->isNamedModuleInterfaceHasInit())
+            return true;
+
+        return false;
+      };
+
+      CurrentModule->NamedModuleHasInit =
+          DoesModNeedInit(CurrentModule) ||
+          llvm::any_of(CurrentModule->submodules(),
+                       [&](auto *SubM) { return DoesModNeedInit(SubM); });
+    }
+
     // Warnings emitted in ActOnEndOfTranslationUnit() should be emitted for
     // modules when they are built, not every time they are used.
     emitAndClearUnusedLocalTypedefWarnings();
@@ -1488,18 +1515,6 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() const {
   DeclContext *DC = getFunctionLevelDeclContext();
   if (isa<ObjCMethodDecl>(DC) || isa<FunctionDecl>(DC))
     return cast<NamedDecl>(DC);
-  return nullptr;
-}
-
-Decl *Sema::getCurLocalScopeDecl() {
-  if (const BlockScopeInfo *BSI = getCurBlock())
-    return BSI->TheDecl;
-  if (const LambdaScopeInfo *LSI = getCurLambda())
-    return LSI->CallOperator;
-  if (const CapturedRegionScopeInfo *CSI = getCurCapturedRegion())
-    return CSI->TheCapturedDecl;
-  if (NamedDecl *ND = getCurFunctionOrMethodDecl())
-    return ND;
   return nullptr;
 }
 
@@ -2062,7 +2077,7 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
         targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
     }
 
-    if (Ty->isRVVType())
+    if (TI.hasRISCVVTypes() && Ty->isRVVType())
       checkRVVTypeSupport(Ty, Loc, D);
 
     // Don't allow SVE types in functions without a SVE target.

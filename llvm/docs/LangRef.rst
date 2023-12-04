@@ -309,7 +309,7 @@ added in the future:
     prototype of all callees to exactly match the prototype of the
     function definition. Furthermore the inliner doesn't consider such function
     calls for inlining.
-"``cc 10``" - GHC convention
+"``ghccc``" - GHC convention
     This calling convention has been implemented specifically for use by
     the `Glasgow Haskell Compiler (GHC) <http://www.haskell.org/ghc>`_.
     It passes everything in registers, going to extremes to achieve this
@@ -742,16 +742,16 @@ an optional list of attached :ref:`metadata <metadata>`.
 Variables and aliases can have a
 :ref:`Thread Local Storage Model <tls_model>`.
 
-:ref:`Scalable vectors <t_vector>` cannot be global variables or members of
-arrays because their size is unknown at compile time. They are allowed in
-structs to facilitate intrinsics returning multiple values. Generally, structs
-containing scalable vectors are not considered "sized" and cannot be used in
-loads, stores, allocas, or GEPs. The only exception to this rule is for structs
-that contain scalable vectors of the same type (e.g. ``{<vscale x 2 x i32>,
-<vscale x 2 x i32>}`` contains the same type while ``{<vscale x 2 x i32>,
-<vscale x 2 x i64>}`` doesn't). These kinds of structs (we may call them
-homogeneous scalable vector structs) are considered sized and can be used in
-loads, stores, allocas, but not GEPs.
+Globals cannot be or contain :ref:`Scalable vectors <t_vector>` because their
+size is unknown at compile time. They are allowed in structs to facilitate
+intrinsics returning multiple values. Generally, structs containing scalable
+vectors are not considered "sized" and cannot be used in loads, stores, allocas,
+or GEPs. The only exception to this rule is for structs that contain scalable
+vectors of the same type (e.g. ``{<vscale x 2 x i32>, <vscale x 2 x i32>}``
+contains the same type while ``{<vscale x 2 x i32>, <vscale x 2 x i64>}``
+doesn't). These kinds of structs (we may call them homogeneous scalable vector
+structs) are considered sized and can be used in loads, stores, allocas, but
+not GEPs.
 
 Syntax::
 
@@ -1872,6 +1872,8 @@ example:
     passes make choices that keep the code size of this function as small
     as possible and perform optimizations that may sacrifice runtime
     performance in order to minimize the size of the generated code.
+    This attribute is incompatible with the ``optdebug`` and ``optnone``
+    attributes.
 ``naked``
     This attribute disables prologue / epilogue emission for the
     function. This can have very system-specific consequences.
@@ -2024,6 +2026,12 @@ example:
    Note: Comparing address of a global variable to ``null`` may still
    evaluate to false because of a limitation in querying this attribute inside
    constant expressions.
+``optdebug``
+    This attribute suggests that optimization passes and code generator passes
+    should make choices that try to preserve debug info without significantly
+    degrading runtime performance.
+    This attribute is incompatible with the ``minsize``, ``optsize``, and
+    ``optnone`` attributes.
 ``optforfuzzing``
     This attribute indicates that this function should be optimized
     for maximum fuzzing signal.
@@ -2033,7 +2041,7 @@ example:
     Code generation defaults to the "fast" instruction selector.
     This attribute cannot be used together with the ``alwaysinline``
     attribute; this attribute is also incompatible
-    with the ``minsize`` attribute and the ``optsize`` attribute.
+    with the ``minsize``, ``optsize``, and ``optdebug`` attributes.
 
     This attribute requires the ``noinline`` attribute to be specified on
     the function as well, so the function is never inlined into any caller.
@@ -2044,6 +2052,8 @@ example:
     passes make choices that keep the code size of this function low,
     and otherwise do optimizations specifically to reduce code size as
     long as they do not significantly impact runtime performance.
+    This attribute is incompatible with the ``optdebug`` and ``optnone``
+    attributes.
 ``"patchable-function"``
     This attribute tells the code generator that the code
     generated for this function needs to follow certain conventions that
@@ -2873,7 +2883,8 @@ as follows:
     This specifies the *size* of a pointer and its ``<abi>`` and
     ``<pref>``\erred alignments for address space ``n``. ``<pref>`` is optional
     and defaults to ``<abi>``. The fourth parameter ``<idx>`` is the size of the
-    index that used for address calculation. If not
+    index that used for address calculation, which must be less than or equal
+    to the pointer size. If not
     specified, the default index size is equal to the pointer size. All sizes
     are in bits. The address space, ``n``, is optional, and if not specified,
     denotes the default address space 0. The value of ``n`` must be
@@ -3394,17 +3405,82 @@ Floating-Point Environment
 The default LLVM floating-point environment assumes that traps are disabled and
 status flags are not observable. Therefore, floating-point math operations do
 not have side effects and may be speculated freely. Results assume the
-round-to-nearest rounding mode.
+round-to-nearest rounding mode, and subnormals are assumed to be preserved.
+
+Running LLVM code in an environment where these assumptions are not met can lead
+to undefined behavior. The ``strictfp`` and ``denormal-fp-math`` attributes as
+well as :ref:`Constrained Floating-Point Intrinsics <constrainedfp>` can be used
+to weaken LLVM's assumptions and ensure defined behavior in non-default
+floating-point environments; see their respective documentation for details.
+
+.. _floatnan:
+
+Behavior of Floating-Point NaN values
+-------------------------------------
+
+A floating-point NaN value consists of a sign bit, a quiet/signaling bit, and a
+payload (which makes up the rest of the mantissa except for the quiet/signaling
+bit). LLVM assumes that the quiet/signaling bit being set to ``1`` indicates a
+quiet NaN (QNaN), and a value of ``0`` indicates a signaling NaN (SNaN). In the
+following we will hence just call it the "quiet bit".
+
+The representation bits of a floating-point value do not mutate arbitrarily; in
+particular, if there is no floating-point operation being performed, NaN signs,
+quiet bits, and payloads are preserved.
+
+For the purpose of this section, ``bitcast`` as well as the following operations
+are not "floating-point math operations": ``fneg``, ``llvm.fabs``, and
+``llvm.copysign``. These operations act directly on the underlying bit
+representation and never change anything except possibly for the sign bit.
+
+For floating-point math operations, unless specified otherwise, the following
+rules apply when a NaN value is returned: the result has a non-deterministic
+sign; the quiet bit and payload are non-deterministically chosen from the
+following set of options:
+
+- The quiet bit is set and the payload is all-zero. ("Preferred NaN" case)
+- The quiet bit is set and the payload is copied from any input operand that is
+  a NaN. ("Quieting NaN propagation" case)
+- The quiet bit and payload are copied from any input operand that is a NaN.
+  ("Unchanged NaN propagation" case)
+- The quiet bit is set and the payload is picked from a target-specific set of
+  "extra" possible NaN payloads. The set can depend on the input operand values.
+  This set is empty on x86 and ARM, but can be non-empty on other architectures.
+  (For instance, on wasm, if any input NaN does not have the preferred all-zero
+  payload or any input NaN is an SNaN, then this set contains all possible
+  payloads; otherwise, it is empty. On SPARC, this set consists of the all-one
+  payload.)
+
+In particular, if all input NaNs are quiet (or if there are no input NaNs), then
+the output NaN is definitely quiet. Signaling NaN outputs can only occur if they
+are provided as an input value. For example, "fmul SNaN, 1.0" may be simplified
+to SNaN rather than QNaN. Similarly, if all input NaNs are preferred (or if
+there are no input NaNs) and the target does not have any "extra" NaN payloads,
+then the output NaN is guaranteed to be preferred.
 
 Floating-point math operations are allowed to treat all NaNs as if they were
-quiet NaNs. For example, "pow(1.0, SNaN)" may be simplified to 1.0. This also
-means that SNaN may be passed through a math operation without quieting. For
-example, "fmul SNaN, 1.0" may be simplified to SNaN rather than QNaN. However,
-SNaN values are never created by math operations. They may only occur when
-provided as a program input value.
+quiet NaNs. For example, "pow(1.0, SNaN)" may be simplified to 1.0.
 
 Code that requires different behavior than this should use the
 :ref:`Constrained Floating-Point Intrinsics <constrainedfp>`.
+In particular, constrained intrinsics rule out the "Unchanged NaN propagation"
+case; they are guaranteed to return a QNaN.
+
+Unfortunately, due to hard-or-impossible-to-fix issues, LLVM violates its own
+specification on some architectures:
+
+- x86-32 without SSE2 enabled may convert floating-point values to x86_fp80 and
+  back when performing floating-point math operations; this can lead to results
+  with different precision than expected and it can alter NaN values. Since
+  optimizations can make contradicting assumptions, this can lead to arbitrary
+  miscompilations. See `issue #44218
+  <https://github.com/llvm/llvm-project/issues/44218>`_.
+- x86-32 (even with SSE2 enabled) may implicitly perform such a conversion on
+  values returned from a function for some calling conventions. See `issue
+  #66803 <https://github.com/llvm/llvm-project/issues/66803>`_.
+- Older MIPS versions use the opposite polarity for the quiet/signaling bit, and
+  LLVM does not correctly represent this. See `issue #60796
+  <https://github.com/llvm/llvm-project/issues/60796>`_.
 
 .. _fastmath:
 
@@ -3823,7 +3899,7 @@ integer to memory.
 
 A bitcast from a vector type to a scalar integer type will see the elements
 being packed together (without padding). The order in which elements are
-inserted in the integer depends on endianess. For little endian element zero
+inserted in the integer depends on endianness. For little endian element zero
 is put in the least significant bits of the integer, and for big endian
 element zero is put in the most significant bits.
 
@@ -5217,7 +5293,6 @@ X86:
 - ``O``: An immediate integer between 0 and 127.
 - ``e``: An immediate 32-bit signed integer.
 - ``Z``: An immediate 32-bit unsigned integer.
-- ``o``, ``v``: Treated the same as ``m``, at the moment.
 - ``q``: An 8, 16, 32, or 64-bit register which can be accessed as an 8-bit
   ``l`` integer register. On X86-32, this is the ``a``, ``b``, ``c``, and ``d``
   registers, and on X86-64, it is all of the integer registers.
@@ -5228,10 +5303,13 @@ X86:
   existed since i386, and can be accessed without the REX prefix.
 - ``f``: A 32, 64, or 80-bit '387 FPU stack pseudo-register.
 - ``y``: A 64-bit MMX register, if MMX is enabled.
-- ``x``: If SSE is enabled: a 32 or 64-bit scalar operand, or 128-bit vector
+- ``v``: If SSE is enabled: a 32 or 64-bit scalar operand, or 128-bit vector
   operand in a SSE register. If AVX is also enabled, can also be a 256-bit
   vector operand in an AVX register. If AVX-512 is also enabled, can also be a
-  512-bit vector operand in an AVX512 register, Otherwise, an error.
+  512-bit vector operand in an AVX512 register. Otherwise, an error.
+- ``x``: The same as ``v``, except that when AVX-512 is enabled, the ``x`` code
+  only allocates into the first 16 AVX-512 registers, while the ``v`` code
+  allocates into any of the 32 AVX-512 registers.
 - ``Y``: The same as ``x``, if *SSE2* is enabled, otherwise an error.
 - ``A``: Special case: allocates EAX first, then EDX, for a single operand (in
   32-bit mode, a 64-bit integer operand will get split into two registers). It
@@ -7159,7 +7237,7 @@ It is illegal for the list node to be empty since it might be confused
 with an access group.
 
 The access group metadata node must be 'distinct' to avoid collapsing
-multiple access groups by content. A access group metadata node must
+multiple access groups by content. An access group metadata node must
 always be empty which can be used to distinguish an access group
 metadata node from a list of access groups. Being empty avoids the
 situation that the content must be updated which, because metadata is
@@ -7822,12 +7900,19 @@ enum is the smallest type which can represent all of its values::
     !0 = !{i32 1, !"short_wchar", i32 1}
     !1 = !{i32 1, !"short_enum", i32 0}
 
-LTO Post-Link Module Flags Metadata
------------------------------------
+Stack Alignment Metadata
+------------------------
 
-Some optimisations are only when the entire LTO unit is present in the current
-module. This is represented by the ``LTOPostLink`` module flags metadata, which
-will be created with a value of ``1`` when LTO linking occurs.
+Changes the default stack alignment from the target ABI's implicit default
+stack alignment. Takes an i32 value in bytes. It is considered an error to link
+two modules together with different values for this metadata.
+
+For example:
+
+    !llvm.module.flags = !{!0}
+    !0 = !{i32 1, !"override-stack-alignment", i32 8}
+
+This will change the stack alignment to 8B.
 
 Embedded Objects Names Metadata
 ===============================
@@ -9078,6 +9163,9 @@ Semantics:
 """"""""""
 
 The value produced is a copy of the operand with its sign bit flipped.
+The value is otherwise completely identical; in particular, if the input is a
+NaN, then the quiet/signaling bit and payload are perfectly preserved.
+
 This instruction can also take any number of :ref:`fast-math
 flags <fastmath>`, which are optimization hints to enable otherwise
 unsafe floating-point optimizations:
@@ -10943,20 +11031,40 @@ for the given testcase is equivalent to:
       ret ptr %t5
     }
 
+The indices are first converted to offsets in the pointer's index type. If the
+currently indexed type is a struct type, the struct offset corresponding to the
+index is sign-extended or truncated to the pointer index type. Otherwise, the
+index itself is sign-extended or truncated, and then multiplied by the type
+allocation size (that is, the size rounded up to the ABI alignment) of the
+currently indexed type.
+
+The offsets are then added to the low bits of the base address up to the index
+type width, with silently-wrapping two's complement arithmetic. If the pointer
+size is larger than the index size, this means that the bits outside the index
+type width will not be affected.
+
+The result value of the ``getelementptr`` may be outside the object pointed
+to by the base pointer. The result value may not necessarily be used to access
+memory though, even if it happens to point into allocated storage. See the
+:ref:`Pointer Aliasing Rules <pointeraliasing>` section for more
+information.
+
 If the ``inbounds`` keyword is present, the result value of a
 ``getelementptr`` with any non-zero indices is a
 :ref:`poison value <poisonvalues>` if one of the following rules is violated:
 
 *  The base pointer has an *in bounds* address of an allocated object, which
-   means that it points into an allocated object, or to its end.
+   means that it points into an allocated object, or to its end. Note that the
+   object does not have to be live anymore; being in-bounds of a deallocated
+   object is sufficient.
 *  If the type of an index is larger than the pointer index type, the
    truncation to the pointer index type preserves the signed value.
 *  The multiplication of an index by the type size does not wrap the pointer
    index type in a signed sense (``nsw``).
-*  The successive addition of offsets (without adding the base address) does
+*  The successive addition of each offset (without adding the base address) does
    not wrap the pointer index type in a signed sense (``nsw``).
 *  The successive addition of the current address, interpreted as an unsigned
-   number, and an offset, interpreted as a signed number, does not wrap the
+   number, and each offset, interpreted as a signed number, does not wrap the
    unsigned address space and remains *in bounds* of the allocated object.
    As a corollary, if the added offset is non-negative, the addition does not
    wrap in an unsigned sense (``nuw``).
@@ -10971,16 +11079,6 @@ address space is the null pointer itself.
 These rules are based on the assumption that no allocated object may cross
 the unsigned address space boundary, and no allocated object may be larger
 than half the pointer index type space.
-
-If the ``inbounds`` keyword is not present, the offsets are added to the
-base address with silently-wrapping two's complement arithmetic. If the
-offsets have a different width from the pointer's index type, they are
-sign-extended or truncated to the width of the pointer's index type. The result
-value of the ``getelementptr`` may be outside the object pointed to by the base
-pointer. The result value may not necessarily be used to access memory
-though, even if it happens to point into allocated storage. See the
-:ref:`Pointer Aliasing Rules <pointeraliasing>` section for more
-information.
 
 If the ``inrange`` keyword is present before any index, loading from or
 storing to any pointer derived from the ``getelementptr`` has undefined
@@ -11131,6 +11229,10 @@ Overview:
 
 The '``zext``' instruction zero extends its operand to type ``ty2``.
 
+The ``nneg`` (non-negative) flag, if present, specifies that the operand is
+non-negative. This property may be used by optimization passes to later
+convert the ``zext`` into a ``sext``.
+
 Arguments:
 """"""""""
 
@@ -11147,6 +11249,9 @@ until it reaches the size of the destination type, ``ty2``.
 
 When zero extending from i1, the result will always be either 0 or 1.
 
+If the ``nneg`` flag is set, and the ``zext`` argument is negative, the result
+is a poison value.
+
 Example:
 """"""""
 
@@ -11155,6 +11260,9 @@ Example:
       %X = zext i32 257 to i64              ; yields i64:257
       %Y = zext i1 true to i32              ; yields i32:1
       %Z = zext <2 x i16> <i16 8, i16 7> to <2 x i32> ; yields <i32 8, i32 7>
+
+      %a = zext nneg i8 127 to i16 ; yields i16 127
+      %b = zext nneg i8 -1 to i16  ; yields i16 poison
 
 .. _i_sext:
 
@@ -11231,6 +11339,14 @@ The '``fptrunc``' instruction casts a ``value`` from a larger
 This instruction is assumed to execute in the default :ref:`floating-point
 environment <floatenv>`.
 
+NaN values follow the usual :ref:`NaN behaviors <floatnan>`, except that _if_ a
+NaN payload is propagated from the input ("Quieting NaN propagation" or
+"Unchanged NaN propagation" cases), then the low order bits of the NaN payload
+which cannot fit in the resulting type are discarded. Note that if discarding
+the low order bits leads to an all-0 payload, this cannot be represented as a
+signaling NaN (it would represent an infinity instead), so in that case
+"Unchanged NaN propagation" is not possible.
+
 Example:
 """"""""
 
@@ -11270,6 +11386,11 @@ The '``fpext``' instruction extends the ``value`` from a smaller
 <t_floating>` type. The ``fpext`` cannot be used to make a
 *no-op cast* because it always changes bits. Use ``bitcast`` to make a
 *no-op cast* for a floating-point cast.
+
+NaN values follow the usual :ref:`NaN behaviors <floatnan>`, except that _if_ a
+NaN payload is propagated from the input ("Quieting NaN propagation" or
+"Unchanged NaN propagation" cases), then it is copied to the high order bits of
+the resulting payload, and the remaining low order bits are zero.
 
 Example:
 """"""""
@@ -11590,7 +11711,7 @@ To convert pointers to other types, use the :ref:`inttoptr <i_inttoptr>`
 or :ref:`ptrtoint <i_ptrtoint>` instructions first.
 
 There is a caveat for bitcasts involving vector types in relation to
-endianess. For example ``bitcast <2 x i8> <value> to i16`` puts element zero
+endianness. For example ``bitcast <2 x i8> <value> to i16`` puts element zero
 of the vector in the least significant bits of the i16 for little-endian while
 element zero ends up in the most significant bits for big-endian.
 
@@ -11599,9 +11720,9 @@ Example:
 
 .. code-block:: text
 
-      %X = bitcast i8 255 to i8          ; yields i8 :-1
-      %Y = bitcast i32* %x to i16*       ; yields i16*:%x
-      %Z = bitcast <2 x i32> %V to i64;  ; yields i64: %V (depends on endianess)
+      %X = bitcast i8 255 to i8         ; yields i8 :-1
+      %Y = bitcast i32* %x to i16*      ; yields i16*:%x
+      %Z = bitcast <2 x i32> %V to i64; ; yields i64: %V (depends on endianness)
       %Z = bitcast <2 x i32*> %V to <2 x i64*> ; yields <2 x i64*>
 
 .. _i_addrspacecast:
@@ -14748,6 +14869,47 @@ trapping or setting ``errno``.
 When specified with the fast-math-flag 'afn', the result may be approximated
 using a less accurate calculation.
 
+.. _int_exp10:
+
+'``llvm.exp10.*``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.exp10`` on any
+floating-point or vector of floating-point type. Not all targets support
+all types however.
+
+::
+
+      declare float     @llvm.exp10.f32(float  %Val)
+      declare double    @llvm.exp10.f64(double %Val)
+      declare x86_fp80  @llvm.exp10.f80(x86_fp80  %Val)
+      declare fp128     @llvm.exp10.f128(fp128 %Val)
+      declare ppc_fp128 @llvm.exp10.ppcf128(ppc_fp128  %Val)
+
+Overview:
+"""""""""
+
+The '``llvm.exp10.*``' intrinsics compute the base-10 exponential of the
+specified value.
+
+Arguments:
+""""""""""
+
+The argument and return value are floating-point numbers of the same type.
+
+Semantics:
+""""""""""
+
+Return the same value as a corresponding libm '``exp10``' function but without
+trapping or setting ``errno``.
+
+When specified with the fast-math-flag 'afn', the result may be approximated
+using a less accurate calculation.
+
+
 '``llvm.ldexp.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -15042,6 +15204,9 @@ Semantics:
 
 This function returns the same values as the libm ``fabs`` functions
 would, and handles error conditions in the same way.
+The returned value is completely identical to the input except for the sign bit;
+in particular, if the input is a NaN, then the quiet/signaling bit and payload
+are perfectly preserved.
 
 .. _i_minnum:
 
@@ -15257,6 +15422,9 @@ Semantics:
 
 This function returns the same values as the libm ``copysign``
 functions would, and handles error conditions in the same way.
+The returned value is completely identical to the first operand except for the
+sign bit; in particular, if the input is a NaN, then the quiet/signaling bit and
+payload are perfectly preserved.
 
 .. _int_floor:
 
@@ -15614,7 +15782,8 @@ Syntax:
 """""""
 
 This is an overloaded intrinsic. You can use ``llvm.lrint`` on any
-floating-point type. Not all targets support all types however.
+floating-point type or vector of floating-point type. Not all targets
+support all types however.
 
 ::
 
@@ -15658,7 +15827,8 @@ Syntax:
 """""""
 
 This is an overloaded intrinsic. You can use ``llvm.llrint`` on any
-floating-point type. Not all targets support all types however.
+floating-point type or vector of floating-point type. Not all targets
+support all types however.
 
 ::
 
@@ -18223,8 +18393,8 @@ For example:
 
 .. code-block:: text
 
- llvm.experimental.vector.splice(<A,B,C,D>, <E,F,G,H>, 1)  ==> <B, C, D, E> ; index
- llvm.experimental.vector.splice(<A,B,C,D>, <E,F,G,H>, -3) ==> <B, C, D, E> ; trailing elements
+ llvm.experimental.vector.splice(<A,B,C,D>, <E,F,G,H>, 1);  ==> <B, C, D, E> index
+ llvm.experimental.vector.splice(<A,B,C,D>, <E,F,G,H>, -3); ==> <B, C, D, E> trailing elements
 
 
 Arguments:
@@ -21383,8 +21553,8 @@ Examples:
 
 .. code-block:: text
 
- llvm.experimental.vp.splice(<A,B,C,D>, <E,F,G,H>, 1, 2, 3)  ==> <B, E, F, poison> ; index
- llvm.experimental.vp.splice(<A,B,C,D>, <E,F,G,H>, -2, 3, 2) ==> <B, C, poison, poison> ; trailing elements
+ llvm.experimental.vp.splice(<A,B,C,D>, <E,F,G,H>, 1, 2, 3);  ==> <B, E, F, poison> index
+ llvm.experimental.vp.splice(<A,B,C,D>, <E,F,G,H>, -2, 3, 2); ==> <B, C, poison, poison> trailing elements
 
 
 .. _int_vp_load:
@@ -23112,6 +23282,46 @@ Examples:
       %t = call <4 x i32> @llvm.fshr.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c)
       %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
 
+'``llvm.vp.is.fpclass.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <vscale x 2 x i1> @llvm.vp.is.fpclass.nxv2f32(<vscale x 2 x float> <op>, i32 <test>, <vscale x 2 x i1> <mask>, i32 <vector_length>)
+      declare <2 x i1> @llvm.vp.is.fpclass.v2f16(<2 x half> <op>, i32 <test>, <2 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated llvm.is.fpclass :ref:`llvm.is.fpclass <llvm.is.fpclass>`
+
+Arguments:
+""""""""""
+
+The first operand is a floating-point vector, the result type is a vector of
+boolean with the same number of elements as the first argument.  The second
+operand specifies, which tests to perform :ref:`llvm.is.fpclass <llvm.is.fpclass>`.
+The third operand is the vector mask and has the same number of elements as the
+result vector type. The fourth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.is.fpclass``' intrinsic performs llvm.is.fpclass (:ref:`llvm.is.fpclass <llvm.is.fpclass>`).
+
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <2 x i1> @llvm.vp.is.fpclass.v2f16(<2 x half> %x, i32 3, <2 x i1> %m, i32 %evl)
+      %t = call <vscale x 2 x i1> @llvm.vp.is.fpclass.nxv2f16(<vscale x 2 x half> %x, i32 3, <vscale x 2 x i1> %m, i32 %evl)
 
 .. _int_mload_mstore:
 
@@ -25431,6 +25641,8 @@ These functions read or write floating point environment, such as rounding
 mode or state of floating point exceptions. Altering the floating point
 environment requires special care. See :ref:`Floating Point Environment <floatenv>`.
 
+.. _int_get_rounding:
+
 '``llvm.get.rounding``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -25567,6 +25779,102 @@ Semantics:
 The '``llvm.reset.fpenv``' intrinsic sets the current floating-point environment
 to default state. It is similar to the call 'fesetenv(FE_DFL_ENV)', except it
 does not return any value.
+
+.. _int_get_fpmode:
+
+'``llvm.get.fpmode``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+The '``llvm.get.fpmode``' intrinsic returns bits of the current floating-point
+control modes. The return value type is platform-specific.
+
+::
+
+      declare <integer_type> @llvm.get.fpmode()
+
+Overview:
+"""""""""
+
+The '``llvm.get.fpmode``' intrinsic reads the current dynamic floating-point
+control modes and returns it as an integer value.
+
+Arguments:
+""""""""""
+
+None.
+
+Semantics:
+""""""""""
+
+The '``llvm.get.fpmode``' intrinsic reads the current dynamic floating-point
+control modes, such as rounding direction, precision, treatment of denormals and
+so on. It is similar to the C library function 'fegetmode', however this
+function does not store the set of control modes into memory but returns it as
+an integer value. Interpretation of the bits in this value is target-dependent.
+
+'``llvm.set.fpmode``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+The '``llvm.set.fpmode``' intrinsic sets the current floating-point control modes.
+
+::
+
+      declare void @llvm.set.fpmode(<integer_type> <val>)
+
+Overview:
+"""""""""
+
+The '``llvm.set.fpmode``' intrinsic sets the current dynamic floating-point
+control modes.
+
+Arguments:
+""""""""""
+
+The argument is a set of floating-point control modes, represented as an integer
+value in a target-dependent way.
+
+Semantics:
+""""""""""
+
+The '``llvm.set.fpmode``' intrinsic sets the current dynamic floating-point
+control modes to the state specified by the argument, which must be obtained by
+a call to '``llvm.get.fpmode``' or constructed in a target-specific way. It is
+similar to the C library function 'fesetmode', however this function does not
+read the set of control modes from memory but gets it as integer value.
+
+'``llvm.reset.fpmode``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare void @llvm.reset.fpmode()
+
+Overview:
+"""""""""
+
+The '``llvm.reset.fpmode``' intrinsic sets the default dynamic floating-point
+control modes.
+
+Arguments:
+""""""""""
+
+None.
+
+Semantics:
+""""""""""
+
+The '``llvm.reset.fpmode``' intrinsic sets the current dynamic floating-point
+environment to default state. It is similar to the C library function call
+'fesetmode(FE_DFL_MODE)', however this function does not return any value.
 
 
 Floating-Point Test Intrinsics
@@ -26677,7 +26985,9 @@ Syntax:
 Arguments:
 """"""""""
 
-The first argument is a pointer. The second argument is an integer.
+The first argument is a pointer or vector of pointers. The second argument is
+an integer or vector of integers with the same bit width as the index type
+size of the first argument.
 
 Overview:
 """"""""""
@@ -26690,13 +27000,24 @@ to facilitate alias analysis and underlying-object detection.
 Semantics:
 """"""""""
 
-The result of ``ptrmask(ptr, mask)`` is equivalent to
-``getelementptr ptr, (ptrtoint(ptr) & mask) - ptrtoint(ptr)``. Both the returned
-pointer and the first argument are based on the same underlying object (for more
-information on the *based on* terminology see
-:ref:`the pointer aliasing rules <pointeraliasing>`). If the bitwidth of the
-mask argument does not match the pointer size of the target, the mask is
-zero-extended or truncated accordingly.
+The result of ``ptrmask(%ptr, %mask)`` is equivalent to the following expansion,
+where ``iPtrIdx`` is the index type size of the pointer::
+
+    %intptr = ptrtoint ptr %ptr to iPtrIdx ; this may truncate
+    %masked = and iPtrIdx %intptr, %mask
+    %diff = sub iPtrIdx %masked, %intptr
+    %result = getelementptr i8, ptr %ptr, iPtrIdx %diff
+
+If the pointer index type size is smaller than the pointer type size, this
+implies that pointer bits beyond the index size are not affected by this
+intrinsic. For integral pointers, it behaves as if the mask were extended with
+1 bits to the pointer type size.
+
+Both the returned pointer(s) and the first argument are based on the same
+underlying object (for more information on the *based on* terminology see
+:ref:`the pointer aliasing rules <pointeraliasing>`).
+
+The intrinsic only captures the pointer argument through the return value.
 
 .. _int_threadlocal_address:
 

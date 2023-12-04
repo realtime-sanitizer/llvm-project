@@ -32,7 +32,7 @@ namespace radsan {
 Context::Context() : Context(createErrorActionGetter()) {}
 
 Context::Context(std::function<OnErrorAction()> get_error_action)
-    : get_error_action_(std::move(get_error_action)) {}
+    : get_error_action_(get_error_action) {}
 
 void Context::realtimePush() { realtime_depth_++; }
 
@@ -74,7 +74,7 @@ Context &getContextForThisThread() {
   auto *ptr = static_cast<Context *>(pthread_getspecific(detail::key));
   if (ptr == nullptr) {
     ptr = static_cast<Context *>(InternalAlloc(sizeof(Context)));
-    *ptr = Context{};
+    new(ptr) Context();
     pthread_setspecific(detail::key, ptr);
   }
 

@@ -1153,7 +1153,14 @@ extern void __kmp_init_target_task();
 #if defined(PTHREAD_THREADS_MAX) && PTHREAD_THREADS_MAX < INT_MAX
 #define KMP_MAX_NTH PTHREAD_THREADS_MAX
 #else
+#ifdef __ve__
+// VE's pthread supports only up to 64 threads per a VE process.
+// Please check p. 14 of following documentation for more details.
+// https://sxauroratsubasa.sakura.ne.jp/documents/veos/en/VEOS_high_level_design.pdf
+#define KMP_MAX_NTH 64
+#else
 #define KMP_MAX_NTH INT_MAX
+#endif
 #endif
 #endif /* KMP_MAX_NTH */
 
@@ -1170,6 +1177,10 @@ extern void __kmp_init_target_task();
 #elif KMP_ARCH_X86_64
 #define KMP_DEFAULT_STKSIZE ((size_t)(4 * 1024 * 1024))
 #define KMP_BACKUP_STKSIZE ((size_t)(2 * 1024 * 1024))
+#elif KMP_ARCH_VE
+// Minimum stack size for pthread for VE is 4MB.
+//   https://www.hpc.nec/documents/veos/en/glibc/Difference_Points_glibc.htm
+#define KMP_DEFAULT_STKSIZE ((size_t)(4 * 1024 * 1024))
 #else
 #define KMP_DEFAULT_STKSIZE ((size_t)(1024 * 1024))
 #endif
@@ -2111,6 +2122,7 @@ typedef struct kmp_internal_control {
   int nproc; /* internal control for #threads for next parallel region (per
                 thread) */
   int thread_limit; /* internal control for thread-limit-var */
+  int task_thread_limit; /* internal control for thread-limit-var of a task*/
   int max_active_levels; /* internal control for max_active_levels */
   kmp_r_sched_t
       sched; /* internal control for runtime schedule {sched,chunk} pair */
@@ -2444,12 +2456,22 @@ typedef struct kmp_depend_info {
   union {
     kmp_uint8 flag; // flag as an unsigned char
     struct { // flag as a set of 8 bits
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      /* Same fields as in the #else branch, but in reverse order */
+      unsigned all : 1;
+      unsigned unused : 3;
+      unsigned set : 1;
+      unsigned mtx : 1;
+      unsigned out : 1;
+      unsigned in : 1;
+#else
       unsigned in : 1;
       unsigned out : 1;
       unsigned mtx : 1;
       unsigned set : 1;
       unsigned unused : 3;
       unsigned all : 1;
+#endif
     } flags;
   };
 } kmp_depend_info_t;
@@ -2599,6 +2621,33 @@ typedef struct kmp_task_stack {
 #endif // BUILD_TIED_TASK_STACK
 
 typedef struct kmp_tasking_flags { /* Total struct must be exactly 32 bits */
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  /* Same fields as in the #else branch, but in reverse order */
+#if OMPX_TASKGRAPH
+  unsigned reserved31 : 6;
+  unsigned onced : 1;
+#else
+  unsigned reserved31 : 7;
+#endif
+  unsigned native : 1;
+  unsigned freed : 1;
+  unsigned complete : 1;
+  unsigned executing : 1;
+  unsigned started : 1;
+  unsigned team_serial : 1;
+  unsigned tasking_ser : 1;
+  unsigned task_serial : 1;
+  unsigned tasktype : 1;
+  unsigned reserved : 8;
+  unsigned hidden_helper : 1;
+  unsigned detachable : 1;
+  unsigned priority_specified : 1;
+  unsigned proxy : 1;
+  unsigned destructors_thunk : 1;
+  unsigned merged_if0 : 1;
+  unsigned final : 1;
+  unsigned tiedness : 1;
+#else
   /* Compiler flags */ /* Total compiler flags must be 16 bits */
   unsigned tiedness : 1; /* task is either tied (1) or untied (0) */
   unsigned final : 1; /* task is final(1) so execute immediately */
@@ -2634,7 +2683,7 @@ typedef struct kmp_tasking_flags { /* Total struct must be exactly 32 bits */
 #else
   unsigned reserved31 : 7; /* reserved for library use */
 #endif
-
+#endif
 } kmp_tasking_flags_t;
 
 typedef struct kmp_target_data {
@@ -3340,6 +3389,7 @@ extern int __kmp_sys_max_nth; /* system-imposed maximum number of threads */
 extern int __kmp_max_nth;
 // maximum total number of concurrently-existing threads in a contention group
 extern int __kmp_cg_max_nth;
+extern int __kmp_task_max_nth; // max threads used in a task
 extern int __kmp_teams_max_nth; // max threads used in a teams construct
 extern int __kmp_threads_capacity; /* capacity of the arrays __kmp_threads and
                                       __kmp_root */
@@ -3614,6 +3664,9 @@ extern void __kmp_warn(char const *format, ...);
 
 extern void __kmp_set_num_threads(int new_nth, int gtid);
 
+extern bool __kmp_detect_shm();
+extern bool __kmp_detect_tmp();
+
 // Returns current thread (pointer to kmp_info_t). Current thread *must* be
 // registered.
 static inline kmp_info_t *__kmp_entry_thread() {
@@ -3795,7 +3848,8 @@ extern void __kmp_affinity_initialize(kmp_affinity_t &affinity);
 extern void __kmp_affinity_uninitialize(void);
 extern void __kmp_affinity_set_init_mask(
     int gtid, int isa_root); /* set affinity according to KMP_AFFINITY */
-extern void __kmp_affinity_set_place(int gtid);
+void __kmp_affinity_bind_init_mask(int gtid);
+extern void __kmp_affinity_bind_place(int gtid);
 extern void __kmp_affinity_determine_capable(const char *env_var);
 extern int __kmp_aux_set_affinity(void **mask);
 extern int __kmp_aux_get_affinity(void **mask);
@@ -3811,7 +3865,8 @@ static inline void __kmp_assign_root_init_mask() {
   int gtid = __kmp_entry_gtid();
   kmp_root_t *r = __kmp_threads[gtid]->th.th_root;
   if (r->r.r_uber_thread == __kmp_threads[gtid] && !r->r.r_affinity_assigned) {
-    __kmp_affinity_set_init_mask(gtid, TRUE);
+    __kmp_affinity_set_init_mask(gtid, /*isa_root=*/TRUE);
+    __kmp_affinity_bind_init_mask(gtid);
     r->r.r_affinity_assigned = TRUE;
   }
 }
@@ -4295,6 +4350,8 @@ KMP_EXPORT void __kmpc_push_proc_bind(ident_t *loc, kmp_int32 global_tid,
 KMP_EXPORT void __kmpc_push_num_teams(ident_t *loc, kmp_int32 global_tid,
                                       kmp_int32 num_teams,
                                       kmp_int32 num_threads);
+KMP_EXPORT void __kmpc_set_thread_limit(ident_t *loc, kmp_int32 global_tid,
+                                        kmp_int32 thread_limit);
 /* Function for OpenMP 5.1 num_teams clause */
 KMP_EXPORT void __kmpc_push_num_teams_51(ident_t *loc, kmp_int32 global_tid,
                                          kmp_int32 num_teams_lb,

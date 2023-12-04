@@ -47,20 +47,14 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     : TargetLowering(TM), Subtarget(STI) {
 
   MVT GRLenVT = Subtarget.getGRLenVT();
+
   // Set up the register classes.
+
   addRegisterClass(GRLenVT, &LoongArch::GPRRegClass);
   if (Subtarget.hasBasicF())
     addRegisterClass(MVT::f32, &LoongArch::FPR32RegClass);
   if (Subtarget.hasBasicD())
     addRegisterClass(MVT::f64, &LoongArch::FPR64RegClass);
-  if (Subtarget.hasExtLSX())
-    for (auto VT : {MVT::v4f32, MVT::v2f64, MVT::v16i8, MVT::v8i16, MVT::v4i32,
-                    MVT::v2i64})
-      addRegisterClass(VT, &LoongArch::LSX128RegClass);
-  if (Subtarget.hasExtLASX())
-    for (auto VT : {MVT::v8f32, MVT::v4f64, MVT::v32i8, MVT::v16i16, MVT::v8i32,
-                    MVT::v4i64})
-      addRegisterClass(VT, &LoongArch::LASX256RegClass);
 
   static const MVT::SimpleValueType LSXVTs[] = {
       MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v2i64, MVT::v4f32, MVT::v2f64};
@@ -75,37 +69,56 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     for (MVT VT : LASXVTs)
       addRegisterClass(VT, &LoongArch::LASX256RegClass);
 
+  // Set operations for LA32 and LA64.
+
   setLoadExtAction({ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD}, GRLenVT,
                    MVT::i1, Promote);
 
-  // TODO: add necessary setOperationAction calls later.
   setOperationAction(ISD::SHL_PARTS, GRLenVT, Custom);
   setOperationAction(ISD::SRA_PARTS, GRLenVT, Custom);
   setOperationAction(ISD::SRL_PARTS, GRLenVT, Custom);
   setOperationAction(ISD::FP_TO_SINT, GRLenVT, Custom);
   setOperationAction(ISD::ROTL, GRLenVT, Expand);
   setOperationAction(ISD::CTPOP, GRLenVT, Expand);
-  setOperationAction(ISD::DEBUGTRAP, MVT::Other, Legal);
-  setOperationAction(ISD::TRAP, MVT::Other, Legal);
-  setOperationAction(ISD::INTRINSIC_VOID, MVT::Other, Custom);
-  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
 
   setOperationAction({ISD::GlobalAddress, ISD::BlockAddress, ISD::ConstantPool,
-                      ISD::JumpTable},
+                      ISD::JumpTable, ISD::GlobalTLSAddress},
                      GRLenVT, Custom);
 
-  setOperationAction(ISD::GlobalTLSAddress, GRLenVT, Custom);
-
-  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
-
-  setOperationAction(ISD::EH_DWARF_CFA, MVT::i32, Custom);
-  if (Subtarget.is64Bit())
-    setOperationAction(ISD::EH_DWARF_CFA, MVT::i64, Custom);
+  setOperationAction(ISD::EH_DWARF_CFA, GRLenVT, Custom);
 
   setOperationAction(ISD::DYNAMIC_STACKALLOC, GRLenVT, Expand);
   setOperationAction({ISD::STACKSAVE, ISD::STACKRESTORE}, MVT::Other, Expand);
   setOperationAction(ISD::VASTART, MVT::Other, Custom);
   setOperationAction({ISD::VAARG, ISD::VACOPY, ISD::VAEND}, MVT::Other, Expand);
+
+  setOperationAction(ISD::DEBUGTRAP, MVT::Other, Legal);
+  setOperationAction(ISD::TRAP, MVT::Other, Legal);
+
+  setOperationAction(ISD::INTRINSIC_VOID, MVT::Other, Custom);
+  setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
+
+  // Expand bitreverse.i16 with native-width bitrev and shift for now, before
+  // we get to know which of sll and revb.2h is faster.
+  setOperationAction(ISD::BITREVERSE, MVT::i8, Custom);
+  setOperationAction(ISD::BITREVERSE, GRLenVT, Legal);
+
+  // LA32 does not have REVB.2W and REVB.D due to the 64-bit operands, and
+  // the narrower REVB.W does not exist. But LA32 does have REVB.2H, so i16
+  // and i32 could still be byte-swapped relatively cheaply.
+  setOperationAction(ISD::BSWAP, MVT::i16, Custom);
+
+  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
+  setOperationAction(ISD::BR_CC, GRLenVT, Expand);
+  setOperationAction(ISD::SELECT_CC, GRLenVT, Expand);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
+  setOperationAction({ISD::SMUL_LOHI, ISD::UMUL_LOHI}, GRLenVT, Expand);
+
+  setOperationAction(ISD::FP_TO_UINT, GRLenVT, Custom);
+  setOperationAction(ISD::UINT_TO_FP, GRLenVT, Expand);
+
+  // Set operations for LA64 only.
 
   if (Subtarget.is64Bit()) {
     setOperationAction(ISD::SHL, MVT::i32, Custom);
@@ -117,50 +130,41 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::ROTL, MVT::i32, Custom);
     setOperationAction(ISD::CTTZ, MVT::i32, Custom);
     setOperationAction(ISD::CTLZ, MVT::i32, Custom);
-    setOperationAction(ISD::INTRINSIC_VOID, MVT::i32, Custom);
-    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i32, Custom);
-    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
+    setOperationAction(ISD::EH_DWARF_CFA, MVT::i32, Custom);
     setOperationAction(ISD::READ_REGISTER, MVT::i32, Custom);
     setOperationAction(ISD::WRITE_REGISTER, MVT::i32, Custom);
+    setOperationAction(ISD::INTRINSIC_VOID, MVT::i32, Custom);
     setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i32, Custom);
-    if (Subtarget.hasBasicF() && !Subtarget.hasBasicD())
-      setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
-    if (Subtarget.hasBasicF())
-      setOperationAction(ISD::FRINT, MVT::f32, Legal);
-    if (Subtarget.hasBasicD())
-      setOperationAction(ISD::FRINT, MVT::f64, Legal);
-  }
+    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i32, Custom);
 
-  // LA32 does not have REVB.2W and REVB.D due to the 64-bit operands, and
-  // the narrower REVB.W does not exist. But LA32 does have REVB.2H, so i16
-  // and i32 could still be byte-swapped relatively cheaply.
-  setOperationAction(ISD::BSWAP, MVT::i16, Custom);
-  if (Subtarget.is64Bit()) {
+    setOperationAction(ISD::BITREVERSE, MVT::i32, Custom);
     setOperationAction(ISD::BSWAP, MVT::i32, Custom);
   }
 
-  // Expand bitreverse.i16 with native-width bitrev and shift for now, before
-  // we get to know which of sll and revb.2h is faster.
-  setOperationAction(ISD::BITREVERSE, MVT::i8, Custom);
-  if (Subtarget.is64Bit()) {
-    setOperationAction(ISD::BITREVERSE, MVT::i32, Custom);
-    setOperationAction(ISD::BITREVERSE, MVT::i64, Legal);
-  } else {
-    setOperationAction(ISD::BITREVERSE, MVT::i32, Legal);
-    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i64, Custom);
+  // Set operations for LA32 only.
+
+  if (!Subtarget.is64Bit()) {
     setOperationAction(ISD::READ_REGISTER, MVT::i64, Custom);
     setOperationAction(ISD::WRITE_REGISTER, MVT::i64, Custom);
-    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
     setOperationAction(ISD::INTRINSIC_VOID, MVT::i64, Custom);
     setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::i64, Custom);
+    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i64, Custom);
+
+    // Set libcalls.
+    setLibcallName(RTLIB::MUL_I128, nullptr);
   }
+
+  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
 
   static const ISD::CondCode FPCCToExpand[] = {
       ISD::SETOGT, ISD::SETOGE, ISD::SETUGT, ISD::SETUGE,
       ISD::SETGE,  ISD::SETNE,  ISD::SETGT};
 
+  // Set operations for 'F' feature.
+
   if (Subtarget.hasBasicF()) {
     setCondCodeAction(FPCCToExpand, MVT::f32, Expand);
+
     setOperationAction(ISD::SELECT_CC, MVT::f32, Expand);
     setOperationAction(ISD::BR_CC, MVT::f32, Expand);
     setOperationAction(ISD::FMA, MVT::f32, Legal);
@@ -168,55 +172,133 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FMAXNUM_IEEE, MVT::f32, Legal);
     setOperationAction(ISD::STRICT_FSETCCS, MVT::f32, Legal);
     setOperationAction(ISD::STRICT_FSETCC, MVT::f32, Legal);
+    setOperationAction(ISD::IS_FPCLASS, MVT::f32, Legal);
     setOperationAction(ISD::FSIN, MVT::f32, Expand);
     setOperationAction(ISD::FCOS, MVT::f32, Expand);
     setOperationAction(ISD::FSINCOS, MVT::f32, Expand);
     setOperationAction(ISD::FPOW, MVT::f32, Expand);
     setOperationAction(ISD::FREM, MVT::f32, Expand);
+
+    if (Subtarget.is64Bit())
+      setOperationAction(ISD::FRINT, MVT::f32, Legal);
+
+    if (!Subtarget.hasBasicD()) {
+      setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
+      if (Subtarget.is64Bit()) {
+        setOperationAction(ISD::SINT_TO_FP, MVT::i64, Custom);
+        setOperationAction(ISD::UINT_TO_FP, MVT::i64, Custom);
+      }
+    }
   }
+
+  // Set operations for 'D' feature.
+
   if (Subtarget.hasBasicD()) {
+    setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
+    setTruncStoreAction(MVT::f64, MVT::f32, Expand);
     setCondCodeAction(FPCCToExpand, MVT::f64, Expand);
+
     setOperationAction(ISD::SELECT_CC, MVT::f64, Expand);
     setOperationAction(ISD::BR_CC, MVT::f64, Expand);
     setOperationAction(ISD::STRICT_FSETCCS, MVT::f64, Legal);
     setOperationAction(ISD::STRICT_FSETCC, MVT::f64, Legal);
-    setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
     setOperationAction(ISD::FMA, MVT::f64, Legal);
     setOperationAction(ISD::FMINNUM_IEEE, MVT::f64, Legal);
     setOperationAction(ISD::FMAXNUM_IEEE, MVT::f64, Legal);
+    setOperationAction(ISD::IS_FPCLASS, MVT::f64, Legal);
     setOperationAction(ISD::FSIN, MVT::f64, Expand);
     setOperationAction(ISD::FCOS, MVT::f64, Expand);
     setOperationAction(ISD::FSINCOS, MVT::f64, Expand);
     setOperationAction(ISD::FPOW, MVT::f64, Expand);
     setOperationAction(ISD::FREM, MVT::f64, Expand);
-    setTruncStoreAction(MVT::f64, MVT::f32, Expand);
+
+    if (Subtarget.is64Bit())
+      setOperationAction(ISD::FRINT, MVT::f64, Legal);
   }
 
-  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
+  // Set operations for 'LSX' feature.
 
-  setOperationAction(ISD::BR_CC, GRLenVT, Expand);
-  setOperationAction(ISD::SELECT_CC, GRLenVT, Expand);
-  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
-  setOperationAction({ISD::SMUL_LOHI, ISD::UMUL_LOHI}, GRLenVT, Expand);
-  if (!Subtarget.is64Bit())
-    setLibcallName(RTLIB::MUL_I128, nullptr);
+  if (Subtarget.hasExtLSX()) {
+    for (MVT VT : MVT::fixedlen_vector_valuetypes()) {
+      // Expand all truncating stores and extending loads.
+      for (MVT InnerVT : MVT::fixedlen_vector_valuetypes()) {
+        setTruncStoreAction(VT, InnerVT, Expand);
+        setLoadExtAction(ISD::SEXTLOAD, VT, InnerVT, Expand);
+        setLoadExtAction(ISD::ZEXTLOAD, VT, InnerVT, Expand);
+        setLoadExtAction(ISD::EXTLOAD, VT, InnerVT, Expand);
+      }
+      // By default everything must be expanded. Then we will selectively turn
+      // on ones that can be effectively codegen'd.
+      for (unsigned Op = 0; Op < ISD::BUILTIN_OP_END; ++Op)
+        setOperationAction(Op, VT, Expand);
+    }
 
-  setOperationAction(ISD::FP_TO_UINT, GRLenVT, Custom);
-  setOperationAction(ISD::UINT_TO_FP, GRLenVT, Expand);
-  if ((Subtarget.is64Bit() && Subtarget.hasBasicF() &&
-       !Subtarget.hasBasicD())) {
-    setOperationAction(ISD::SINT_TO_FP, GRLenVT, Custom);
-    setOperationAction(ISD::UINT_TO_FP, GRLenVT, Custom);
+    for (MVT VT : LSXVTs) {
+      setOperationAction({ISD::LOAD, ISD::STORE}, VT, Legal);
+      setOperationAction(ISD::BITCAST, VT, Legal);
+      setOperationAction(ISD::UNDEF, VT, Legal);
+
+      // FIXME: For BUILD_VECTOR, it is temporarily set to `Legal` here, and it
+      // will be `Custom` handled in the future.
+      setOperationAction(ISD::BUILD_VECTOR, VT, Legal);
+      setOperationAction(ISD::INSERT_VECTOR_ELT, VT, Legal);
+    }
+    for (MVT VT : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v2i64}) {
+      setOperationAction({ISD::ADD, ISD::SUB}, VT, Legal);
+      setOperationAction({ISD::UMAX, ISD::UMIN, ISD::SMAX, ISD::SMIN}, VT,
+                         Legal);
+      setOperationAction({ISD::MUL, ISD::SDIV, ISD::SREM, ISD::UDIV, ISD::UREM},
+                         VT, Legal);
+      setOperationAction({ISD::AND, ISD::OR, ISD::XOR}, VT, Legal);
+      setOperationAction({ISD::SHL, ISD::SRA, ISD::SRL}, VT, Legal);
+      setOperationAction(ISD::CTPOP, VT, Legal);
+    }
+    for (MVT VT : {MVT::v4f32, MVT::v2f64}) {
+      setOperationAction({ISD::FADD, ISD::FSUB}, VT, Legal);
+      setOperationAction({ISD::FMUL, ISD::FDIV}, VT, Legal);
+      setOperationAction(ISD::FMA, VT, Legal);
+    }
   }
+
+  // Set operations for 'LASX' feature.
+
+  if (Subtarget.hasExtLASX()) {
+    for (MVT VT : LASXVTs) {
+      setOperationAction({ISD::LOAD, ISD::STORE}, VT, Legal);
+      setOperationAction(ISD::BITCAST, VT, Legal);
+      setOperationAction(ISD::UNDEF, VT, Legal);
+
+      // FIXME: Same as above.
+      setOperationAction(ISD::BUILD_VECTOR, VT, Legal);
+      setOperationAction(ISD::INSERT_VECTOR_ELT, VT, Legal);
+    }
+    for (MVT VT : {MVT::v4i64, MVT::v8i32, MVT::v16i16, MVT::v32i8}) {
+      setOperationAction({ISD::ADD, ISD::SUB}, VT, Legal);
+      setOperationAction({ISD::UMAX, ISD::UMIN, ISD::SMAX, ISD::SMIN}, VT,
+                         Legal);
+      setOperationAction({ISD::MUL, ISD::SDIV, ISD::SREM, ISD::UDIV, ISD::UREM},
+                         VT, Legal);
+      setOperationAction({ISD::AND, ISD::OR, ISD::XOR}, VT, Legal);
+      setOperationAction({ISD::SHL, ISD::SRA, ISD::SRL}, VT, Legal);
+      setOperationAction(ISD::CTPOP, VT, Legal);
+    }
+    for (MVT VT : {MVT::v8f32, MVT::v4f64}) {
+      setOperationAction({ISD::FADD, ISD::FSUB}, VT, Legal);
+      setOperationAction({ISD::FMUL, ISD::FDIV}, VT, Legal);
+      setOperationAction(ISD::FMA, VT, Legal);
+    }
+  }
+
+  // Set DAG combine for LA32 and LA64.
+
+  setTargetDAGCombine(ISD::AND);
+  setTargetDAGCombine(ISD::OR);
+  setTargetDAGCombine(ISD::SRL);
+
+  // Set DAG combine for 'LSX' feature.
 
   if (Subtarget.hasExtLSX())
-    setOperationAction({ISD::UMAX, ISD::UMIN, ISD::SMAX, ISD::SMIN},
-                       {MVT::v2i64, MVT::v4i32, MVT::v8i16, MVT::v16i8}, Legal);
-
-  if (Subtarget.hasExtLASX())
-    setOperationAction({ISD::UMAX, ISD::UMIN, ISD::SMAX, ISD::SMIN},
-                       {MVT::v4i64, MVT::v8i32, MVT::v16i16, MVT::v32i8},
-                       Legal);
+    setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
 
   // Compute derived properties from the register classes.
   computeRegisterProperties(Subtarget.getRegisterInfo());
@@ -235,12 +317,6 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
   setPrefFunctionAlignment(Subtarget.getPrefFunctionAlignment());
   setPrefLoopAlignment(Subtarget.getPrefLoopAlignment());
   setMaxBytesForAlignment(Subtarget.getMaxBytesForAlignment());
-
-  setTargetDAGCombine(ISD::AND);
-  setTargetDAGCombine(ISD::OR);
-  setTargetDAGCombine(ISD::SRL);
-  if (Subtarget.hasExtLSX())
-    setTargetDAGCombine(ISD::INTRINSIC_WO_CHAIN);
 }
 
 bool LoongArchTargetLowering::isOffsetFoldingLegal(
@@ -255,6 +331,8 @@ bool LoongArchTargetLowering::isOffsetFoldingLegal(
 SDValue LoongArchTargetLowering::LowerOperation(SDValue Op,
                                                 SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
+  case ISD::ATOMIC_FENCE:
+    return lowerATOMIC_FENCE(Op, DAG);
   case ISD::EH_DWARF_CFA:
     return lowerEH_DWARF_CFA(Op, DAG);
   case ISD::GlobalAddress:
@@ -297,6 +375,22 @@ SDValue LoongArchTargetLowering::LowerOperation(SDValue Op,
     return lowerWRITE_REGISTER(Op, DAG);
   }
   return SDValue();
+}
+
+SDValue LoongArchTargetLowering::lowerATOMIC_FENCE(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  SyncScope::ID FenceSSID =
+      static_cast<SyncScope::ID>(Op.getConstantOperandVal(2));
+
+  // singlethread fences only synchronize with signal handlers on the same
+  // thread and thus only need to preserve instruction order, not actually
+  // enforce memory ordering.
+  if (FenceSSID == SyncScope::SingleThread)
+    // MEMBARRIER is a compiler barrier; it codegens to a no-op.
+    return DAG.getNode(ISD::MEMBARRIER, DL, MVT::Other, Op.getOperand(0));
+
+  return Op;
 }
 
 SDValue LoongArchTargetLowering::lowerWRITE_REGISTER(SDValue Op,
@@ -4150,8 +4244,9 @@ LoongArchTargetLowering::shouldExpandAtomicCmpXchgInIR(
 Value *LoongArchTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
     IRBuilderBase &Builder, AtomicCmpXchgInst *CI, Value *AlignedAddr,
     Value *CmpVal, Value *NewVal, Value *Mask, AtomicOrdering Ord) const {
-  Value *Ordering =
-      Builder.getIntN(Subtarget.getGRLen(), static_cast<uint64_t>(Ord));
+  AtomicOrdering FailOrd = CI->getFailureOrdering();
+  Value *FailureOrdering =
+      Builder.getIntN(Subtarget.getGRLen(), static_cast<uint64_t>(FailOrd));
 
   // TODO: Support cmpxchg on LA32.
   Intrinsic::ID CmpXchgIntrID = Intrinsic::loongarch_masked_cmpxchg_i64;
@@ -4162,7 +4257,7 @@ Value *LoongArchTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
   Function *MaskedCmpXchg =
       Intrinsic::getDeclaration(CI->getModule(), CmpXchgIntrID, Tys);
   Value *Result = Builder.CreateCall(
-      MaskedCmpXchg, {AlignedAddr, CmpVal, NewVal, Mask, Ordering});
+      MaskedCmpXchg, {AlignedAddr, CmpVal, NewVal, Mask, FailureOrdering});
   Result = Builder.CreateTrunc(Result, Builder.getInt32Ty());
   return Result;
 }
@@ -4170,6 +4265,22 @@ Value *LoongArchTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
 Value *LoongArchTargetLowering::emitMaskedAtomicRMWIntrinsic(
     IRBuilderBase &Builder, AtomicRMWInst *AI, Value *AlignedAddr, Value *Incr,
     Value *Mask, Value *ShiftAmt, AtomicOrdering Ord) const {
+  // In the case of an atomicrmw xchg with a constant 0/-1 operand, replace
+  // the atomic instruction with an AtomicRMWInst::And/Or with appropriate
+  // mask, as this produces better code than the LL/SC loop emitted by
+  // int_loongarch_masked_atomicrmw_xchg.
+  if (AI->getOperation() == AtomicRMWInst::Xchg &&
+      isa<ConstantInt>(AI->getValOperand())) {
+    ConstantInt *CVal = cast<ConstantInt>(AI->getValOperand());
+    if (CVal->isZero())
+      return Builder.CreateAtomicRMW(AtomicRMWInst::And, AlignedAddr,
+                                     Builder.CreateNot(Mask, "Inv_Mask"),
+                                     AI->getAlign(), Ord);
+    if (CVal->isMinusOne())
+      return Builder.CreateAtomicRMW(AtomicRMWInst::Or, AlignedAddr, Mask,
+                                     AI->getAlign(), Ord);
+  }
+
   unsigned GRLen = Subtarget.getGRLen();
   Value *Ordering =
       Builder.getIntN(GRLen, static_cast<uint64_t>(AI->getOrdering()));
@@ -4284,12 +4395,12 @@ LoongArchTargetLowering::getConstraintType(StringRef Constraint) const {
   return TargetLowering::getConstraintType(Constraint);
 }
 
-unsigned LoongArchTargetLowering::getInlineAsmMemConstraint(
+InlineAsm::ConstraintCode LoongArchTargetLowering::getInlineAsmMemConstraint(
     StringRef ConstraintCode) const {
-  return StringSwitch<unsigned>(ConstraintCode)
-      .Case("k", InlineAsm::Constraint_k)
-      .Case("ZB", InlineAsm::Constraint_ZB)
-      .Case("ZC", InlineAsm::Constraint_ZC)
+  return StringSwitch<InlineAsm::ConstraintCode>(ConstraintCode)
+      .Case("k", InlineAsm::ConstraintCode::k)
+      .Case("ZB", InlineAsm::ConstraintCode::ZB)
+      .Case("ZC", InlineAsm::ConstraintCode::ZC)
       .Default(TargetLowering::getInlineAsmMemConstraint(ConstraintCode));
 }
 
@@ -4357,10 +4468,10 @@ LoongArchTargetLowering::getRegForInlineAsmConstraint(
 }
 
 void LoongArchTargetLowering::LowerAsmOperandForConstraint(
-    SDValue Op, std::string &Constraint, std::vector<SDValue> &Ops,
+    SDValue Op, StringRef Constraint, std::vector<SDValue> &Ops,
     SelectionDAG &DAG) const {
   // Currently only support length 1 constraints.
-  if (Constraint.length() == 1) {
+  if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     case 'l':
       // Validate & create a 16-bit signed immediate operand.

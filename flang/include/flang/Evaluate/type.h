@@ -183,6 +183,7 @@ public:
   constexpr bool IsUnlimitedPolymorphic() const { // TYPE(*) or CLASS(*)
     return IsPolymorphic() && !derived_;
   }
+  bool IsLengthlessIntrinsicType() const;
   constexpr const semantics::DerivedTypeSpec &GetDerivedTypeSpec() const {
     return DEREF(derived_);
   }
@@ -230,6 +231,12 @@ public:
       return std::nullopt;
     }
   }
+
+  // Get a copy of this dynamic type where charLengthParamValue_ is reset if it
+  // is not a constant expression. This avoids propagating symbol references in
+  // scopes where they do not belong. Returns the type unmodified if it is not
+  // a character or if the length is not explicit.
+  DynamicType DropNonConstantCharacterLength() const;
 
 private:
   // Special kind codes are used to distinguish the following Fortran types.

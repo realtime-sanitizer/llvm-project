@@ -315,12 +315,16 @@ std::string JSONNodeDumper::createPointerRepresentation(const void *Ptr) {
 
 llvm::json::Object JSONNodeDumper::createQualType(QualType QT, bool Desugar) {
   SplitQualType SQT = QT.split();
-  llvm::json::Object Ret{{"qualType", QualType::getAsString(SQT, PrintPolicy)}};
+  std::string SQTS = QualType::getAsString(SQT, PrintPolicy);
+  llvm::json::Object Ret{{"qualType", SQTS}};
 
   if (Desugar && !QT.isNull()) {
     SplitQualType DSQT = QT.getSplitDesugaredType();
-    if (DSQT != SQT)
-      Ret["desugaredQualType"] = QualType::getAsString(DSQT, PrintPolicy);
+    if (DSQT != SQT) {
+      std::string DSQTS = QualType::getAsString(DSQT, PrintPolicy);
+      if (DSQTS != SQTS)
+        Ret["desugaredQualType"] = DSQTS;
+    }
     if (const auto *TT = QT->getAs<TypedefType>())
       Ret["typeAliasDeclId"] = createPointerRepresentation(TT->getDecl());
   }
@@ -876,6 +880,9 @@ void JSONNodeDumper::VisitUsingShadowDecl(const UsingShadowDecl *USD) {
 void JSONNodeDumper::VisitVarDecl(const VarDecl *VD) {
   VisitNamedDecl(VD);
   JOS.attribute("type", createQualType(VD->getType()));
+  if (const auto *P = dyn_cast<ParmVarDecl>(VD))
+    attributeOnlyIfTrue("explicitObjectParameter",
+                        P->isExplicitObjectParameter());
 
   StorageClass SC = VD->getStorageClass();
   if (SC != SC_None)
@@ -1177,6 +1184,10 @@ void JSONNodeDumper::VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D) {
 void JSONNodeDumper::VisitBlockDecl(const BlockDecl *D) {
   attributeOnlyIfTrue("variadic", D->isVariadic());
   attributeOnlyIfTrue("capturesThis", D->capturesCXXThis());
+}
+
+void JSONNodeDumper::VisitAtomicExpr(const AtomicExpr *AE) {
+  JOS.attribute("name", AE->getOpAsString());
 }
 
 void JSONNodeDumper::VisitObjCEncodeExpr(const ObjCEncodeExpr *OEE) {

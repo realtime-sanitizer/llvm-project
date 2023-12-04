@@ -197,7 +197,7 @@ bool AArch64TTIImpl::areInlineCompatible(const Function *Caller,
   if (CallerAttrs.requiresSMChange(CalleeAttrs,
                                    /*BodyOverridesInterface=*/true) ||
       CallerAttrs.requiresLazySave(CalleeAttrs) ||
-      CalleeAttrs.hasNewZAInterface())
+      CalleeAttrs.hasNewZABody())
     return false;
 
   const TargetMachine &TM = getTLI()->getTargetMachine();
@@ -210,6 +210,30 @@ bool AArch64TTIImpl::areInlineCompatible(const Function *Caller,
   // Inline a callee if its target-features are a subset of the callers
   // target-features.
   return (CallerBits & CalleeBits) == CalleeBits;
+}
+
+bool AArch64TTIImpl::areTypesABICompatible(
+    const Function *Caller, const Function *Callee,
+    const ArrayRef<Type *> &Types) const {
+  if (!BaseT::areTypesABICompatible(Caller, Callee, Types))
+    return false;
+
+  // We need to ensure that argument promotion does not attempt to promote
+  // pointers to fixed-length vector types larger than 128 bits like
+  // <8 x float> (and pointers to aggregate types which have such fixed-length
+  // vector type members) into the values of the pointees. Such vector types
+  // are used for SVE VLS but there is no ABI for SVE VLS arguments and the
+  // backend cannot lower such value arguments. The 128-bit fixed-length SVE
+  // types can be safely treated as 128-bit NEON types and they cannot be
+  // distinguished in IR.
+  if (ST->useSVEForFixedLengthVectors() && llvm::any_of(Types, [](Type *Ty) {
+        auto FVTy = dyn_cast<FixedVectorType>(Ty);
+        return FVTy &&
+               FVTy->getScalarSizeInBits() * FVTy->getNumElements() > 128;
+      }))
+    return false;
+
+  return true;
 }
 
 bool AArch64TTIImpl::shouldMaximizeVectorBandwidth(
@@ -798,10 +822,31 @@ instCombineConvertFromSVBool(InstCombiner &IC, IntrinsicInst &II) {
   return IC.replaceInstUsesWith(II, EarliestReplacement);
 }
 
+static bool isAllActivePredicate(Value *Pred) {
+  // Look through convert.from.svbool(convert.to.svbool(...) chain.
+  Value *UncastedPred;
+  if (match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_convert_from_svbool>(
+                      m_Intrinsic<Intrinsic::aarch64_sve_convert_to_svbool>(
+                          m_Value(UncastedPred)))))
+    // If the predicate has the same or less lanes than the uncasted
+    // predicate then we know the casting has no effect.
+    if (cast<ScalableVectorType>(Pred->getType())->getMinNumElements() <=
+        cast<ScalableVectorType>(UncastedPred->getType())->getMinNumElements())
+      Pred = UncastedPred;
+
+  return match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
+                         m_ConstantInt<AArch64SVEPredPattern::all>()));
+}
+
 static std::optional<Instruction *> instCombineSVESel(InstCombiner &IC,
                                                       IntrinsicInst &II) {
-  auto Select = IC.Builder.CreateSelect(II.getOperand(0), II.getOperand(1),
-                                        II.getOperand(2));
+  // svsel(ptrue, x, y) => x
+  auto *OpPredicate = II.getOperand(0);
+  if (isAllActivePredicate(OpPredicate))
+    return IC.replaceInstUsesWith(II, II.getOperand(1));
+
+  auto Select =
+      IC.Builder.CreateSelect(OpPredicate, II.getOperand(1), II.getOperand(2));
   return IC.replaceInstUsesWith(II, Select);
 }
 
@@ -1198,22 +1243,6 @@ instCombineSVEVectorFuseMulAddSub(InstCombiner &IC, IntrinsicInst &II,
                                      {P, MulOp0, MulOp1, AddendOp}, FMFSource);
 
   return IC.replaceInstUsesWith(II, Res);
-}
-
-static bool isAllActivePredicate(Value *Pred) {
-  // Look through convert.from.svbool(convert.to.svbool(...) chain.
-  Value *UncastedPred;
-  if (match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_convert_from_svbool>(
-                      m_Intrinsic<Intrinsic::aarch64_sve_convert_to_svbool>(
-                          m_Value(UncastedPred)))))
-    // If the predicate has the same or less lanes than the uncasted
-    // predicate then we know the casting has no effect.
-    if (cast<ScalableVectorType>(Pred->getType())->getMinNumElements() <=
-        cast<ScalableVectorType>(UncastedPred->getType())->getMinNumElements())
-      Pred = UncastedPred;
-
-  return match(Pred, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
-                         m_ConstantInt<AArch64SVEPredPattern::all>()));
 }
 
 static std::optional<Instruction *>
@@ -1932,22 +1961,20 @@ TypeSize
 AArch64TTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
   switch (K) {
   case TargetTransformInfo::RGK_Scalar:
-    return TypeSize::getFixed(64);
+    return TypeSize::Fixed(64);
   case TargetTransformInfo::RGK_FixedWidthVector:
     if (!ST->isNeonAvailable() && !EnableFixedwidthAutovecInStreamingMode)
-      return TypeSize::getFixed(0);
+      return TypeSize::Fixed(0);
 
     if (ST->hasSVE())
-      return TypeSize::getFixed(
-          std::max(ST->getMinSVEVectorSizeInBits(), 128u));
+      return TypeSize::Fixed(std::max(ST->getMinSVEVectorSizeInBits(), 128u));
 
-    return TypeSize::getFixed(ST->hasNEON() ? 128 : 0);
+    return TypeSize::Fixed(ST->hasNEON() ? 128 : 0);
   case TargetTransformInfo::RGK_ScalableVector:
-    if ((ST->isStreaming() || ST->isStreamingCompatible()) &&
-        !EnableScalableAutovecInStreamingMode)
-      return TypeSize::getScalable(0);
+    if (!ST->isSVEAvailable() && !EnableScalableAutovecInStreamingMode)
+      return TypeSize::Scalable(0);
 
-    return TypeSize::getScalable(ST->hasSVE() ? 128 : 0);
+    return TypeSize::Scalable(ST->hasSVE() ? 128 : 0);
   }
   llvm_unreachable("Unsupported register kind");
 }
@@ -2044,6 +2071,54 @@ bool AArch64TTIImpl::isWideningInstruction(Type *DstTy, unsigned Opcode,
   return NumDstEls == NumSrcEls && 2 * SrcElTySize == DstEltSize;
 }
 
+// s/urhadd instructions implement the following pattern, making the
+// extends free:
+//   %x = add ((zext i8 -> i16), 1)
+//   %y = (zext i8 -> i16)
+//   trunc i16 (lshr (add %x, %y), 1) -> i8
+//
+bool AArch64TTIImpl::isExtPartOfAvgExpr(const Instruction *ExtUser, Type *Dst,
+                                        Type *Src) {
+  // The source should be a legal vector type.
+  if (!Src->isVectorTy() || !TLI->isTypeLegal(TLI->getValueType(DL, Src)) ||
+      (Src->isScalableTy() && !ST->hasSVE2()))
+    return false;
+
+  if (ExtUser->getOpcode() != Instruction::Add || !ExtUser->hasOneUse())
+    return false;
+
+  // Look for trunc/shl/add before trying to match the pattern.
+  const Instruction *Add = ExtUser;
+  auto *AddUser =
+      dyn_cast_or_null<Instruction>(Add->getUniqueUndroppableUser());
+  if (AddUser && AddUser->getOpcode() == Instruction::Add)
+    Add = AddUser;
+
+  auto *Shr = dyn_cast_or_null<Instruction>(Add->getUniqueUndroppableUser());
+  if (!Shr || Shr->getOpcode() != Instruction::LShr)
+    return false;
+
+  auto *Trunc = dyn_cast_or_null<Instruction>(Shr->getUniqueUndroppableUser());
+  if (!Trunc || Trunc->getOpcode() != Instruction::Trunc ||
+      Src->getScalarSizeInBits() !=
+          cast<CastInst>(Trunc)->getDestTy()->getScalarSizeInBits())
+    return false;
+
+  // Try to match the whole pattern. Ext could be either the first or second
+  // m_ZExtOrSExt matched.
+  Instruction *Ex1, *Ex2;
+  if (!(match(Add, m_c_Add(m_Instruction(Ex1),
+                           m_c_Add(m_Instruction(Ex2), m_SpecificInt(1))))))
+    return false;
+
+  // Ensure both extends are of the same type
+  if (match(Ex1, m_ZExtOrSExt(m_Value())) &&
+      Ex1->getOpcode() == Ex2->getOpcode())
+    return true;
+
+  return false;
+}
+
 InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
                                                  Type *Src,
                                                  TTI::CastContextHint CCH,
@@ -2068,6 +2143,11 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
       } else // Others are free so long as isWideningInstruction returned true.
         return 0;
     }
+
+    // The cast will be free for the s/urhadd instructions
+    if ((isa<ZExtInst>(I) || isa<SExtInst>(I)) &&
+        isExtPartOfAvgExpr(SingleUser, Dst, Src))
+      return 0;
   }
 
   // TODO: Allow non-throughput costs that aren't binary.
@@ -2408,6 +2488,25 @@ InstructionCost AArch64TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     if (const auto *Entry = ConvertCostTableLookup(
             FP16Tbl, ISD, DstTy.getSimpleVT(), SrcTy.getSimpleVT()))
       return AdjustCost(Entry->Cost);
+
+  if ((ISD == ISD::ZERO_EXTEND || ISD == ISD::SIGN_EXTEND) &&
+      CCH == TTI::CastContextHint::Masked && ST->hasSVEorSME() &&
+      TLI->getTypeAction(Src->getContext(), SrcTy) ==
+          TargetLowering::TypePromoteInteger &&
+      TLI->getTypeAction(Dst->getContext(), DstTy) ==
+          TargetLowering::TypeSplitVector) {
+    // The standard behaviour in the backend for these cases is to split the
+    // extend up into two parts:
+    //  1. Perform an extending load or masked load up to the legal type.
+    //  2. Extend the loaded data to the final type.
+    std::pair<InstructionCost, MVT> SrcLT = getTypeLegalizationCost(Src);
+    Type *LegalTy = EVT(SrcLT.second).getTypeForEVT(Src->getContext());
+    InstructionCost Part1 = AArch64TTIImpl::getCastInstrCost(
+        Opcode, LegalTy, Src, CCH, CostKind, I);
+    InstructionCost Part2 = AArch64TTIImpl::getCastInstrCost(
+        Opcode, Dst, LegalTy, TTI::CastContextHint::None, CostKind, I);
+    return Part1 + Part2;
+  }
 
   // The BasicTTIImpl version only deals with CCH==TTI::CastContextHint::Normal,
   // but we also want to include the TTI::CastContextHint::Masked case too.
@@ -2897,12 +2996,16 @@ static unsigned getSVEGatherScatterOverhead(unsigned Opcode) {
 InstructionCost AArch64TTIImpl::getGatherScatterOpCost(
     unsigned Opcode, Type *DataTy, const Value *Ptr, bool VariableMask,
     Align Alignment, TTI::TargetCostKind CostKind, const Instruction *I) {
-  if (useNeonVector(DataTy))
+  if (useNeonVector(DataTy) || !isLegalMaskedGatherScatter(DataTy))
     return BaseT::getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
                                          Alignment, CostKind, I);
   auto *VT = cast<VectorType>(DataTy);
   auto LT = getTypeLegalizationCost(DataTy);
   if (!LT.first.isValid())
+    return InstructionCost::getInvalid();
+
+  if (!LT.second.isVector() ||
+      !isElementTypeLegalForScalableVector(VT->getElementType()))
     return InstructionCost::getInvalid();
 
   // The code-generator is currently not able to handle scalable vectors
@@ -3506,11 +3609,8 @@ InstructionCost AArch64TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
   // into smaller vectors and sum the cost of each shuffle.
   if (!Mask.empty() && isa<FixedVectorType>(Tp) && LT.second.isVector() &&
       Tp->getScalarSizeInBits() == LT.second.getScalarSizeInBits() &&
-      cast<FixedVectorType>(Tp)->getNumElements() >
-          LT.second.getVectorNumElements() &&
-      !Index && !SubTp) {
-    unsigned TpNumElts = cast<FixedVectorType>(Tp)->getNumElements();
-    assert(Mask.size() == TpNumElts && "Expected Mask and Tp size to match!");
+      Mask.size() > LT.second.getVectorNumElements() && !Index && !SubTp) {
+    unsigned TpNumElts = Mask.size();
     unsigned LTNumElts = LT.second.getVectorNumElements();
     unsigned NumVecs = (TpNumElts + LTNumElts - 1) / LTNumElts;
     VectorType *NTp =

@@ -83,6 +83,17 @@ bool Parser::isCXXDeclarationStatement(
                                       isDeductionGuide,
                                       DeclSpec::FriendSpecified::No))
             return true;
+        } else if (SS.isNotEmpty()) {
+          // If the scope is not empty, it could alternatively be something like
+          // a typedef or using declaration. That declaration might be private
+          // in the global context, which would be diagnosed by calling into
+          // isCXXSimpleDeclaration, but may actually be fine in the context of
+          // member functions and static variable definitions. Check if the next
+          // token is also an identifier and assume a declaration.
+          // We cannot check if the scopes match because the declarations could
+          // involve namespaces and friend declarations.
+          if (NextToken().is(tok::identifier))
+            return true;
         }
         break;
       }
@@ -1560,6 +1571,17 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
   case tok::kw___vector:
     return TPResult::True;
 
+  case tok::kw_this: {
+    // Try to parse a C++23 Explicit Object Parameter
+    // We do that in all language modes to produce a better diagnostic.
+    if (getLangOpts().CPlusPlus) {
+      RevertingTentativeParsingAction PA(*this);
+      ConsumeToken();
+      return isCXXDeclarationSpecifier(AllowImplicitTypename, BracedCastResult,
+                                       InvalidAsDeclSpec);
+    }
+    return TPResult::False;
+  }
   case tok::annot_template_id: {
     TemplateIdAnnotation *TemplateId = takeTemplateIdAnnotation(Tok);
     // If lookup for the template-name found nothing, don't assume we have a

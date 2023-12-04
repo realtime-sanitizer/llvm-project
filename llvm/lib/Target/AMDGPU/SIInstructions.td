@@ -132,7 +132,7 @@ def V_MOV_B64_PSEUDO : VPseudoInstSI <(outs VReg_64:$vdst),
   let isAsCheapAsAMove = 1;
   let isMoveImm = 1;
   let SchedRW = [Write64Bit];
-  let Size = 16; // Needs maximum 2 v_mov_b32 instructions 8 byte long each.
+  let Size = 4;
   let UseNamedOperandTable = 1;
 }
 
@@ -149,8 +149,9 @@ def S_MOV_B64_IMM_PSEUDO : SPseudoInstSI <(outs SReg_64:$sdst),
   let isAsCheapAsAMove = 1;
   let isMoveImm = 1;
   let SchedRW = [WriteSALU, Write64Bit];
-  let Size = 16; // Needs maximum 2 s_mov_b32 instructions 8 byte long each.
+  let Size = 4;
   let Uses = [];
+  let UseNamedOperandTable = 1;
 }
 
 // Pseudoinstruction for @llvm.amdgcn.wqm. It is turned into a copy after the
@@ -874,6 +875,28 @@ defm SI_SPILL_S384 : SI_SPILL_SGPR <SReg_384>;
 defm SI_SPILL_S512 : SI_SPILL_SGPR <SReg_512>;
 defm SI_SPILL_S1024 : SI_SPILL_SGPR <SReg_1024>;
 
+let SGPRSpill = 1, VALU = 1, isConvergent = 1 in {
+def SI_SPILL_S32_TO_VGPR : PseudoInstSI <(outs VGPR_32:$vdst),
+  (ins SReg_32:$src0, i32imm:$src1, VGPR_32:$vdst_in)> {
+  let Size = 4;
+  let FixedSize = 1;
+  let IsNeverUniform = 1;
+  let hasSideEffects = 0;
+  let mayLoad = 0;
+  let mayStore = 0;
+  let Constraints = "$vdst = $vdst_in";
+}
+
+def SI_RESTORE_S32_FROM_VGPR : PseudoInstSI <(outs SReg_32:$sdst),
+  (ins VGPR_32:$src0, i32imm:$src1)> {
+  let Size = 4;
+  let FixedSize = 1;
+  let hasSideEffects = 0;
+  let mayLoad = 0;
+  let mayStore = 0;
+}
+} // End SGPRSpill = 1, VALU = 1, isConvergent = 1
+
 // VGPR or AGPR spill instructions. In case of AGPR spilling a temp register
 // needs to be used and an extra instruction to move between VGPR and AGPR.
 // UsesTmp adds to the total size of an expanded spill in this case.
@@ -1596,6 +1619,16 @@ def : BitConvert <v12i32, v12f32, VReg_384>;
 def : BitConvert <v12f32, v12i32, VReg_384>;
 
 // 512-bit bitcast
+def : BitConvert <v32f16, v32i16, VReg_512>;
+def : BitConvert <v32i16, v32f16, VReg_512>;
+def : BitConvert <v32f16, v16i32, VReg_512>;
+def : BitConvert <v32f16, v16f32, VReg_512>;
+def : BitConvert <v16f32, v32f16, VReg_512>;
+def : BitConvert <v16i32, v32f16, VReg_512>;
+def : BitConvert <v32i16, v16i32, VReg_512>;
+def : BitConvert <v32i16, v16f32, VReg_512>;
+def : BitConvert <v16f32, v32i16, VReg_512>;
+def : BitConvert <v16i32, v32i16, VReg_512>;
 def : BitConvert <v16i32, v16f32, VReg_512>;
 def : BitConvert <v16f32, v16i32, VReg_512>;
 def : BitConvert <v8i64,  v8f64,  VReg_512>;
@@ -1641,8 +1674,10 @@ def : ClampPat<V_MAX_F32_e64, f32>;
 def : ClampPat<V_MAX_F64_e64, f64>;
 let SubtargetPredicate = NotHasTrue16BitInsts in
 def : ClampPat<V_MAX_F16_e64, f16>;
-let SubtargetPredicate = HasTrue16BitInsts in
+let SubtargetPredicate = UseRealTrue16Insts in
 def : ClampPat<V_MAX_F16_t16_e64, f16>;
+let SubtargetPredicate = UseFakeTrue16Insts in
+def : ClampPat<V_MAX_F16_fake16_e64, f16>;
 
 let SubtargetPredicate = HasVOP3PInsts in {
 def : GCNPat <
@@ -2696,12 +2731,12 @@ def : GCNPat<
 let OtherPredicates = [HasTrue16BitInsts] in {
 def : GCNPat<
   (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
-  (V_MUL_F16_t16_e64 0, (i32 CONST.FP16_ONE), $src_mods, $src)
+  (V_MUL_F16_fake16_e64 0, (i32 CONST.FP16_ONE), $src_mods, $src)
 >;
 
 def : GCNPat<
   (fcanonicalize (f16 (fneg (VOP3Mods f16:$src, i32:$src_mods)))),
-  (V_MUL_F16_t16_e64 0, (i32 CONST.FP16_NEG_ONE), $src_mods, $src)
+  (V_MUL_F16_fake16_e64 0, (i32 CONST.FP16_NEG_ONE), $src_mods, $src)
 >;
 } // End OtherPredicates
 
@@ -2719,6 +2754,13 @@ def : GCNPat<
   (fcanonicalize (f32 (fneg (VOP3Mods f32:$src, i32:$src_mods)))),
   (V_MUL_F32_e64 0, (i32 CONST.FP32_NEG_ONE), $src_mods, $src)
 >;
+
+let SubtargetPredicate = HasPackedFP32Ops in {
+def : GCNPat<
+  (fcanonicalize (v2f32 (VOP3PMods v2f32:$src, i32:$src_mods))),
+  (V_PK_MUL_F32 0, CONST.FP32_ONE, $src_mods, $src)
+>;
+}
 
 // TODO: Handle fneg like other types.
 def : GCNPat<
@@ -2751,7 +2793,7 @@ multiclass SelectCanonicalizeAsMax<
 
   def : GCNPat<
     (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
-    (V_MAX_F16_t16_e64 $src_mods, $src, $src_mods, $src, 0, 0)> {
+    (V_MAX_F16_fake16_e64 $src_mods, $src, $src_mods, $src, 0, 0)> {
     let OtherPredicates = !listconcat(f16_preds, [Has16BitInsts, HasTrue16BitInsts]);
   }
 
@@ -3330,7 +3372,7 @@ defm : Int16Med3Pat<V_MED3_U16_e64, umin, umax>;
 // Convert a floating-point power of 2 to the integer exponent.
 def FPPow2ToExponentXForm : SDNodeXForm<fpimm, [{
   const auto &APF = N->getValueAPF();
-  int Log2 = APF.getExactLog2();
+  int Log2 = APF.getExactLog2Abs();
   assert(Log2 != INT_MIN);
   return CurDAG->getTargetConstant(Log2, SDLoc(N), MVT::i32);
 }]>;
@@ -3339,8 +3381,24 @@ def FPPow2ToExponentXForm : SDNodeXForm<fpimm, [{
 // immediate where it's preferable to emit a multiply by as an
 // ldexp. We skip over 0.5 to 4.0 as those are inline immediates
 // anyway.
-def fpimm_pow2_prefer_ldexp_f64 : FPImmLeaf<f64, [{
-    int Exp = Imm.getExactLog2();
+def fpimm_pos_pow2_prefer_ldexp_f64 : FPImmLeaf<f64, [{
+    if (Imm.isNegative())
+      return false;
+
+    int Exp = Imm.getExactLog2Abs();
+    // Prefer leaving the FP inline immediates as they are.
+    // 0.5, 1.0, 2.0, 4.0
+
+    // For f64 ldexp is always better than materializing a 64-bit
+    // constant.
+    return Exp != INT_MIN && (Exp < -1 || Exp > 2);
+  }], FPPow2ToExponentXForm
+>;
+
+def fpimm_neg_pow2_prefer_ldexp_f64 : FPImmLeaf<f64, [{
+    if (!Imm.isNegative())
+      return false;
+    int Exp = Imm.getExactLog2Abs();
     // Prefer leaving the FP inline immediates as they are.
     // 0.5, 1.0, 2.0, 4.0
 
@@ -3353,14 +3411,29 @@ def fpimm_pow2_prefer_ldexp_f64 : FPImmLeaf<f64, [{
 // f64 is different because we also want to handle cases that may
 // require materialization of the exponent.
 // TODO: If we know f64 ops are fast, prefer add (ldexp x, N), y over fma
-// TODO: fmul x, -2^n -> ldexp(-x, n)
 // TODO: For f32/f16, it's not a clear win on code size to use ldexp
 // in place of mul since we have to use the vop3 form. Are there power
 // savings or some other reason to prefer ldexp over mul?
 def : GCNPat<
   (any_fmul (f64 (VOP3Mods f64:$src0, i32:$src0_mods)),
-            fpimm_pow2_prefer_ldexp_f64:$src1),
+            fpimm_pos_pow2_prefer_ldexp_f64:$src1),
   (V_LDEXP_F64_e64 i32:$src0_mods, VSrc_b64:$src0,
+                   0, (S_MOV_B32 (i32 (FPPow2ToExponentXForm $src1))))
+>;
+
+def : GCNPat<
+  (any_fmul f64:$src0, fpimm_neg_pow2_prefer_ldexp_f64:$src1),
+  (V_LDEXP_F64_e64 SRCMODS.NEG, VSrc_b64:$src0,
+                   0, (S_MOV_B32 (i32 (FPPow2ToExponentXForm $src1))))
+>;
+
+// We want to avoid using VOP3Mods which could pull in another fneg
+// which we would need to be re-negated (which should never happen in
+// practice). I don't see a way to apply an SDNodeXForm that accounts
+// for a second operand.
+def : GCNPat<
+  (any_fmul (fabs f64:$src0), fpimm_neg_pow2_prefer_ldexp_f64:$src1),
+  (V_LDEXP_F64_e64 SRCMODS.NEG_ABS, VSrc_b64:$src0,
                    0, (S_MOV_B32 (i32 (FPPow2ToExponentXForm $src1))))
 >;
 
@@ -3532,8 +3605,8 @@ def G_AMDGPU_ATOMIC_FMIN : G_ATOMICRMW_OP;
 def G_AMDGPU_ATOMIC_FMAX : G_ATOMICRMW_OP;
 }
 
-class BufferAtomicGenericInstruction<bit NoRtn = 0> : AMDGPUGenericInstruction {
-  let OutOperandList = !if(NoRtn, (outs), (outs type0:$dst));
+class BufferAtomicGenericInstruction : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$vdata, type1:$rsrc, type2:$vindex, type2:$voffset,
                            type2:$soffset, untyped_imm_0:$offset,
                            untyped_imm_0:$cachepolicy, untyped_imm_0:$idxen);

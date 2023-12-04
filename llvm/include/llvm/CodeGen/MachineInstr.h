@@ -1276,7 +1276,7 @@ public:
   /// eraseFromBundle() to erase individual bundled instructions.
   void eraseFromParent();
 
-  /// Unlink 'this' form its basic block and delete it.
+  /// Unlink 'this' from its basic block and delete it.
   ///
   /// If the instruction is part of a bundle, the other instructions in the
   /// bundle remain bundled.
@@ -1350,6 +1350,10 @@ public:
     return false;
   }
 
+  bool isJumpTableDebugInfo() const {
+    return getOpcode() == TargetOpcode::JUMP_TABLE_DEBUG_INFO;
+  }
+
   bool isPHI() const {
     return getOpcode() == TargetOpcode::PHI ||
            getOpcode() == TargetOpcode::G_PHI;
@@ -1359,12 +1363,6 @@ public:
   bool isInlineAsm() const {
     return getOpcode() == TargetOpcode::INLINEASM ||
            getOpcode() == TargetOpcode::INLINEASM_BR;
-  }
-
-  /// FIXME: Seems like a layering violation that the AsmDialect, which is X86
-  /// specific, be attached to a generic MachineInstr.
-  bool isMSInlineAsm() const {
-    return isInlineAsm() && getInlineAsmDialect() == InlineAsm::AD_Intel;
   }
 
   bool isStackAligningInlineAsm() const;
@@ -1816,7 +1814,7 @@ public:
 
   /// Replace the instruction descriptor (thus opcode) of
   /// the current instruction with a new one.
-  void setDesc(const MCInstrDesc &TID) { MCID = &TID; }
+  void setDesc(const MCInstrDesc &TID);
 
   /// Replace current source information with new such.
   /// Avoid using this, the constructor argument is preferable.

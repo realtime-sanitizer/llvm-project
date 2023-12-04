@@ -436,6 +436,20 @@ multiclass VOP3PDOTIUInst <string OpName, SDPatternOperator intrinsic_node> {
 let SubtargetPredicate = HasDot8Insts  in {
 defm V_DOT4_I32_IU8 : VOP3PDOTIUInst<"v_dot4_i32_iu8", int_amdgcn_sudot4>;
 defm V_DOT8_I32_IU4 : VOP3PDOTIUInst<"v_dot8_i32_iu4", int_amdgcn_sudot8>;
+
+def : GCNPat < (int_amdgcn_sdot8 i32:$src0,
+                                 i32:$src1,
+                                 i32:$src2, (i1 timm:$clamp)),
+               (V_DOT8_I32_IU4  (i32 9), i32:$src0,
+                                (i32 9), i32:$src1, (i32 8), i32:$src2, i1:$clamp)
+>;
+
+def : GCNPat < (int_amdgcn_sdot4 i32:$src0,
+                                 i32:$src1,
+                                 i32:$src2, (i1 timm:$clamp)),
+               (V_DOT4_I32_IU8  (i32 9), i32:$src0,
+                                (i32 9), i32:$src1, (i32 8), i32:$src2, i1:$clamp)
+>;
 } // End SubtargetPredicate = HasDot8Insts
 
 def : UDot2Pat<V_DOT2_U32_U16>;
@@ -1091,6 +1105,7 @@ multiclass VOP3P_Real_SMFMAC<bits<7> op, string alias> {
   def : MnemonicAlias<alias, !cast<VOP3_Pseudo>(NAME#"_e64").Mnemonic>;
 }
 
+let SubtargetPredicate = isGFX8GFX9 in {
 defm V_PK_MAD_I16 : VOP3P_Real_vi <0x00>;
 defm V_PK_MUL_LO_U16 : VOP3P_Real_vi <0x01>;
 defm V_PK_ADD_I16 : VOP3P_Real_vi <0x02>;
@@ -1111,7 +1126,7 @@ defm V_PK_ADD_F16 : VOP3P_Real_vi <0x0f>;
 defm V_PK_MUL_F16 : VOP3P_Real_vi <0x10>;
 defm V_PK_MIN_F16 : VOP3P_Real_vi <0x11>;
 defm V_PK_MAX_F16 : VOP3P_Real_vi <0x12>;
-
+} // End SubtargetPredicate = isGFX8GFX9
 
 let SubtargetPredicate = HasMadMixInsts in {
 defm V_MAD_MIX_F32 : VOP3P_Real_vi <0x20>;
@@ -1216,12 +1231,10 @@ defm V_SMFMAC_F32_32X32X32_BF8_FP8 : VOP3P_Real_SMFMAC <0x7d, "v_smfmac_f32_32x3
 defm V_SMFMAC_F32_32X32X32_FP8_BF8 : VOP3P_Real_SMFMAC <0x7e, "v_smfmac_f32_32x32x32fp8bf8">;
 defm V_SMFMAC_F32_32X32X32_FP8_FP8 : VOP3P_Real_SMFMAC <0x7f, "v_smfmac_f32_32x32x32fp8fp8">;
 
-let SubtargetPredicate = HasPackedFP32Ops in {
-  defm V_PK_FMA_F32 : VOP3P_Real_vi <0x30>;
-  defm V_PK_MUL_F32 : VOP3P_Real_vi <0x31>;
-  defm V_PK_ADD_F32 : VOP3P_Real_vi <0x32>;
-  defm V_PK_MOV_B32 : VOP3P_Real_vi <0x33>;
-} // End SubtargetPredicate = HasPackedFP32Ops
+defm V_PK_FMA_F32 : VOP3P_Real_vi <0x30>;
+defm V_PK_MUL_F32 : VOP3P_Real_vi <0x31>;
+defm V_PK_ADD_F32 : VOP3P_Real_vi <0x32>;
+defm V_PK_MOV_B32 : VOP3P_Real_vi <0x33>;
 
 //===----------------------------------------------------------------------===//
 // GFX10.
