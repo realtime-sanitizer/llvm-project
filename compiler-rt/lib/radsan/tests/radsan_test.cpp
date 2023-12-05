@@ -21,6 +21,15 @@
 #include <shared_mutex>
 #include <thread>
 
+#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && \
+    __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+#define SI_MAC_DEPLOYMENT_AT_LEAST_10_12 1
+#else
+#define SI_MAC_DEPLOYMENT_AT_LEAST_10_12 0
+#endif
+
+#define RADSAN_TEST_SHARED_MUTEX (!(SI_MAC) || SI_MAC_DEPLOYMENT_AT_LEAST_10_12)
+
 using namespace testing;
 using namespace radsan_testing;
 using namespace std::chrono_literals;
@@ -100,7 +109,7 @@ TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
 }
 
 
-#if SANITIZER_INTERCEPT_SHARED_MUTEX
+#if RADSAN_TEST_SHARED_MUTEX
 
 TEST(TestRadsan, lockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
@@ -132,7 +141,7 @@ TEST(TestRadsan, sharedUnlockingASharedMutexDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-#endif // SANITIZER_INTERCEPT_SHARED_MUTEX
+#endif // RADSAN_TEST_SHARED_MUTEX
 
 TEST(TestRadsan, launchingAThreadDiesWhenRealtime) {
   auto func = [&]() {
