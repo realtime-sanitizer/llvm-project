@@ -11,6 +11,7 @@
 #include "radsan_test_utilities.h"
 #include <radsan.h>
 #include <sanitizer_common/sanitizer_platform.h>
+#include <sanitizer_common/sanitizer_platform_interceptors.h>
 
 #include <array>
 #include <atomic>
@@ -19,6 +20,15 @@
 #include <mutex>
 #include <shared_mutex>
 #include <thread>
+
+#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && \
+    __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+#define SI_MAC_DEPLOYMENT_AT_LEAST_10_12 1
+#else
+#define SI_MAC_DEPLOYMENT_AT_LEAST_10_12 0
+#endif
+
+#define RADSAN_TEST_SHARED_MUTEX (!(SI_MAC) || SI_MAC_DEPLOYMENT_AT_LEAST_10_12)
 
 using namespace testing;
 using namespace radsan_testing;
@@ -98,6 +108,9 @@ TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+
+#if RADSAN_TEST_SHARED_MUTEX
+
 TEST(TestRadsan, lockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   auto func = [&]() { mutex.lock(); };
@@ -127,6 +140,8 @@ TEST(TestRadsan, sharedUnlockingASharedMutexDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
+
+#endif // RADSAN_TEST_SHARED_MUTEX
 
 TEST(TestRadsan, launchingAThreadDiesWhenRealtime) {
   auto func = [&]() {

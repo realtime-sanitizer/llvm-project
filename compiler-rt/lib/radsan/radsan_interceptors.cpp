@@ -9,6 +9,7 @@
 #include "radsan/radsan_interceptors.h"
 
 #include "sanitizer_common/sanitizer_platform.h"
+#include "sanitizer_common/sanitizer_platform_interceptors.h"
 
 #include "interception/interception.h"
 #include "radsan/radsan_context.h"
@@ -261,10 +262,15 @@ INTERCEPTOR(void *, valloc, SIZE_T size) {
   return REAL(valloc)(size);
 }
 
+#if SANITIZER_INTERCEPT_ALIGNED_ALLOC
 INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
   radsan::expectNotRealtime("aligned_alloc");
   return REAL(aligned_alloc)(alignment, size);
 }
+#define RADSAN_MAYBE_INTERCEPT_ALIGNED_ALLOC INTERCEPT_FUNCTION(aligned_alloc)
+#else
+#define RADSAN_MAYBE_INTERCEPT_ALIGNED_ALLOC
+#endif
 
 INTERCEPTOR(int, posix_memalign, void **memptr, size_t alignment, size_t size) {
   radsan::expectNotRealtime("posix_memalign");
@@ -330,7 +336,7 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(realloc);
   INTERCEPT_FUNCTION(reallocf);
   INTERCEPT_FUNCTION(valloc);
-  INTERCEPT_FUNCTION(aligned_alloc);
+  RADSAN_MAYBE_INTERCEPT_ALIGNED_ALLOC;
   INTERCEPT_FUNCTION(posix_memalign);
 
   INTERCEPT_FUNCTION(open);

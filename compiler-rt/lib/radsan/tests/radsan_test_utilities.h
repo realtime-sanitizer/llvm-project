@@ -9,8 +9,7 @@
 #pragma once
 
 #include "gmock/gmock.h"
-
-#include <optional>
+#include <string>
 
 namespace radsan_testing {
 
@@ -21,15 +20,15 @@ template <typename Function>
 
 template <typename Function>
 void expectRealtimeDeath(
-    Function &&func, std::optional<std::string> intercepted_method_name = {}) {
+    Function &&func, const char* intercepted_method_name = nullptr) {
 
   using namespace testing;
 
   auto expected_error_substr = [&]() -> std::string {
-    return intercepted_method_name.has_value()
+    return intercepted_method_name != nullptr
                ? "Real-time violation: intercepted call to real-time unsafe "
                  "function `" +
-                     intercepted_method_name.value() + "`"
+                     std::string(intercepted_method_name) + "`"
                : "";
   };
 
