@@ -1998,6 +1998,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Returned;
   case bitc::ATTR_KIND_REALTIME:
     return Attribute::Realtime;
+  case bitc::ATTR_KIND_REALTIME_BYPASS:
+    return Attribute::RealtimeBypass;
   case bitc::ATTR_KIND_RETURNS_TWICE:
     return Attribute::ReturnsTwice;
   case bitc::ATTR_KIND_S_EXT:

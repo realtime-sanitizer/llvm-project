@@ -743,6 +743,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_OPTIMIZE_NONE;
   case Attribute::Realtime:
     return bitc::ATTR_KIND_REALTIME;
+  case Attribute::RealtimeBypass:
+    return bitc::ATTR_KIND_REALTIME_BYPASS;
   case Attribute::ReadNone:
     return bitc::ATTR_KIND_READ_NONE;
   case Attribute::ReadOnly:
