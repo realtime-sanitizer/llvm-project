@@ -1135,7 +1135,7 @@ def Const : InheritableAttr {
 def Realtime : InheritableAttr {
   let Spellings = [CXX11<"clang", "realtime">, 
                    C23<"clang", "realtime">,
-                   GCC<"reealtime">];
+                   GCC<"realtime">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
   let SimpleHandler = 1;
