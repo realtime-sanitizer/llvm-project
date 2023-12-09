@@ -218,10 +218,10 @@ def ReadNone : EnumAttr<"readnone", [ParamAttr]>;
 /// Function only reads from memory.
 def ReadOnly : EnumAttr<"readonly", [ParamAttr]>;
 
-/// Function is marked as realtime safe.
+/// Function is marked to be analyzed by the realtime sanitizer.
 def Realtime : EnumAttr<"realtime", [FnAttr]>;
 
-/// Function is known to be not-realtime safe but can be marked as realtime
+/// Function can be called from realtime functions and is omitted from realtime sanitizer analysis.
 def RealtimeBypass : EnumAttr<"realtime_bypass", [FnAttr]>;
 
 /// Return value is always equal to this argument.

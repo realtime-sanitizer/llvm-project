@@ -1375,6 +1375,7 @@ void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
 }
 
 void InsertRadsanEnter(llvm::Function *Fn) {
+
   InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
                                            "radsan_realtime_enter");
 }
@@ -1570,7 +1571,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   }
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)){
+    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)) {
        InsertRadsanBypassEnter(Fn);
     }
 
