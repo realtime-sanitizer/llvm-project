@@ -769,7 +769,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
     if (no_sanitize_mask && SanitizerKind::Realtime)
     {
-      printf("NoSanitizeRealtime1\n");
+      // If we have turned off the sanitizer for this method, what we really want is to bypass
+      // this function. Turn on the sanitizer, but add the attribute to bypass it.
+      SanOpts.set(SanitizerKind::Realtime, true);
       Fn->addFnAttr(llvm::Attribute::RealtimeBypass);
     }
 
