@@ -1375,14 +1375,11 @@ void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
 }
 
 void InsertRadsanEnter(llvm::Function *Fn) {
-  printf("ENTER: Inserting radsan for %s\n", Fn->getName().str().c_str());
-
   InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
                                            "radsan_realtime_enter");
 }
 
 void InsertRadsanExit(llvm::Function *Fn) {
-  printf("EXIT: Inserting radsan for %s\n", Fn->getName().str().c_str());
   for (auto &bb : *Fn) {
     for (auto &i : bb) {
       if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
@@ -1394,13 +1391,11 @@ void InsertRadsanExit(llvm::Function *Fn) {
 }
 
 void InsertRadsanBypassEnter(llvm::Function *Fn) {
-  printf("ENTER: Bypassing radsan for %s\n", Fn->getName().str().c_str());
   InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
                                            "radsan_off");
 }
 
 void InsertRadsanBypassExit(llvm::Function *Fn) {
-  printf("EXIT: Bypassing radsan for %s\n", Fn->getName().str().c_str());
   for (auto &bb : *Fn) {
     for (auto &i : bb) {
       if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
@@ -1574,23 +1569,12 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     }
   }
 
-  static int realtimeCalls = 0;
-  if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass))
-  {
-      printf("Function %s has realtime bypass attribute\n", Fn->getName().str().c_str());
-  }
-
-
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass))
-    {
-       
+    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)){
        InsertRadsanBypassEnter(Fn);
     }
 
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) 
-    {
-        printf("Function %s has realtime attribute\n", Fn->getName().str().c_str());
+    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
        InsertRadsanEnter(Fn); 
     }
   }
@@ -1599,13 +1583,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   FinishFunction(BodyRange.getEnd());
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass))
-    {
+    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)) {
        InsertRadsanBypassExit(Fn);
     }
 
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) 
-    {
+    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
        InsertRadsanExit(Fn); 
     }
   }
