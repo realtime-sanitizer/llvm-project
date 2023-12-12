@@ -145,10 +145,24 @@ TEST(TestRadsanInterceptors, openatDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, creatDiesWhenRealtime) {
-  auto func = []() { creat("./file.txt", O_TRUNC); };
+
+  /*
+    The creat function doesn't seem to work on an ubuntu image when the path is
+    in a Docker shared volume. For now, to keep testing convenient with a local
+    Docker container, we just put it somewhere that's not in the shared volume
+    (/tmp). This is volatile and will be cleaned up as soon as the container is
+    stopped. */
+
+#if SANITIZER_LINUX
+  auto const filepath = "/tmp/file.txt";
+#elif SANITIZER_APPLE
+  auto const filepath = "./file.txt";
+#endif
+
+  auto func = [&filepath]() { creat(filepath, S_IWOTH | S_IROTH); };
   expectRealtimeDeath(func, "creat");
   expectNonrealtimeSurvival(func);
-  std::remove("./file.txt");
+  std::remove(filepath);
 }
 
 TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
