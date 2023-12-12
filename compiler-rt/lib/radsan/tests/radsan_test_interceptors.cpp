@@ -134,18 +134,21 @@ TEST(TestRadsanInterceptors, openDiesWhenRealtime) {
   auto func = []() { open("./file.txt", O_RDONLY); };
   expectRealtimeDeath(func, "open");
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, openatDiesWhenRealtime) {
   auto func = []() { openat(0, "./file.txt", O_RDONLY); };
   expectRealtimeDeath(func, "openat");
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, creatDiesWhenRealtime) {
   auto func = []() { creat("./file.txt", O_TRUNC); };
   expectRealtimeDeath(func, "creat");
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
@@ -162,16 +165,16 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
   auto func = []() {
-    auto fd = fopen("./file.txt", "r");
-    if (fd != nullptr)
-      fclose(fd);
+    auto fd = fopen("./file.txt", "w");
+    EXPECT_THAT(fd, Ne(nullptr));
   };
   expectRealtimeDeath(func, "fopen");
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "r");
+  auto fd = fopen("./file.txt", "w");
   auto func = [fd]() {
     char c{};
     fread(&c, 1, 1, fd);
@@ -180,6 +183,7 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
   if (fd != nullptr)
     fclose(fd);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
@@ -189,13 +193,16 @@ TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
   auto func = [&]() { fwrite(&message, 1, 4, fd); };
   expectRealtimeDeath(func, "fwrite");
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "r");
+  auto fd = fopen("./file.txt", "w");
+  EXPECT_THAT(fd, Ne(nullptr));
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsanInterceptors, putsDiesWhenRealtime) {
@@ -212,6 +219,7 @@ TEST(TestRadsanInterceptors, fputsDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
   if (fd != nullptr)
     fclose(fd);
+  std::remove("./file.txt");
 }
 
 /*

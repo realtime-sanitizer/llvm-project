@@ -21,7 +21,7 @@
 #include <shared_mutex>
 #include <thread>
 
-#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && \
+#if defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) &&                  \
     __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
 #define SI_MAC_DEPLOYMENT_AT_LEAST_10_12 1
 #else
@@ -62,35 +62,18 @@ TEST(TestRadsan, sleepingAThreadDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsan, fopenDiesWhenRealtime) {
-  auto func = []() {
-    auto fd = fopen("./file.txt", "w");
-    EXPECT_THAT(fd, Ne(nullptr));
-    if (fd != nullptr)
-      fclose(fd);
-  };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
-}
-
-TEST(TestRadsan, fcloseDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "r");
-  ASSERT_THAT(fd, Ne(nullptr));
-  auto func = [fd]() { fclose(fd); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
-}
-
 TEST(TestRadsan, ifstreamCreationDiesWhenRealtime) {
   auto func = []() { auto ifs = std::ifstream("./file.txt"); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsan, ofstreamCreationDiesWhenRealtime) {
   auto func = []() { auto ofs = std::ofstream("./file.txt"); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
+  std::remove("./file.txt");
 }
 
 TEST(TestRadsan, lockingAMutexDiesWhenRealtime) {
@@ -107,7 +90,6 @@ TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
 }
-
 
 #if RADSAN_TEST_SHARED_MUTEX
 
