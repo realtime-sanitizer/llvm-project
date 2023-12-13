@@ -33,6 +33,21 @@ using namespace std::chrono_literals;
 
 namespace {
 void *fake_thread_entry_point(void *) { return nullptr; }
+
+/*
+  The creat function doesn't seem to work on an ubuntu Docker image when the
+  path is in a shared volume of the host. For now, to keep testing convenient
+  with a local Docker container, we just put it somewhere that's not in the
+  shared volume (/tmp). This is volatile and will be cleaned up as soon as the
+  container is stopped.
+*/
+constexpr auto temporary_file_path() -> const char * {
+#if SANITIZER_LINUX
+  return "/tmp/radsan_temporary_test_file.txt";
+#elif SANITIZER_APPLE
+  return "./radsan_temporary_test_file.txt";
+#endif
+}
 } // namespace
 
 /*
@@ -131,38 +146,24 @@ TEST(TestRadsanInterceptors, nanosleepDiesWhenRealtime) {
 */
 
 TEST(TestRadsanInterceptors, openDiesWhenRealtime) {
-  auto func = []() { open("./file.txt", O_RDONLY); };
+  auto func = []() { open(temporary_file_path(), O_RDONLY); };
   expectRealtimeDeath(func, "open");
   expectNonrealtimeSurvival(func);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, openatDiesWhenRealtime) {
-  auto func = []() { openat(0, "./file.txt", O_RDONLY); };
+  auto func = []() { openat(0, temporary_file_path(), O_RDONLY); };
   expectRealtimeDeath(func, "openat");
   expectNonrealtimeSurvival(func);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, creatDiesWhenRealtime) {
-
-  /*
-    The creat function doesn't seem to work on an ubuntu image when the path is
-    in a Docker shared volume. For now, to keep testing convenient with a local
-    Docker container, we just put it somewhere that's not in the shared volume
-    (/tmp). This is volatile and will be cleaned up as soon as the container is
-    stopped. */
-
-#if SANITIZER_LINUX
-  auto const filepath = "/tmp/file.txt";
-#elif SANITIZER_APPLE
-  auto const filepath = "./file.txt";
-#endif
-
-  auto func = [&filepath]() { creat(filepath, S_IWOTH | S_IROTH); };
+  auto func = []() { creat(temporary_file_path(), S_IWOTH | S_IROTH); };
   expectRealtimeDeath(func, "creat");
   expectNonrealtimeSurvival(func);
-  std::remove(filepath);
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
@@ -179,16 +180,16 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
   auto func = []() {
-    auto fd = fopen("./file.txt", "w");
+    auto fd = fopen(temporary_file_path(), "w");
     EXPECT_THAT(fd, Ne(nullptr));
   };
   expectRealtimeDeath(func, "fopen");
   expectNonrealtimeSurvival(func);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "w");
+  auto fd = fopen(temporary_file_path(), "w");
   auto func = [fd]() {
     char c{};
     fread(&c, 1, 1, fd);
@@ -197,26 +198,26 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
   if (fd != nullptr)
     fclose(fd);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "w");
+  auto fd = fopen(temporary_file_path(), "w");
   ASSERT_NE(nullptr, fd);
   auto message = "Hello, world!";
   auto func = [&]() { fwrite(&message, 1, 4, fd); };
   expectRealtimeDeath(func, "fwrite");
   expectNonrealtimeSurvival(func);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "w");
+  auto fd = fopen(temporary_file_path(), "w");
   EXPECT_THAT(fd, Ne(nullptr));
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, putsDiesWhenRealtime) {
@@ -226,14 +227,14 @@ TEST(TestRadsanInterceptors, putsDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, fputsDiesWhenRealtime) {
-  auto fd = fopen("./file.txt", "w");
+  auto fd = fopen(temporary_file_path(), "w");
   ASSERT_THAT(fd, Ne(nullptr)) << errno;
   auto func = [fd]() { fputs("Hello, world!\n", fd); };
   expectRealtimeDeath(func);
   expectNonrealtimeSurvival(func);
   if (fd != nullptr)
     fclose(fd);
-  std::remove("./file.txt");
+  std::remove(temporary_file_path());
 }
 
 /*
