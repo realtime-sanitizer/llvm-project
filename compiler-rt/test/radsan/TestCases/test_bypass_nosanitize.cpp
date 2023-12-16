@@ -2,27 +2,27 @@
 // RUN: not %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-#include <stdlib.h>
 #include <pthread.h>
+#include <stdlib.h>
 
-[[clang::realtime_bypass]] void bypassed_lock(pthread_mutex_t& m) {
-  pthread_mutex_lock(&m);
+[[clang::realtime_bypass]] void bypassedLock(pthread_mutex_t& Mutex) {
+  pthread_mutex_lock(&Mutex);
 }
 
-void violation_unlock(pthread_mutex_t& m) {
-    pthread_mutex_unlock(&m);
+void violationUnlock(pthread_mutex_t& Mutex) {
+    pthread_mutex_unlock(&Mutex);
 }
 
-[[clang::realtime]] void process(pthread_mutex_t& m) {
-  bypassed_lock(m);
-  violation_unlock(m);
+[[clang::realtime]] void process(pthread_mutex_t& Mutex) {
+  bypassedLock(Mutex);
+  violationUnlock(Mutex);
 }
 
 int main() {
-  pthread_mutex_t m;
-  pthread_mutex_init(&m, NULL);
+  pthread_mutex_t Mutex;
+  pthread_mutex_init(&Mutex, NULL);
 
-  process(m);
+  process(Mutex);
   return 0;
   // CHECK: {{.*Real-time violation.*pthread_mutex_unlock.*}}
   // CHECK-NOT: {{.*pthread_mutex_lock.*}}

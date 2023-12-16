@@ -2,21 +2,21 @@
 // RUN: not %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-#include <stdlib.h>
 #include <pthread.h>
+#include <stdlib.h>
 
-[[clang::realtime_bypass]] void* bypassed_malloc() {
-  void* x = malloc(2);
-  return x;
+[[clang::realtime_bypass]] void* bypassedMalloc() {
+  void* Ptr = malloc(2);
+  return Ptr;
 }
 
-void violation_free(void* input) {
-  free(input);
+void violationFree(void* Input) {
+  free(Input);
 }
 
 [[clang::realtime]] void process() {
-  void* x = bypassed_malloc();
-  violation_free(x);
+  void* Ptr = bypassedMalloc();
+  violationFree(Ptr);
 }
 
 int main() {
