@@ -767,7 +767,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (no_sanitize_mask & SanitizerKind::KernelHWAddress)
       SanOpts.set(SanitizerKind::HWAddress, false);
 
-    if (no_sanitize_mask && SanitizerKind::Realtime)
+    if (no_sanitize_mask & SanitizerKind::Realtime)
     {
       // If we have turned off the sanitizer for this method, what we really want is to bypass
       // this function. Turn on the sanitizer, but add the attribute to bypass it.
