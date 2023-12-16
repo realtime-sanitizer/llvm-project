@@ -748,8 +748,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     const bool SanitizeBounds = SanOpts.hasOneOf(SanitizerKind::Bounds);
     SanitizerMask no_sanitize_mask;
     bool NoSanitizeCoverage = false;
+    bool NoSanitizeRealtime = false;
 
     for (auto *Attr : D->specific_attrs<NoSanitizeAttr>()) {
+      // The realtime sanitizer is not handled by SanOpts
+      // if it is enabled, it should remain enabled
+      if (Attr->hasRealtime()) {
+        NoSanitizeRealtime = true;
+        continue;
+      }
+
       no_sanitize_mask |= Attr->getMask();
       // SanitizeCoverage is not handled by SanOpts.
       if (Attr->hasCoverage())
@@ -767,11 +775,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (no_sanitize_mask & SanitizerKind::KernelHWAddress)
       SanOpts.set(SanitizerKind::HWAddress, false);
 
-    if (no_sanitize_mask & SanitizerKind::Realtime)
+    if (NoSanitizeRealtime)
     {
-      // If we have turned off the sanitizer for this method, what we really want is to bypass
-      // this function. Turn on the sanitizer, but add the attribute to bypass it.
-      SanOpts.set(SanitizerKind::Realtime, true);
       Fn->addFnAttr(llvm::Attribute::RealtimeBypass);
     }
 
