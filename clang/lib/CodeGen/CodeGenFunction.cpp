@@ -1369,9 +1369,9 @@ QualType CodeGenFunction::BuildFunctionArgList(GlobalDecl GD,
 
 namespace {
 
-void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
-                                              llvm::Instruction &instruction,
-                                              std::string const &functionName) {
+void insertCallBeforeInstruction(llvm::Function *Fn,
+                                 llvm::Instruction &instruction,
+                                 std::string const &functionName) {
   auto &context = Fn->getContext();
   auto *funcType =
       llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
@@ -1380,41 +1380,22 @@ void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
   builder.CreateCall(func, {});
 }
 
-void InsertRadsanEnter(llvm::Function *Fn) {
+void insertCallAtBeginning(llvm::Function *Fn, std::string const &InsertFnName) {
 
-  InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
-                                           "radsan_realtime_enter");
+  insertCallBeforeInstruction(Fn, Fn->front().front(),
+                              InsertFnName);
 }
 
-void InsertRadsanExit(llvm::Function *Fn) {
+void insertCallAtReturn(llvm::Function *Fn, std::string const &InsertFnName) {
   for (auto &bb : *Fn) {
     for (auto &i : bb) {
       if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
-        InsertRadsanFunctionCallBeforeInstruction(Fn, i,
-                                                 "radsan_realtime_exit");
+        insertCallBeforeInstruction(Fn, i,
+                                    InsertFnName);
       }
     }
   }
 }
-
-void InsertRadsanBypassEnter(llvm::Function *Fn) {
-  InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
-                                           "radsan_off");
-}
-
-void InsertRadsanBypassExit(llvm::Function *Fn) {
-
-  for (llvm::BasicBlock &BB : *Fn) {
-    for (llvm::Instruction &I : BB) {
-      if (auto *RI = dyn_cast<llvm::ReturnInst>(&I)) {
-        InsertRadsanFunctionCallBeforeInstruction(Fn, I,
-                                                 "radsan_on");
-      }
-    }
-  }
-}
-
-
 
 } // namespace
 
@@ -1579,11 +1560,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
     if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)) {
-       InsertRadsanBypassEnter(Fn);
+      insertCallAtBeginning(Fn, "radsan_off");
     }
 
     if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
-       InsertRadsanEnter(Fn); 
+      insertCallAtBeginning(Fn, "radsan_realtime_enter");
     }
   }
 
@@ -1592,11 +1573,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
     if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)) {
-       InsertRadsanBypassExit(Fn);
+      insertCallAtReturn(Fn, "radsan_on");
     }
 
     if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
-       InsertRadsanExit(Fn); 
+      insertCallAtReturn(Fn, "radsan_realtime_exit");
     }
   }
 
