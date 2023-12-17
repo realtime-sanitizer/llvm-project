@@ -42,6 +42,7 @@
 #include "llvm/IR/FPEnv.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
@@ -1402,10 +1403,11 @@ void InsertRadsanBypassEnter(llvm::Function *Fn) {
 }
 
 void InsertRadsanBypassExit(llvm::Function *Fn) {
-  for (auto &bb : *Fn) {
-    for (auto &i : bb) {
-      if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
-        InsertRadsanFunctionCallBeforeInstruction(Fn, i,
+
+  for (llvm::BasicBlock &BB : *Fn) {
+    for (llvm::Instruction &I : BB) {
+      if (auto *RI = dyn_cast<llvm::ReturnInst>(&I)) {
+        InsertRadsanFunctionCallBeforeInstruction(Fn, I,
                                                  "radsan_on");
       }
     }
