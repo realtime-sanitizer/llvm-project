@@ -1559,11 +1559,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   }
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)) {
+    if (Fn->hasFnAttribute(llvm::Attribute::RealtimeBypass)) {
       insertCallAtBeginning(Fn, "radsan_off");
     }
 
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
+    if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
       insertCallAtBeginning(Fn, "radsan_realtime_enter");
     }
   }
@@ -1572,11 +1572,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   FinishFunction(BodyRange.getEnd());
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::RealtimeBypass)) {
+    if (Fn->hasFnAttribute(llvm::Attribute::RealtimeBypass)) {
       insertCallAtReturn(Fn, "radsan_on");
     }
 
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
+    if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
       insertCallAtReturn(Fn, "radsan_realtime_exit");
     }
   }
