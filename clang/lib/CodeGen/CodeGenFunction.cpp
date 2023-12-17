@@ -1369,9 +1369,9 @@ QualType CodeGenFunction::BuildFunctionArgList(GlobalDecl GD,
 
 namespace {
 
-void insertCallBeforeInstruction(llvm::Function *Fn,
-                                 llvm::Instruction &instruction,
-                                 std::string const &functionName) {
+void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
+                                              llvm::Instruction &instruction,
+                                              std::string const &functionName) {
   auto &context = Fn->getContext();
   auto *funcType =
       llvm::FunctionType::get(llvm::Type::getVoidTy(context), false);
@@ -1382,16 +1382,16 @@ void insertCallBeforeInstruction(llvm::Function *Fn,
 
 void insertCallAtBeginning(llvm::Function *Fn, std::string const &InsertFnName) {
 
-  insertCallBeforeInstruction(Fn, Fn->front().front(),
-                              InsertFnName);
+  InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
+                                            InsertFnName);
 }
 
 void insertCallAtReturn(llvm::Function *Fn, std::string const &InsertFnName) {
   for (auto &bb : *Fn) {
     for (auto &i : bb) {
       if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
-        insertCallBeforeInstruction(Fn, i,
-                                    InsertFnName);
+        InsertRadsanFunctionCallBeforeInstruction(Fn, i,
+                                                  InsertFnName);
       }
     }
   }
