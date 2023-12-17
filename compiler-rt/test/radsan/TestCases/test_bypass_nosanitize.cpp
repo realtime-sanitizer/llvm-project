@@ -5,17 +5,26 @@
 #include <pthread.h>
 #include <stdlib.h>
 
-[[clang::realtime_bypass]] void bypassedLock(pthread_mutex_t& Mutex) {
+__attribute__((no_sanitize("realtime")))
+void bypassedLock(pthread_mutex_t& Mutex) {
   pthread_mutex_lock(&Mutex);
 }
 
-void violationUnlock(pthread_mutex_t& Mutex) {
+__attribute__((no_sanitize("realtime")))
+void bypassedUnlock(pthread_mutex_t& Mutex) {
     pthread_mutex_unlock(&Mutex);
+}
+
+void violationLock(pthread_mutex_t& Mutex) {
+  pthread_mutex_lock(&Mutex);
 }
 
 [[clang::realtime]] void process(pthread_mutex_t& Mutex) {
   bypassedLock(Mutex);
-  violationUnlock(Mutex);
+  bypassedUnlock(Mutex);
+
+  violationLock(Mutex);
+  bypassedUnlock(Mutex);
 }
 
 int main() {
@@ -24,6 +33,9 @@ int main() {
 
   process(Mutex);
   return 0;
-  // CHECK: {{.*Real-time violation.*pthread_mutex_unlock.*}}
-  // CHECK-NOT: {{.*pthread_mutex_lock.*}}
+  // CHECK: {{.*Real-time violation.*pthread_mutex_lock.*}}
+  // CHECK: {{.*violationLock*}}
+  // CHECK-NOT: {{.*pthread_mutex_unlock.*}}
+  // CHECK-NOT: {{.*bypassedUnlock.*}}
+  // CHECK-NOT: {{.*bypassedLock.*}}
 }

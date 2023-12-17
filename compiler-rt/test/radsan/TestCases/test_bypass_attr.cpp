@@ -10,18 +10,29 @@
   return Ptr;
 }
 
-void violationFree(void* Input) {
+[[clang::realtime_bypass]]void bypassedFree(void* Input) {
   free(Input);
+}
+
+void* violationMalloc() {
+  void* Ptr = malloc(2);
+  return Ptr;
 }
 
 [[clang::realtime]] void process() {
   void* Ptr = bypassedMalloc();
-  violationFree(Ptr);
+  bypassedFree(Ptr);
+
+  void* Ptr2 = violationMalloc();
+  bypassedFree(Ptr2);
 }
 
 int main() {
   process();
   return 0;
-  // CHECK: {{.*Real-time violation.*free.*}}
-  // CHECK-NOT: {{.*malloc.*}}
+  // CHECK: {{.*Real-time violation.*malloc.*}}
+  // CHECK: {{.*violationMalloc*}}
+  // CHECK-NOT: {{.*free.*}}
+  // CHECK-NOT: {{.*bypassedFree.*}}
+  // CHECK-NOT: {{.*bypassedMalloc.*}}
 }
