@@ -11,5 +11,6 @@
 int main() {
   violation();
   return 0;
-  // CHECK: {{.*Intercepted.*}}
+  // CHECK: {{.*Real-time violation.*}}
+  // CHECK: {{.*malloc*}}
 }
