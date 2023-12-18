@@ -41,7 +41,7 @@ void *fake_thread_entry_point(void *) { return nullptr; }
   shared volume (/tmp). This is volatile and will be cleaned up as soon as the
   container is stopped.
 */
-constexpr auto temporary_file_path() -> const char * {
+constexpr const char *temporary_file_path() {
 #if SANITIZER_LINUX
   return "/tmp/radsan_temporary_test_file.txt";
 #elif SANITIZER_APPLE
