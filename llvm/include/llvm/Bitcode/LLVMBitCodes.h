@@ -714,7 +714,7 @@ enum AttributeKindCodes {
   ATTR_KIND_MEMORY = 86,
   ATTR_KIND_NOFPCLASS = 87,
   ATTR_KIND_REALTIME = 88,
-  ATTR_KIND_REALTIME_BYPASS = 89,
+  ATTR_KIND_NO_SANITIZE_REALTIME = 89,
 };
 
 enum ComdatSelectionKindCodes {

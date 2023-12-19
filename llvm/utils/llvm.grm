@@ -178,6 +178,7 @@ FuncAttr      ::= noreturn
  | mustprogress
  | nosanitize_bounds
  | nosanitize_coverage
+ | nosanitize_realtime
  ;
 
 OptFuncAttrs  ::= + _ | OptFuncAttrs FuncAttr ;

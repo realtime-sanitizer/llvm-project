@@ -2335,9 +2335,6 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       FuncAttrs.addAttribute(llvm::Attribute::Convergent);
     if (TargetDecl->hasAttr<RealtimeAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::Realtime);
-    if (TargetDecl->hasAttr<RealtimeBypassAttr>())
-      FuncAttrs.addAttribute(llvm::Attribute::RealtimeBypass);
-
 
     if (const FunctionDecl *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
       AddAttributesFromFunctionProtoType(

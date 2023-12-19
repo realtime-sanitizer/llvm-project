@@ -2016,6 +2016,11 @@ example:
 ``nosanitize_coverage``
     This attribute indicates that SanitizerCoverage instrumentation is disabled
     for this function.
+``nosanitize_realtime``
+    This attribute indicates that SanitizerRealtime is disabled for this 
+    function. If called from a function marked ``clang::realtime``, no
+    errors that would normally be reported by SanitizerRealtime will be
+    reported.
 ``null_pointer_is_valid``
    If ``null_pointer_is_valid`` is set, then the ``null`` address
    in address-space 0 is considered to be a valid address for memory loads and

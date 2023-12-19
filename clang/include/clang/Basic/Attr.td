@@ -1141,15 +1141,6 @@ def Realtime : InheritableAttr {
   let SimpleHandler = 1;
 }
 
-def RealtimeBypass : InheritableAttr {
-  let Spellings = [CXX11<"clang", "realtime_bypass">, 
-                   C23<"clang", "realtime_bypass">,
-                   GCC<"realtime_bypass">];
-  let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
-  let SimpleHandler = 1;
-}
-
 def ConstInit : InheritableAttr {
   // This attribute does not have a C [[]] spelling because it requires the
   // CPlusPlus language option.
