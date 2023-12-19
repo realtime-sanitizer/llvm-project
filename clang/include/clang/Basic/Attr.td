@@ -3165,6 +3165,11 @@ def NoSanitize : InheritableAttr {
     bool hasCoverage() const {
       return llvm::is_contained(sanitizers(), "coverage");
     }
+
+    bool hasRealtime() const {
+      return llvm::is_contained(sanitizers(), "realtime");
+    }
+
   }];
 }
 

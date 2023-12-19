@@ -505,6 +505,12 @@ define void @f86() nosanitize_bounds
         ret void;
 }
 
+; CHECK: define void @f89() #53
+define void @f89() nosanitize_realtime
+{
+        ret void;
+}
+
 ; CHECK: define void @f87() [[FNRETTHUNKEXTERN:#[0-9]+]]
 define void @f87() fn_ret_thunk_extern { ret void }
 
@@ -564,6 +570,7 @@ define void @f88() skipprofile { ret void }
 ; CHECK: attributes #50 = { disable_sanitizer_instrumentation }
 ; CHECK: attributes #51 = { uwtable(sync) }
 ; CHECK: attributes #52 = { nosanitize_bounds }
+; CHECK: attributes #53 = { nosanitize_realtime }
 ; CHECK: attributes [[FNRETTHUNKEXTERN]] = { fn_ret_thunk_extern }
 ; CHECK: attributes [[SKIPPROFILE]] = { skipprofile }
 ; CHECK: attributes #[[NOBUILTIN]] = { nobuiltin }

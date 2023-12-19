@@ -197,6 +197,9 @@ def NoSanitizeBounds : EnumAttr<"nosanitize_bounds", [FnAttr]>;
 /// No SanitizeCoverage instrumentation.
 def NoSanitizeCoverage : EnumAttr<"nosanitize_coverage", [FnAttr]>;
 
+/// No SanitizeRealtime instrumentation.
+def NoSanitizeRealtime : EnumAttr<"nosanitize_realtime", [FnAttr]>;
+
 /// Null pointer in address space zero is valid.
 def NullPointerIsValid : EnumAttr<"null_pointer_is_valid", [FnAttr]>;
 
@@ -218,6 +221,7 @@ def ReadNone : EnumAttr<"readnone", [ParamAttr]>;
 /// Function only reads from memory.
 def ReadOnly : EnumAttr<"readonly", [ParamAttr]>;
 
+/// Function is marked to be analyzed by the realtime sanitizer.
 def Realtime : EnumAttr<"realtime", [FnAttr]>;
 
 /// Return value is always equal to this argument.

@@ -42,6 +42,7 @@
 #include "llvm/IR/FPEnv.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
@@ -748,8 +749,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     const bool SanitizeBounds = SanOpts.hasOneOf(SanitizerKind::Bounds);
     SanitizerMask no_sanitize_mask;
     bool NoSanitizeCoverage = false;
+    bool NoSanitizeRealtime = false;
 
     for (auto *Attr : D->specific_attrs<NoSanitizeAttr>()) {
+      // The realtime sanitizer is not handled by SanOpts
+      // if it is enabled, it should remain enabled
+      if (Attr->hasRealtime()) {
+        NoSanitizeRealtime = true;
+        continue;
+      }
+
       no_sanitize_mask |= Attr->getMask();
       // SanitizeCoverage is not handled by SanOpts.
       if (Attr->hasCoverage())
@@ -766,6 +775,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       SanOpts.set(SanitizerKind::KernelHWAddress, false);
     if (no_sanitize_mask & SanitizerKind::KernelHWAddress)
       SanOpts.set(SanitizerKind::HWAddress, false);
+
+    if (NoSanitizeRealtime)
+    {
+      Fn->addFnAttr(llvm::Attribute::NoSanitizeRealtime);
+    }
 
     if (SanitizeBounds && !SanOpts.hasOneOf(SanitizerKind::Bounds))
       Fn->addFnAttr(llvm::Attribute::NoSanitizeBounds);
@@ -1366,18 +1380,18 @@ void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
   builder.CreateCall(func, {});
 }
 
-void InsertRadsanEnter(llvm::Function *Fn) {
+void insertCallAtFunctionEntryPoint(llvm::Function *Fn, std::string const &InsertFnName) {
 
   InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
-                                           "radsan_realtime_enter");
+                                            InsertFnName);
 }
 
-void InsertRadsanExit(llvm::Function *Fn) {
+void insertCallAtAllFunctionExitPoints(llvm::Function *Fn, std::string const &InsertFnName) {
   for (auto &bb : *Fn) {
     for (auto &i : bb) {
       if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
         InsertRadsanFunctionCallBeforeInstruction(Fn, i,
-                                                 "radsan_realtime_exit");
+                                                  InsertFnName);
       }
     }
   }
@@ -1545,8 +1559,12 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   }
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
-      { InsertRadsanEnter(Fn); }
+    if (Fn->hasFnAttribute(llvm::Attribute::NoSanitizeRealtime)) {
+      insertCallAtFunctionEntryPoint(Fn, "radsan_off");
+    }
+
+    if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
+      insertCallAtFunctionEntryPoint(Fn, "radsan_realtime_enter");
     }
   }
 
@@ -1554,8 +1572,12 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   FinishFunction(BodyRange.getEnd());
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::AttrKind::Realtime)) {
-      { InsertRadsanExit(Fn); }
+    if (Fn->hasFnAttribute(llvm::Attribute::NoSanitizeRealtime)) {
+      insertCallAtAllFunctionExitPoints(Fn, "radsan_on");
+    }
+
+    if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
+      insertCallAtAllFunctionExitPoints(Fn, "radsan_realtime_exit");
     }
   }
 
