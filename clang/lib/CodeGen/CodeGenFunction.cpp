@@ -1380,13 +1380,13 @@ void InsertRadsanFunctionCallBeforeInstruction(llvm::Function *Fn,
   builder.CreateCall(func, {});
 }
 
-void insertCallAtBeginning(llvm::Function *Fn, std::string const &InsertFnName) {
+void insertCallAtFunctionEntryPoint(llvm::Function *Fn, std::string const &InsertFnName) {
 
   InsertRadsanFunctionCallBeforeInstruction(Fn, Fn->front().front(),
                                             InsertFnName);
 }
 
-void insertCallAtReturn(llvm::Function *Fn, std::string const &InsertFnName) {
+void insertCallAtAllFunctionExitPoints(llvm::Function *Fn, std::string const &InsertFnName) {
   for (auto &bb : *Fn) {
     for (auto &i : bb) {
       if (auto *ri = dyn_cast<llvm::ReturnInst>(&i)) {
@@ -1560,11 +1560,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
     if (Fn->hasFnAttribute(llvm::Attribute::NoSanitizeRealtime)) {
-      insertCallAtBeginning(Fn, "radsan_off");
+      insertCallAtFunctionEntryPoint(Fn, "radsan_off");
     }
 
     if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
-      insertCallAtBeginning(Fn, "radsan_realtime_enter");
+      insertCallAtFunctionEntryPoint(Fn, "radsan_realtime_enter");
     }
   }
 
@@ -1573,11 +1573,11 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
     if (Fn->hasFnAttribute(llvm::Attribute::NoSanitizeRealtime)) {
-      insertCallAtReturn(Fn, "radsan_on");
+      insertCallAtAllFunctionExitPoints(Fn, "radsan_on");
     }
 
     if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
-      insertCallAtReturn(Fn, "radsan_realtime_exit");
+      insertCallAtAllFunctionExitPoints(Fn, "radsan_realtime_exit");
     }
   }
 
