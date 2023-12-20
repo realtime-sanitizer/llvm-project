@@ -2,17 +2,17 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 __attribute__((no_sanitize("realtime")))
-void no_sanitize_free(void* x) {
-    free(x);
+void noSanitizeFree(void* Ptr) {
+    free(Ptr);
 }
 
 [[clang::realtime]] void violation() {
-    void* x = malloc(2);
-    no_sanitize_free(x);
+    void* Ptr = malloc(2);
+    noSanitizeFree(Ptr);
 }
 
 int main() {
@@ -22,8 +22,8 @@ int main() {
   violation();
 
   // Check everything is OK in a non-realtime block
-  void* x = malloc(2);
-  no_sanitize_free(x);
+  void* Ptr = malloc(2);
+  noSanitizeFree(Ptr);
 
   printf("No violations ended the program\n");
   return 0;

@@ -8,13 +8,13 @@ void* mallocViolation() {
   return malloc(10);
 }
 
-void freeViolation(void* x) {
-  free(x);
+void freeViolation(void* Ptr) {
+  free(Ptr);
 }
 
 [[clang::realtime]] void process() {
-  auto x = mallocViolation();
-  freeViolation(x);
+  void* Ptr = mallocViolation();
+  freeViolation(Ptr);
 }
 
 int main() {

@@ -2,13 +2,13 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 // In this test, we don't use the -fsanitize=realtime flag, so nothing
 // should happen here
 [[clang::realtime]] void violation() {
-    void* x = malloc(2);
+    void* Ptr = malloc(2);
 }
 
 int main() {

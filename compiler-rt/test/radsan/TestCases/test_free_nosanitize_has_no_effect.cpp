@@ -2,13 +2,13 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 __attribute__((no_sanitize("realtime")))
 void violation() {
-    auto x = malloc(2);
-    free(x);
+    void* Ptr = malloc(2);
+    free(Ptr);
 }
 
 int main() {

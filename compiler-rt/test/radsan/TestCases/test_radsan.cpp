@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 [[clang::realtime]] void violation() {
-    auto x = malloc(2);
+    void* Ptr = malloc(2);
 }
 
 int main() {
