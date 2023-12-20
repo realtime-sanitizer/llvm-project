@@ -5,16 +5,6 @@ import os
 # Setup config name.
 config.name = "RADSAN" + config.name_suffix
 
-default_radsan_opts = list(config.default_sanitizer_opts)
-
-default_radsan_opts_str = ":".join(default_radsan_opts)
-if default_radsan_opts_str:
-    config.environment["RADSAN_ERROR_MODE"] = default_radsan_opts_str
-    default_radsan_opts_str += ":"
-config.substitutions.append(
-    ("%env_radsan_opts=", "env RADSAN_ERROR_MODE=" + default_radsan_opts_str)
-)
-
 # Setup source root.
 config.test_source_root = os.path.dirname(__file__)
 

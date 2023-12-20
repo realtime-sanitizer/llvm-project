@@ -1,6 +1,11 @@
 // RUN: %clangxx -fsanitize=realtime %s -o %t
-// RUN: %env_radsan_opts=continue not %run %t 2>&1 | FileCheck %s
+// RUN: env RADSAN_ERROR_MODE=continue %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
+
+// FIXME: We should have the second "RUN" command be prefaced with "not", 
+// aka "not env RADSAN_ERROR_MODE=continue %run %t 2>&1 | FileCheck %s"
+// but running in continue mode does not exit non-zero
+// https://trello.com/c/vNaKEFty/66-running-in-mode-continue-does-not-exit-non-zero-to-indicate-error
 
 #include <stdlib.h>
 
@@ -22,4 +27,5 @@ int main() {
   return 0;
   // CHECK: {{.*Real-time violation.*}}
   // CHECK: {{.*malloc*}}
+  // CHECK: {{.*free*}}
 }
