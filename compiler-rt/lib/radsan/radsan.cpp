@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 extern "C" {
-RADSAN_EXPORT void radsan_init() { radsan::initialiseInterceptors(); }
+RADSAN_EXPORT void __radsan_init() { radsan::initialiseInterceptors(); }
 
 RADSAN_EXPORT void radsan_realtime_enter() {
   radsan::getContextForThisThread().realtimePush();

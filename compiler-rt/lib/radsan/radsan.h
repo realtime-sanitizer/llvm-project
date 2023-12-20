@@ -18,7 +18,7 @@ extern "C" {
 
     @warning Do not call this method as a user.
 */
-RADSAN_EXPORT void radsan_init();
+RADSAN_EXPORT void __radsan_init();
 
 /** Enter real-time context.
 

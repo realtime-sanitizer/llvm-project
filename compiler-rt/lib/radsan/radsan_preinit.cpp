@@ -6,8 +6,7 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include "sanitizer_common/sanitizer_internal_defs.h"
-#include <radsan/radsan.h>
+#include "radsan.h"
 
 #if SANITIZER_CAN_USE_PREINIT_ARRAY
 
@@ -16,6 +15,6 @@
 // This code is linked into the main executable when -fsanitize=realtime is in
 // the link flags. It can only use exported interface functions.
 __attribute__((section(".preinit_array"), used))
-void (*__local_radsan_preinit)(void) = radsan_init;
+void (*__local_radsan_preinit)(void) = __radsan_init;
 
 #endif

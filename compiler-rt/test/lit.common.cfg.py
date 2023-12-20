@@ -216,6 +216,7 @@ possibly_dangerous_env_vars = [
     "LSAN_OPTIONS",
     "MSAN_OPTIONS",
     "UBSAN_OPTIONS",
+    "RADSAN_OPTIONS",
     "COMPILER_PATH",
     "RC_DEBUG_OPTIONS",
     "CINDEXTEST_PREAMBLE_FILE",

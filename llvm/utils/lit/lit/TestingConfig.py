@@ -42,6 +42,7 @@ class TestingConfig(object):
             "MSAN_OPTIONS",
             "TSAN_OPTIONS",
             "UBSAN_OPTIONS",
+            "RADSAN_OPTIONS",
             "ADB",
             "ANDROID_SERIAL",
             "SSH_AUTH_SOCK",
