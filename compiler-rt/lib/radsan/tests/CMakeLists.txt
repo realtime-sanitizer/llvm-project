@@ -42,7 +42,6 @@ if (APPLE)
   list(APPEND RADSAN_UNITTEST_LINK_FLAGS ${DARWIN_osx_LINK_FLAGS})
   list(APPEND RADSAN_UNITTEST_CFLAGS ${DARWIN_osx_CFLAGS})
 else()
-  #append_list_if(COMPILER_RT_HAS_LIBATOMIC -latomic RADSAN_UNITTEST_LINK_FLAGS)
   list(APPEND RADSAN_UNITTEST_LINK_FLAGS -latomic)
 endif()
 
@@ -54,8 +53,6 @@ if(APPLE)
 endif()
 
 foreach(arch ${RADSAN_TEST_ARCH})
-  set(arch ${COMPILER_RT_DEFAULT_TARGET_ARCH})
-
   set(RadsanTestObjects)
   generate_compiler_rt_tests(RadsanTestObjects
     RadsanUnitTests "Radsan-${arch}-Test" ${arch}
