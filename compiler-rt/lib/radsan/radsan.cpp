@@ -11,8 +11,15 @@
 #include <radsan/radsan_interceptors.h>
 #include <unistd.h>
 
+namespace __radsan {
+
+void __radsan_init() {
+  radsan::initialiseInterceptors(); 
+}
+
+} // namespace __radsan
+
 extern "C" {
-SANITIZER_INTERFACE_ATTRIBUTE void __radsan_init() { radsan::initialiseInterceptors(); }
 
 SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_enter() {
   radsan::getContextForThisThread().realtimePush();

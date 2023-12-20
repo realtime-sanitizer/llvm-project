@@ -15,6 +15,6 @@
 // This code is linked into the main executable when -fsanitize=realtime is in
 // the link flags. It can only use exported interface functions.
 __attribute__((section(".preinit_array"), used))
-void (*__local_radsan_preinit)(void) = __radsan_init;
+void (*__local_radsan_preinit)(void) = __radsan::__radsan_init;
 
 #endif

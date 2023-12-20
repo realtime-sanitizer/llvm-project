@@ -10,15 +10,18 @@
 
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
-extern "C" {
-
+namespace __radsan {
 /**
     Initialise radsan interceptors. A call to this method is added to the
     preinit array on Linux systems.
 
     @warning Do not call this method as a user.
 */
-SANITIZER_INTERFACE_ATTRIBUTE void __radsan_init();
+void __radsan_init();
+} // namespace __radsan
+
+
+extern "C" {
 
 /** Enter real-time context.
 
