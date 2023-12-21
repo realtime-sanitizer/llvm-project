@@ -58,12 +58,8 @@ static void initializeFlags() {
   {
     CommonFlags cf;
     cf.CopyFrom(*common_flags());
+    cf.stack_trace_format = "DEFAULT";
     cf.external_symbolizer_path = GetEnv("RADSAN_SYMBOLIZER_PATH");
-    cf.malloc_context_size = 20;
-    cf.handle_ioctl = true;
-    // FIXME: test and enable.
-    cf.check_printf = false;
-    cf.intercept_tls_get_addr = true;
     OverrideCommonFlags(cf);
   }
 
@@ -83,13 +79,10 @@ static void initializeFlags() {
 
   if (Verbosity()) ReportUnrecognizedFlags();
 
-  Printf("Before radsan_init_is_running\n");
   if (common_flags()->help) 
   {
-    Printf("asdf radsan_init_is_running\n");
     parser.PrintFlagDescriptions();
   }
-  Printf("After radsan_init_is_running\n");
 }
 
 void radsan_init() {

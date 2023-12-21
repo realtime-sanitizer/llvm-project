@@ -12,6 +12,15 @@
 #include "sanitizer_common/sanitizer_atomic.h"
 
 namespace radsan {
+
+#define ENSURE_RADSAN_INITED() do { \
+  using namespace radsan; \
+  CHECK(!radsan_init_is_running); \
+  if (!radsan_inited) { \
+    radsan_init(); \
+  } \
+} while (0)
+
 // TODO: are these data races??
 extern bool radsan_inited;
 extern bool radsan_init_is_running;

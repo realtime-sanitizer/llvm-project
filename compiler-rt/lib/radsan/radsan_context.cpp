@@ -45,6 +45,7 @@ void Context::bypassPush() { bypass_depth_++; }
 void Context::bypassPop() { bypass_depth_--; }
 
 void Context::expectNotRealtime(const char *intercepted_function_name) {
+  ENSURE_RADSAN_INITED();
   if (inRealtimeContext() && !isBypassed()) {
     bypassPush();
     printDiagnostics(intercepted_function_name);
