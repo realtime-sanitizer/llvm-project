@@ -8,31 +8,42 @@
 
 #include "radsan_test_utilities.h"
 
+#include "radsan.h"
 #include "radsan_context.h"
 #include "radsan_user_interface.h"
 
-TEST(TestRadsanContext, canCreateContext) { auto context = radsan::Context{}; }
+#include <gtest/gtest.h>
 
-TEST(TestRadsanContext, expectNotRealtimeDoesNotDieBeforeRealtimePush) {
+// Test fixture that calls ENSURE_RADSAN_INITED before each test
+class TestRadsanContext : public ::testing::Test {
+protected:
+  void SetUp() override { radsan::EnsureInitialized(); }
+};
+
+TEST_F(TestRadsanContext, canCreateContext) { 
+  auto context = radsan::Context{}; 
+}
+
+TEST_F(TestRadsanContext, expectNotRealtimeDoesNotDieBeforeRealtimePush) {
   auto context = radsan::Context{};
   context.expectNotRealtime("do_some_stuff");
 }
 
-TEST(TestRadsanContext, expectNotRealtimeDoesNotDieAfterPushAndPop) {
+TEST_F(TestRadsanContext, expectNotRealtimeDoesNotDieAfterPushAndPop) {
   auto context = radsan::Context{};
   context.realtimePush();
   context.realtimePop();
   context.expectNotRealtime("do_some_stuff");
 }
 
-TEST(TestRadsanContext, expectNotRealtimeDiesAfterRealtimePush) {
+TEST_F(TestRadsanContext, expectNotRealtimeDiesAfterRealtimePush) {
   auto context = radsan::Context{};
 
   context.realtimePush();
   EXPECT_DEATH(context.expectNotRealtime("do_some_stuff"), "");
 }
 
-TEST(TestRadsanContext,
+TEST_F(TestRadsanContext,
      expectNotRealtimeDiesAfterRealtimeAfterMorePushesThanPops) {
   auto context = radsan::Context{};
 
@@ -44,7 +55,7 @@ TEST(TestRadsanContext,
   EXPECT_DEATH(context.expectNotRealtime("do_some_stuff"), "");
 }
 
-TEST(TestRadsanContext, expectNotRealtimeDoesNotDieAfterBypassPush) {
+TEST_F(TestRadsanContext, expectNotRealtimeDoesNotDieAfterBypassPush) {
   auto context = radsan::Context{};
 
   context.realtimePush();
@@ -52,7 +63,7 @@ TEST(TestRadsanContext, expectNotRealtimeDoesNotDieAfterBypassPush) {
   context.expectNotRealtime("do_some_stuff");
 }
 
-TEST(TestRadsanContext,
+TEST_F(TestRadsanContext,
      expectNotRealtimeDoesNotDieIfBypassDepthIsGreaterThanZero) {
   auto context = radsan::Context{};
 
@@ -67,7 +78,7 @@ TEST(TestRadsanContext,
   EXPECT_DEATH(context.expectNotRealtime("do_some_stuff"), "");
 }
 
-TEST(TestRadsanContext, onlyDiesIfExitWithFailureReturnedFromUser) {
+TEST_F(TestRadsanContext, onlyDiesIfExitWithFailureReturnedFromUser) {
   auto fake_action = radsan::OnErrorAction::Continue;
   auto action_getter = [&fake_action]() { return fake_action; };
 

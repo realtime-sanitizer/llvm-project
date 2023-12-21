@@ -44,7 +44,7 @@ void Context::bypassPush() { bypass_depth_++; }
 void Context::bypassPop() { bypass_depth_--; }
 
 void Context::expectNotRealtime(const char *intercepted_function_name) {
-  ENSURE_RADSAN_INITED();
+  CHECK(radsan::IsInitialized());
   if (inRealtimeContext() && !isBypassed()) {
     bypassPush();
     printDiagnostics(intercepted_function_name);
@@ -65,7 +65,7 @@ void Context::printDiagnostics(const char *intercepted_function_name) {
           "`%s` in real-time context! Stack trace:\n",
           intercepted_function_name);
 
-  atomic_fetch_add(&radsan::radsan_report_count, 1, memory_order_relaxed);
+  radsan::IncrementReportCount();
   radsan::printStackTrace();
 }
 

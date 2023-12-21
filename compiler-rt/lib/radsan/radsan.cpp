@@ -20,12 +20,35 @@
 using namespace __sanitizer;
 
 namespace radsan {
-bool radsan_inited{};
-bool radsan_init_is_running{};
-__sanitizer::atomic_uint64_t radsan_report_count{};
-static Flags radsan_flags;
+static __sanitizer::atomic_uint8_t radsan_inited{};
+static __sanitizer::atomic_uint8_t radsan_init_is_running{};
+static __sanitizer::atomic_uint64_t radsan_report_count{};
+static Flags radsan_flags{};
 
 Flags *flags() { return &radsan_flags; }
+
+void EnsureInitialized() {
+  CHECK(!radsan::IsInitRunning());
+  if (!IsInitialized()) {
+    radsan_init();
+  }
+}
+
+bool IsInitialized() { 
+  return __sanitizer::atomic_load(&radsan_inited, memory_order_acquire) == 1; 
+}
+
+bool IsInitRunning() { 
+  return __sanitizer::atomic_load(&radsan_init_is_running, memory_order_acquire) == 1; 
+}
+
+__sanitizer::u64 GetReportCount() { 
+  return __sanitizer::atomic_load(&radsan_report_count, memory_order_acquire); 
+}
+
+void IncrementReportCount() { 
+  __sanitizer::atomic_fetch_add(&radsan_report_count, 1, memory_order_relaxed); 
+}
 
 
 SANITIZER_INTERFACE_WEAK_DEF(const char *, __radsan_default_options, void) {
@@ -82,17 +105,20 @@ static void initializeFlags() {
 void radsan_init() {
   using namespace radsan;
 
-  CHECK(!radsan_init_is_running);
-  if (radsan_inited) return;
-  radsan_init_is_running = true;
+  if (IsInitialized()) return;
+
+  bool IsRunning = __sanitizer::atomic_exchange(&radsan_init_is_running, 1,
+                                                memory_order_seq_cst) == 1;
+  if (IsRunning) return;
+
 
   SanitizerToolName = "RealtimeSanitizer";
 
   initializeFlags();
   initialiseInterceptors(); 
 
-  radsan_inited = true;
-  radsan_init_is_running = false;
+  __sanitizer::atomic_store(&radsan_inited, 1, memory_order_release);
+  __sanitizer::atomic_store(&radsan_init_is_running, 0, memory_order_relaxed);
 }
 
 } // namespace radsan

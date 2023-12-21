@@ -18,7 +18,6 @@
 namespace radsan {
 
 std::function<OnErrorAction()> createErrorActionGetter() {
-  ENSURE_RADSAN_INITED();
   auto const continue_getter = []() { return OnErrorAction::Continue; };
   auto const exit_getter = []() { return OnErrorAction::ExitWithFailure; };
   auto const interactive_getter = []() {
@@ -33,6 +32,7 @@ std::function<OnErrorAction()> createErrorActionGetter() {
       return OnErrorAction::Continue;
   };
 
+  CHECK(radsan::IsInitialized());
   const char* user_mode = radsan::flags()->error_mode;
 
   if (std::strcmp(user_mode, "interactive") == 0) {
