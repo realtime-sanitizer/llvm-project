@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is a part of MemorySanitizer.
+// This file is a part of RealtimeSanitizer.
 //
 //===----------------------------------------------------------------------===//
 #ifndef RADSAN_FLAGS_H
