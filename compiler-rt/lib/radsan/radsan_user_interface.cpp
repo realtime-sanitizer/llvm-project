@@ -32,7 +32,7 @@ std::function<OnErrorAction()> createErrorActionGetter() {
       return OnErrorAction::Continue;
   };
 
-  auto user_mode = __sanitizer::GetEnv("RADSAN_ERROR_MODE");
+  auto user_mode = radsan::flags()->error_mode;
   if (user_mode == nullptr) {
     return exit_getter;
   }

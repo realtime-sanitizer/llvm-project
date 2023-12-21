@@ -15,3 +15,5 @@
 
 // RADSAN_FLAG(Type, Name, DefaultValue, Description)
 // See COMMON_FLAG in sanitizer_flags.inc for more details.
+
+RADSAN_FLAG(const char*, error_mode, "exit", "Error mode: [continue|interactive|exit].")

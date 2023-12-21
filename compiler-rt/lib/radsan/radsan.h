@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_atomic.h"
+#include "sanitizer_common/sanitizer_internal_defs.h"
+#include "radsan_flags.h"
 
 namespace radsan {
 
@@ -26,6 +27,8 @@ extern bool radsan_inited;
 extern bool radsan_init_is_running;
 extern __sanitizer::atomic_uint64_t radsan_report_count;
 
+
+Flags *flags();
 
 /**
     Initialise radsan interceptors. A call to this method is added to the
