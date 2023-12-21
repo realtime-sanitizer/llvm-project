@@ -16,7 +16,6 @@ namespace radsan {
 extern bool radsan_inited;
 extern bool radsan_init_is_running;
 extern __sanitizer::atomic_uint64_t radsan_report_count;
-} // namespace radsan
 
 
 /**
@@ -25,7 +24,8 @@ extern __sanitizer::atomic_uint64_t radsan_report_count;
 
     @warning Do not call this method as a user.
 */
-SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
+void radsan_init();
+} // namespace radsan
 
 extern "C" {
 

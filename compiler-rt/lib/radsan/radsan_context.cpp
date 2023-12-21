@@ -60,10 +60,9 @@ bool Context::inRealtimeContext() const { return realtime_depth_ > 0; }
 bool Context::isBypassed() const { return bypass_depth_ > 0; }
 
 void Context::printDiagnostics(const char *intercepted_function_name) {
-  fprintf(stderr,
-          "Real-time violation: intercepted call to real-time unsafe function "
-          "`%s` in real-time context! Stack trace:\n",
-          intercepted_function_name);
+  Printf("Real-time violation: intercepted call to real-time unsafe function "
+         "`%s` in real-time context! Stack trace:\n",
+         intercepted_function_name);
 
   atomic_fetch_add(&radsan::radsan_report_count, 1, memory_order_relaxed);
   radsan::printStackTrace();

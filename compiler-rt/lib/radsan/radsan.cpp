@@ -83,7 +83,13 @@ static void initializeFlags() {
 
   if (Verbosity()) ReportUnrecognizedFlags();
 
-  if (common_flags()->help) parser.PrintFlagDescriptions();
+  Printf("Before radsan_init_is_running\n");
+  if (common_flags()->help) 
+  {
+    Printf("asdf radsan_init_is_running\n");
+    parser.PrintFlagDescriptions();
+  }
+  Printf("After radsan_init_is_running\n");
 }
 
 void radsan_init() {
@@ -93,11 +99,13 @@ void radsan_init() {
   if (radsan_inited) return;
   radsan_init_is_running = true;
 
-  // SanitizerToolName = "RealtimeSanitizer";
-
+  SanitizerToolName = "RealtimeSanitizer";
 
   initializeFlags();
   initialiseInterceptors(); 
+
+  radsan_inited = true;
+  radsan_init_is_running = false;
 }
 
 } // namespace radsan

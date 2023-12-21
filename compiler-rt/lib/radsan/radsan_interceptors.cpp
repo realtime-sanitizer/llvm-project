@@ -13,6 +13,7 @@
 
 #include "interception/interception.h"
 #include "radsan/radsan_context.h"
+#include "radsan/radsan.h"
 
 #if !SANITIZER_LINUX && !SANITIZER_APPLE
 #error Sorry, radsan does not yet support this platform
@@ -33,8 +34,20 @@
 
 using namespace __sanitizer;
 
+
+
 namespace radsan {
+
+#define ENSURE_RADSAN_INITED() do { \
+  using namespace radsan; \
+  CHECK(!radsan_init_is_running); \
+  if (!radsan_inited) { \
+    radsan_init(); \
+  } \
+} while (0)
+
 void expectNotRealtime(const char *intercepted_function_name) {
+  ENSURE_RADSAN_INITED();
   getContextForThisThread().expectNotRealtime(intercepted_function_name);
 }
 } // namespace radsan
@@ -44,6 +57,7 @@ void expectNotRealtime(const char *intercepted_function_name) {
 */
 
 INTERCEPTOR(int, open, const char *path, int oflag, ...) {
+  ENSURE_RADSAN_INITED();
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
   radsan::expectNotRealtime("open");
