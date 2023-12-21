@@ -10,18 +10,24 @@
 
 #include "sanitizer_common/sanitizer_internal_defs.h"
 
-namespace __radsan {
+#include <atomic>
+
+namespace radsan {
+extern std::atomic<bool> radsan_inited;
+extern std::atomic<bool> radsan_init_is_running;
+extern std::atomic<int> radsan_report_count;
+} // namespace radsan
+
+extern "C" {
+
 /**
     Initialise radsan interceptors. A call to this method is added to the
     preinit array on Linux systems.
 
     @warning Do not call this method as a user.
 */
-void __radsan_init();
-} // namespace __radsan
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
 
-
-extern "C" {
 
 /** Enter real-time context.
 
@@ -73,4 +79,5 @@ SANITIZER_INTERFACE_ATTRIBUTE void radsan_off();
     details about how to use this method.
 */
 SANITIZER_INTERFACE_ATTRIBUTE void radsan_on();
-}
+
+} // extern "C"

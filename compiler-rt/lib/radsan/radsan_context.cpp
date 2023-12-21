@@ -13,6 +13,7 @@
 #include <sanitizer_common/sanitizer_allocator_internal.h>
 #include <sanitizer_common/sanitizer_stacktrace.h>
 
+#include <atomic>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +29,10 @@ void internalFree(void *ptr) { InternalFree(ptr); }
 } // namespace detail
 
 namespace radsan {
+extern std::atomic<int> radsan_inited;
+extern std::atomic<bool> radsan_init_is_running;
+extern std::atomic<int> radsan_report_count;
+
 
 Context::Context() : Context(createErrorActionGetter()) {}
 
@@ -62,6 +67,7 @@ void Context::printDiagnostics(const char *intercepted_function_name) {
           "Real-time violation: intercepted call to real-time unsafe function "
           "`%s` in real-time context! Stack trace:\n",
           intercepted_function_name);
+  radsan_report_count++;
   radsan::printStackTrace();
 }
 

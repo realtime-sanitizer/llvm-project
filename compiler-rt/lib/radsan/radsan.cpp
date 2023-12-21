@@ -6,18 +6,32 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include <radsan/radsan.h>
-#include <radsan/radsan_context.h>
-#include <radsan/radsan_interceptors.h>
+#include "radsan/radsan.h"
+#include "radsan/radsan_context.h"
+#include "radsan/radsan_interceptors.h"
+#include "sanitizer_common/sanitizer_common.h"
+
 #include <unistd.h>
+#include <atomic>
 
-namespace __radsan {
+namespace radsan {
+std::atomic<bool> radsan_inited = false;
+std::atomic<bool> radsan_init_is_running = false;
+std::atomic<int> radsan_report_count = 0;
+} // namespace radsan
 
-void __radsan_init() {
-  radsan::initialiseInterceptors(); 
+void radsan_init() {
+  using namespace radsan;
+
+  CHECK(!radsan_init_is_running);
+  if (radsan_inited) return;
+  radsan_init_is_running = true;
+
+  // SanitizerToolName = "RealtimeSanitizer";
+
+
+  initialiseInterceptors(); 
 }
-
-} // namespace __radsan
 
 extern "C" {
 
