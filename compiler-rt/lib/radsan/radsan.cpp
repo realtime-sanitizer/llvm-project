@@ -6,11 +6,11 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include "radsan.h"
+#include <radsan/radsan.h>
 
-#include "radsan_context.h"
-#include "radsan_flags.h"
-#include "radsan_interceptors.h"
+#include <radsan/radsan_context.h>
+#include <radsan/radsan_flags.h>
+#include <radsan/radsan_interceptors.h>
 
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_common.h"

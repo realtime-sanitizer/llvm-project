@@ -22,7 +22,7 @@ namespace radsan {
   } \
 } while (0)
 
-// TODO: are these data races??
+// TODO: are these data races?? Things may be initialized in multiple threads
 extern bool radsan_inited;
 extern bool radsan_init_is_running;
 extern __sanitizer::atomic_uint64_t radsan_report_count;
