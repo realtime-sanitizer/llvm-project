@@ -2,29 +2,20 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
+// Intent: Ensure [[clang::realtime]] has no impact if -fsanitize=realtime is not used
+
 #include <stdio.h>
 #include <stdlib.h>
 
-__attribute__((no_sanitize("realtime")))
-void noSanitizeFree(void* Ptr) {
-    free(Ptr);
-}
-
+// In this test, we don't use the -fsanitize=realtime flag, so nothing
+// should happen here
 [[clang::realtime]] void violation() {
     void* Ptr = malloc(2);
-    noSanitizeFree(Ptr);
 }
 
 int main() {
   printf("Starting run\n");
-
-  // Check everything is OK in a realtime block
   violation();
-
-  // Check everything is OK in a non-realtime block
-  void* Ptr = malloc(2);
-  noSanitizeFree(Ptr);
-
   printf("No violations ended the program\n");
   return 0;
   // CHECK: {{.*Starting run.*}}

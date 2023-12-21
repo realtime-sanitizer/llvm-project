@@ -2,6 +2,8 @@
 // RUN: env RADSAN_ERROR_MODE=continue %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
+// Intent: Ensure that Continue mode does not exit on the first violation.
+
 // FIXME: We should have the second "RUN" command be prefaced with "not", 
 // aka "not env RADSAN_ERROR_MODE=continue %run %t 2>&1 | FileCheck %s"
 // but running in continue mode does not exit non-zero
