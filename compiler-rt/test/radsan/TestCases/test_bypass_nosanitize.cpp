@@ -2,6 +2,8 @@
 // RUN: not %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
+// Intent: Test calls with no_sanitize attribute are not flagged as errors.
+
 #include <pthread.h>
 #include <stdlib.h>
 

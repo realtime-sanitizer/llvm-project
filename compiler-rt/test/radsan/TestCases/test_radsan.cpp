@@ -2,10 +2,13 @@
 // RUN: not %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
+// Intent: Ensure that an intercepted call in a [[clang::realtime]] function
+//         is flagged as an error. Basic smoke test.
+
 #include <stdlib.h>
 
 [[clang::realtime]] void violation() {
-    auto x = malloc(2);
+    void* Ptr = malloc(2);
 }
 
 int main() {
