@@ -6,7 +6,8 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include "radsan.h"
+#include "sanitizer_common/sanitizer_internal_defs.h"
+#include <radsan/radsan.h>
 
 #if SANITIZER_CAN_USE_PREINIT_ARRAY
 

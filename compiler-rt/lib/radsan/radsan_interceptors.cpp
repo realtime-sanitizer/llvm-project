@@ -34,10 +34,7 @@
 
 using namespace __sanitizer;
 
-
-
 namespace radsan {
-
 void expectNotRealtime(const char *intercepted_function_name) {
   ENSURE_RADSAN_INITED();
   getContextForThisThread().expectNotRealtime(intercepted_function_name);
@@ -49,7 +46,6 @@ void expectNotRealtime(const char *intercepted_function_name) {
 */
 
 INTERCEPTOR(int, open, const char *path, int oflag, ...) {
-  ENSURE_RADSAN_INITED();
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
   radsan::expectNotRealtime("open");
