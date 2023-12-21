@@ -9,16 +9,15 @@
 #pragma once
 
 #include "sanitizer_common/sanitizer_internal_defs.h"
-
-#include <atomic>
+#include "sanitizer_common/sanitizer_atomic.h"
 
 namespace radsan {
-extern std::atomic<bool> radsan_inited;
-extern std::atomic<bool> radsan_init_is_running;
-extern std::atomic<int> radsan_report_count;
+// TODO: are these data races??
+extern bool radsan_inited;
+extern bool radsan_init_is_running;
+extern __sanitizer::atomic_uint64_t radsan_report_count;
 } // namespace radsan
 
-extern "C" {
 
 /**
     Initialise radsan interceptors. A call to this method is added to the
@@ -28,6 +27,7 @@ extern "C" {
 */
 SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
 
+extern "C" {
 
 /** Enter real-time context.
 

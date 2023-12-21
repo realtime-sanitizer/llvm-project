@@ -6,19 +6,85 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include "radsan/radsan.h"
-#include "radsan/radsan_context.h"
-#include "radsan/radsan_interceptors.h"
-#include "sanitizer_common/sanitizer_common.h"
+#include "radsan.h"
 
-#include <unistd.h>
-#include <atomic>
+#include "radsan_context.h"
+#include "radsan_flags.h"
+#include "radsan_interceptors.h"
+
+#include "sanitizer_common/sanitizer_atomic.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_flag_parser.h"
+#include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
+#include "sanitizer_common/sanitizer_libc.h"
+#include "sanitizer_common/sanitizer_procmaps.h"
+#include "sanitizer_common/sanitizer_stackdepot.h"
+#include "sanitizer_common/sanitizer_stacktrace.h"
+#include "sanitizer_common/sanitizer_symbolizer.h"
+
+using namespace __sanitizer;
 
 namespace radsan {
-std::atomic<bool> radsan_inited = false;
-std::atomic<bool> radsan_init_is_running = false;
-std::atomic<int> radsan_report_count = 0;
-} // namespace radsan
+bool radsan_inited{};
+bool radsan_init_is_running{};
+__sanitizer::atomic_uint64_t radsan_report_count{};
+static Flags radsan_flags;
+
+Flags *flags() { return &radsan_flags; }
+
+
+SANITIZER_INTERFACE_WEAK_DEF(const char *, __radsan_default_options, void) {
+  return "";
+}
+
+
+static void RegisterRadsanFlags(FlagParser *parser, Flags *f) {
+#define RADSAN_FLAG(Type, Name, DefaultValue, Description) \
+  RegisterFlag(parser, #Name, Description, &f->Name);
+#include "radsan_flags.inc"
+#undef RADSAN_FLAG
+}
+
+void Flags::SetDefaults() {
+#define RADSAN_FLAG(Type, Name, DefaultValue, Description) Name = DefaultValue;
+#include "radsan_flags.inc"
+#undef RADSAN_FLAG
+}
+
+
+static void initializeFlags() {
+  SetCommonFlagsDefaults();
+  {
+    CommonFlags cf;
+    cf.CopyFrom(*common_flags());
+    cf.external_symbolizer_path = GetEnv("RADSAN_SYMBOLIZER_PATH");
+    cf.malloc_context_size = 20;
+    cf.handle_ioctl = true;
+    // FIXME: test and enable.
+    cf.check_printf = false;
+    cf.intercept_tls_get_addr = true;
+    OverrideCommonFlags(cf);
+  }
+
+  Flags *f = flags();
+  f->SetDefaults();
+
+  FlagParser parser;
+  RegisterRadsanFlags(&parser, f);
+  RegisterCommonFlags(&parser);
+
+  // Override from user-specified string.
+  parser.ParseString(__radsan_default_options());
+
+  parser.ParseStringFromEnv("RADSAN_OPTIONS");
+
+  InitializeCommonFlags();
+
+  if (Verbosity()) ReportUnrecognizedFlags();
+
+  if (common_flags()->help) parser.PrintFlagDescriptions();
+}
 
 void radsan_init() {
   using namespace radsan;
@@ -30,8 +96,11 @@ void radsan_init() {
   // SanitizerToolName = "RealtimeSanitizer";
 
 
+  initializeFlags();
   initialiseInterceptors(); 
 }
+
+} // namespace radsan
 
 extern "C" {
 

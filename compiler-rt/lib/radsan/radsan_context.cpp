@@ -6,6 +6,7 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
+#include "radsan/radsan.h"
 #include <radsan/radsan_context.h>
 
 #include <radsan/radsan_stack.h>
@@ -29,10 +30,6 @@ void internalFree(void *ptr) { InternalFree(ptr); }
 } // namespace detail
 
 namespace radsan {
-extern std::atomic<int> radsan_inited;
-extern std::atomic<bool> radsan_init_is_running;
-extern std::atomic<int> radsan_report_count;
-
 
 Context::Context() : Context(createErrorActionGetter()) {}
 
@@ -67,7 +64,8 @@ void Context::printDiagnostics(const char *intercepted_function_name) {
           "Real-time violation: intercepted call to real-time unsafe function "
           "`%s` in real-time context! Stack trace:\n",
           intercepted_function_name);
-  radsan_report_count++;
+
+  atomic_fetch_add(&radsan::radsan_report_count, 1, memory_order_relaxed);
   radsan::printStackTrace();
 }
 
