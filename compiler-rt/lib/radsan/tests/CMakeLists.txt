@@ -88,6 +88,7 @@ foreach(arch ${RADSAN_TEST_ARCH})
       ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       FOLDER "Compiler-RT Runtime tests")
 
+  set(RadsanNoInstTestObjects)
   generate_compiler_rt_tests(RadsanNoInstTestObjects
     RadsanUnitTests "Radsan-${arch}-NoInstTest" ${arch}
     COMPILE_DEPS ${RADSAN_UNITTEST_HEADERS}
