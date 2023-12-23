@@ -86,14 +86,16 @@ SANITIZER_INTERFACE_ATTRIBUTE void radsan_ensure_initialized() {
   // Double-checked locking.
   // Ensure that radsan_init() is called only once by the first thread
   // that gets here.
-  if (!radsan_is_initialized()) {
-    Lock lock(&radsan::radsan_init_mutex);
-    if (!radsan_is_initialized()) {
-      radsan_init();
-    }
-  }
 
-  CHECK(radsan_is_initialized());
+  if (radsan_is_initialized()) 
+    return;
+
+  Lock lock(&radsan::radsan_init_mutex);
+
+  if (radsan_is_initialized()) 
+    return;
+
+  radsan_init();
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE bool radsan_is_initialized() {
