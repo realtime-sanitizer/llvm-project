@@ -26,9 +26,20 @@ static pthread_key_t key;
 static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 void internalFree(void *ptr) { InternalFree(ptr); }
 
+static __sanitizer::atomic_uint64_t radsan_report_count{};
+
+void IncrementReportCount();
 } // namespace detail
 
 namespace radsan {
+
+__sanitizer::u64 GetReportCount() { 
+  return __sanitizer::atomic_load(&detail::radsan_report_count, memory_order_acquire); 
+}
+
+void IncrementReportCount() { 
+  __sanitizer::atomic_fetch_add(&detail::radsan_report_count, 1, memory_order_relaxed); 
+}
 
 Context::Context() : Context(createErrorActionGetter()) {}
 
@@ -44,7 +55,7 @@ void Context::bypassPush() { bypass_depth_++; }
 void Context::bypassPop() { bypass_depth_--; }
 
 void Context::expectNotRealtime(const char *intercepted_function_name) {
-  CHECK(radsan::IsInitialized());
+  CHECK(radsan_is_initialized());
   if (inRealtimeContext() && !isBypassed()) {
     bypassPush();
     printDiagnostics(intercepted_function_name);

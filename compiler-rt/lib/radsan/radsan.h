@@ -15,16 +15,17 @@
 namespace radsan {
 
 void EnsureInitialized();
-bool IsInitialized();
-__sanitizer::u64 GetReportCount();
-void IncrementReportCount();
-
-
-Flags *flags();
 
 } // namespace radsan
 
 extern "C" {
+
+/** Check if RADSan is initialized.
+
+    @return true if RADSan is initialized, false otherwise.
+*/
+SANITIZER_INTERFACE_ATTRIBUTE bool radsan_is_initialized();
+
 /**
     Initialise radsan interceptors. A call to this method is added to the
     preinit array on Linux systems.

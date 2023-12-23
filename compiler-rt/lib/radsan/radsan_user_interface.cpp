@@ -32,7 +32,7 @@ std::function<OnErrorAction()> createErrorActionGetter() {
       return OnErrorAction::Continue;
   };
 
-  CHECK(radsan::IsInitialized());
+  CHECK(radsan_is_initialized());
   const char* user_mode = radsan::flags()->error_mode;
 
   if (std::strcmp(user_mode, "interactive") == 0) {
