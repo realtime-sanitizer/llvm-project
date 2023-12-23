@@ -21,25 +21,28 @@ using namespace __sanitizer;
 
 namespace radsan {
 static __sanitizer::atomic_uint8_t radsan_inited{};
-static __sanitizer::atomic_uint8_t radsan_init_is_running{};
 static __sanitizer::atomic_uint64_t radsan_report_count{};
+static Mutex radsan_init_mutex{};
 static Flags radsan_flags{};
 
 Flags *flags() { return &radsan_flags; }
 
 void EnsureInitialized() {
-  CHECK(!radsan::IsInitRunning());
+  // Double-checked locking.
+  // Ensure that radsan_init() is called only once by the first thread
+  // that gets here.
   if (!IsInitialized()) {
-    radsan_init();
+    Lock lock(&radsan_init_mutex);
+    if (!IsInitialized()) {
+      radsan_init();
+    }
   }
+
+  CHECK(IsInitialized());
 }
 
 bool IsInitialized() { 
   return __sanitizer::atomic_load(&radsan_inited, memory_order_acquire) == 1; 
-}
-
-bool IsInitRunning() { 
-  return __sanitizer::atomic_load(&radsan_init_is_running, memory_order_acquire) == 1; 
 }
 
 __sanitizer::u64 GetReportCount() { 
@@ -107,18 +110,12 @@ void radsan_init() {
 
   if (IsInitialized()) return;
 
-  bool IsRunning = __sanitizer::atomic_exchange(&radsan_init_is_running, 1,
-                                                memory_order_seq_cst) == 1;
-  if (IsRunning) return;
-
-
   SanitizerToolName = "RealtimeSanitizer";
 
   initializeFlags();
   initialiseInterceptors(); 
 
   __sanitizer::atomic_store(&radsan_inited, 1, memory_order_release);
-  __sanitizer::atomic_store(&radsan_init_is_running, 0, memory_order_relaxed);
 }
 
 } // namespace radsan

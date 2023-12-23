@@ -16,7 +16,6 @@ namespace radsan {
 
 void EnsureInitialized();
 bool IsInitialized();
-bool IsInitRunning();
 __sanitizer::u64 GetReportCount();
 void IncrementReportCount();
 

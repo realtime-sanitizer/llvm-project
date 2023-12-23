@@ -36,10 +36,6 @@ using namespace __sanitizer;
 
 namespace radsan {
 void expectNotRealtime(const char *intercepted_function_name) {
-  if (radsan::IsInitRunning())
-  {
-    return;
-  }
   radsan::EnsureInitialized();
 
   getContextForThisThread().expectNotRealtime(intercepted_function_name);
