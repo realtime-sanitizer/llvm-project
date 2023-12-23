@@ -17,7 +17,7 @@
 // Test fixture that calls ENSURE_RADSAN_INITED before each test
 class TestRadsanContext : public ::testing::Test {
 protected:
-  void SetUp() override { radsan::EnsureInitialized(); }
+  void SetUp() override { radsan_ensure_initialized();}
 };
 
 TEST_F(TestRadsanContext, canCreateContext) { 

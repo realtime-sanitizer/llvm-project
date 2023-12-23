@@ -7,6 +7,7 @@
 */
 
 #include <radsan/radsan.h>
+#include <radsan/radsan_flags.h>
 #include <radsan/radsan_user_interface.h>
 
 #include <sanitizer_common/sanitizer_common.h>

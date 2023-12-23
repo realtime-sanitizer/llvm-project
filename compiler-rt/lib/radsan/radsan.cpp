@@ -26,20 +26,6 @@ static Flags radsan_flags{};
 
 Flags *flags() { return &radsan_flags; }
 
-void EnsureInitialized() {
-  // Double-checked locking.
-  // Ensure that radsan_init() is called only once by the first thread
-  // that gets here.
-  if (!radsan_is_initialized()) {
-    Lock lock(&radsan_init_mutex);
-    if (!radsan_is_initialized()) {
-      radsan_init();
-    }
-  }
-
-  CHECK(radsan_is_initialized());
-}
-
 
 SANITIZER_INTERFACE_WEAK_DEF(const char *, __radsan_default_options, void) {
   return "";
@@ -95,6 +81,20 @@ static void initializeFlags() {
 } // namespace radsan
 
 extern "C" {
+
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_ensure_initialized() {
+  // Double-checked locking.
+  // Ensure that radsan_init() is called only once by the first thread
+  // that gets here.
+  if (!radsan_is_initialized()) {
+    Lock lock(&radsan::radsan_init_mutex);
+    if (!radsan_is_initialized()) {
+      radsan_init();
+    }
+  }
+
+  CHECK(radsan_is_initialized());
+}
 
 SANITIZER_INTERFACE_ATTRIBUTE bool radsan_is_initialized() {
   return __sanitizer::atomic_load(&radsan::radsan_inited, memory_order_acquire) == 1; 

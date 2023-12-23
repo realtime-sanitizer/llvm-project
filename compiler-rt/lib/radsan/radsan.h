@@ -8,17 +8,16 @@
 
 #pragma once
 
-#include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
-#include "radsan_flags.h"
-
-namespace radsan {
-
-void EnsureInitialized();
-
-} // namespace radsan
 
 extern "C" {
+
+/** Ensure RADSan is initialized.
+
+    This method ensures the first thread to call it will initialize RADSan.
+    Any subsequent calls will be no-ops.
+*/
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_ensure_initialized();
 
 /** Check if RADSan is initialized.
 
@@ -27,10 +26,11 @@ extern "C" {
 SANITIZER_INTERFACE_ATTRIBUTE bool radsan_is_initialized();
 
 /**
-    Initialise radsan interceptors. A call to this method is added to the
-    preinit array on Linux systems.
+    Initialise radsan interceptors and other flags. A call to this method is added to the
+    preinit array on Linux systems. On non-linux systems this must be called explicitly 
+    before other radsan methods.
 
-    @warning Do not call this method as a user.
+    @warning Do not call this method as a user. See radsan_ensure_initialized() instead.
 */
 SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
 
