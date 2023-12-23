@@ -105,7 +105,11 @@ static void initializeFlags() {
   }
 }
 
-void radsan_init() {
+} // namespace radsan
+
+extern "C" {
+
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_init() {
   using namespace radsan;
 
   if (IsInitialized()) return;
@@ -117,10 +121,6 @@ void radsan_init() {
 
   __sanitizer::atomic_store(&radsan_inited, 1, memory_order_release);
 }
-
-} // namespace radsan
-
-extern "C" {
 
 SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_enter() {
   radsan::getContextForThisThread().realtimePush();

@@ -22,16 +22,16 @@ void IncrementReportCount();
 
 Flags *flags();
 
+} // namespace radsan
+
+extern "C" {
 /**
     Initialise radsan interceptors. A call to this method is added to the
     preinit array on Linux systems.
 
     @warning Do not call this method as a user.
 */
-void radsan_init();
-} // namespace radsan
-
-extern "C" {
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
 
 /** Enter real-time context.
 
