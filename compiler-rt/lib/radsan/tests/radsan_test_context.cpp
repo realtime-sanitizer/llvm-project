@@ -68,14 +68,14 @@ TEST(TestRadsanContext,
 }
 
 TEST(TestRadsanContext, onlyDiesIfExitWithFailureReturnedFromUser) {
-  auto fake_action = radsan::OnErrorAction::Continue;
-  auto action_getter = [&fake_action]() { return fake_action; };
 
-  auto context = radsan::Context{action_getter};
+  setenv("RADSAN_ERROR_MODE", "continue", 1);
+
+  auto context = radsan::Context{};
   context.realtimePush();
 
   context.expectNotRealtime("do_some_stuff_expecting_continue");
 
-  fake_action = radsan::OnErrorAction::ExitWithFailure;
+  setenv("RADSAN_ERROR_MODE", "exit", 1);
   EXPECT_DEATH(context.expectNotRealtime("do_some_stuff_expecting_exit"), "");
 }

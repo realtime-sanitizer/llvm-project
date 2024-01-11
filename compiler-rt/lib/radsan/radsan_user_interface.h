@@ -1,14 +1,7 @@
 #pragma once
 
-#include <functional>
-
 namespace radsan {
 
-enum class OnErrorAction {
-    Continue,
-    ExitWithFailure,
-};
+bool ShouldExit();
 
-std::function<OnErrorAction()> createErrorActionGetter();
-
-}
+} // namespace radsan
