@@ -201,6 +201,7 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
 TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
   auto func = []() {
     auto fd = fopen(temporary_file_path(), "w");
+    // Avoid fopen being dead-code eliminated
     EXPECT_THAT(fd, Ne(nullptr));
   };
   expectRealtimeDeath(func, "fopen");
@@ -221,6 +222,20 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
+TEST(TestRadsanInterceptors, readDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_RDONLY);
+  auto func = [fd]() {
+    char c{};
+    read(fd, &c, 1);
+    // Avoid the read call be dead-code eliminated
+    EXPECT_THAT(c, Eq('\0'));
+  };
+  expectRealtimeDeath(func, "read");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
 TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
   ASSERT_NE(nullptr, fd);
@@ -233,7 +248,7 @@ TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
-  EXPECT_THAT(fd, Ne(nullptr));
+  EXPECT_THAT(fd, Ne(nullptr)); // Avoids DCE
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);

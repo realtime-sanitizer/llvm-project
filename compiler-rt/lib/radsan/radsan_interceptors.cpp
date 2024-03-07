@@ -102,6 +102,11 @@ INTERCEPTOR(size_t, fread, void *ptr, size_t size, size_t nitems,
   return REAL(fread)(ptr, size, nitems, stream);
 }
 
+INTERCEPTOR(ssize_t, read, int fd, void *buf, size_t count) {
+  radsan::expectNotRealtime("read");
+  return REAL(read)(fd, buf, count);
+}
+
 INTERCEPTOR(size_t, fwrite, const void *ptr, size_t size, size_t nitems,
             FILE *stream) {
   radsan::expectNotRealtime("fwrite");
@@ -368,6 +373,7 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(close);
   INTERCEPT_FUNCTION(fopen);
   INTERCEPT_FUNCTION(fread);
+  INTERCEPT_FUNCTION(read);
   INTERCEPT_FUNCTION(fwrite);
   INTERCEPT_FUNCTION(fclose);
   INTERCEPT_FUNCTION(fcntl);
