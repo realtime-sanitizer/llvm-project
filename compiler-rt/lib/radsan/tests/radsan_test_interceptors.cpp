@@ -225,24 +225,22 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
-
 class FileTestFixture : public ::testing::Test {
 protected:
-    int fd = -1; // File descriptor
-    const char* filePath = "testfile.txt";
+  int fd = -1; 
 
-    void SetUp() override {
-        // Create and open the file, RW mode, create if not exist, permissions 0666
-        fd = open(filePath, O_RDWR | O_CREAT, 0666);
-        ASSERT_TRUE(fd != -1) << "Failed to open file";
-    }
+  void SetUp() override {
+    fd = open(temporary_file_path(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    ASSERT_TRUE(fd != -1) << "Failed to open file";
+  }
 
-    void TearDown() override {
-        // Close the file
-        ASSERT_EQ(close(fd), 0) << "Failed to close file";
-        // Delete the file
-        ASSERT_EQ(remove(filePath), 0) << "Failed to delete file";
+  void TearDown() override {
+    if (fd != -1)
+    {
+      close(fd);
+      remove(temporary_file_path());
     }
+  }
 };
 
 TEST_F(FileTestFixture, readDiesWhenRealtime) {
@@ -254,73 +252,52 @@ TEST_F(FileTestFixture, readDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-
-TEST(TestRadsanInterceptors, writeDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_WRONLY);
-  EXPECT_THAT(fd, Ne(-1));
-  auto func = [fd]() {
+TEST_F(FileTestFixture, writeDiesWhenRealtime) {
+  auto func = [this]() {
     char c{};
     write(fd, &c, 1);
   };
   expectRealtimeDeath(func, "write");
   expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
 }
 
 #if SANITIZER_APPLE
-TEST(TestRadsanInterceptors, preadDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_RDONLY);
-  EXPECT_THAT(fd, Ne(-1));
-  auto func = [fd]() {
-    char c{};
-    pread(fd, &c, 1, 0);
+TEST_F(FileTestFixture, preadDiesWhenRealtime) {
+  auto func = [this]() {
+      char c{};
+      pread(fd, &c, 1, 0);
   };
   expectRealtimeDeath(func, "pread");
   expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
 }
 
-TEST(TestRadsanInterceptors, readvDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_RDONLY);
-  EXPECT_THAT(fd, Ne(-1));
-  auto func = [fd]() {
-    char c{};
-    iovec iov = {&c, 1};
-    readv(fd, &iov, 1);
-  };
-  expectRealtimeDeath(func, "readv");
-  expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
+TEST_F(FileTestFixture, readvDiesWhenRealtime) {
+    auto func = [this]() {
+        char c{};
+        iovec iov = {&c, 1};
+        readv(fd, &iov, 1);
+    };
+    expectRealtimeDeath(func, "readv");
+    expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsanInterceptors, pwriteDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_WRONLY);
-  EXPECT_THAT(fd, Ne(-1));
-  auto func = [fd]() {
-    char c{};
-    pwrite(fd, &c, 1, 0);
-  };
-  expectRealtimeDeath(func, "pwrite");
-  expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
+TEST_F(FileTestFixture, pwriteDiesWhenRealtime) {
+    auto func = [this]() {
+        char c{};
+        pwrite(fd, &c, 1, 0);
+    };
+    expectRealtimeDeath(func, "pwrite");
+    expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsanInterceptors, writevDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_WRONLY);
-  EXPECT_THAT(fd, Ne(-1));
-  auto func = [fd]() {
-    char c{};
-    iovec iov = {&c, 1};
-    writev(fd, &iov, 1);
-  };
-  expectRealtimeDeath(func, "writev");
-  expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
+TEST_F(FileTestFixture, writevDiesWhenRealtime) {
+    auto func = [this]() {
+        char c{};
+        iovec iov = {&c, 1};
+        writev(fd, &iov, 1);
+    };
+    expectRealtimeDeath(func, "writev");
+    expectNonrealtimeSurvival(func);
 }
 
 #endif // SANITIZER_APPLE
