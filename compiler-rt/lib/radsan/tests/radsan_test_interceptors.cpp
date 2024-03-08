@@ -225,7 +225,7 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
-class FileTestFixture : public ::testing::Test {
+class FdFixture : public ::testing::Test {
 protected:
   int fd = -1; 
 
@@ -243,7 +243,7 @@ protected:
   }
 };
 
-TEST_F(FileTestFixture, readDiesWhenRealtime) {
+TEST_F(FdFixture, readDiesWhenRealtime) {
   auto func = [this]() {
     char c{};
     read(fd, &c, 1);
@@ -252,7 +252,7 @@ TEST_F(FileTestFixture, readDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST_F(FileTestFixture, writeDiesWhenRealtime) {
+TEST_F(FdFixture, writeDiesWhenRealtime) {
   auto func = [this]() {
     char c{};
     write(fd, &c, 1);
@@ -262,7 +262,7 @@ TEST_F(FileTestFixture, writeDiesWhenRealtime) {
 }
 
 #if SANITIZER_APPLE
-TEST_F(FileTestFixture, preadDiesWhenRealtime) {
+TEST_F(FdFixture, preadDiesWhenRealtime) {
   auto func = [this]() {
       char c{};
       pread(fd, &c, 1, 0);
@@ -271,7 +271,7 @@ TEST_F(FileTestFixture, preadDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST_F(FileTestFixture, readvDiesWhenRealtime) {
+TEST_F(FdFixture, readvDiesWhenRealtime) {
     auto func = [this]() {
         char c{};
         iovec iov = {&c, 1};
@@ -281,7 +281,7 @@ TEST_F(FileTestFixture, readvDiesWhenRealtime) {
     expectNonrealtimeSurvival(func);
 }
 
-TEST_F(FileTestFixture, pwriteDiesWhenRealtime) {
+TEST_F(FdFixture, pwriteDiesWhenRealtime) {
     auto func = [this]() {
         char c{};
         pwrite(fd, &c, 1, 0);
@@ -290,7 +290,7 @@ TEST_F(FileTestFixture, pwriteDiesWhenRealtime) {
     expectNonrealtimeSurvival(func);
 }
 
-TEST_F(FileTestFixture, writevDiesWhenRealtime) {
+TEST_F(FdFixture, writevDiesWhenRealtime) {
     auto func = [this]() {
         char c{};
         iovec iov = {&c, 1};
