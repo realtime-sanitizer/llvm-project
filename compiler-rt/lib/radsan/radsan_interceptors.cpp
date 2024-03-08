@@ -135,8 +135,7 @@ INTERCEPTOR(ssize_t, writev, int fd, const struct iovec *iov, int iovcnt) {
   return REAL(writev)(fd, iov, iovcnt);
 }
 
-#endif
-
+#endif // SANITIZER_APPLE
 
 INTERCEPTOR(size_t, fwrite, const void *ptr, size_t size, size_t nitems,
             FILE *stream) {
@@ -405,6 +404,14 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(fopen);
   INTERCEPT_FUNCTION(fread);
   INTERCEPT_FUNCTION(read);
+  INTERCEPT_FUNCTION(write);
+#if SANITIZER_APPLE
+  INTERCEPT_FUNCTION(pread);
+  INTERCEPT_FUNCTION(readv);
+  INTERCEPT_FUNCTION(pwrite);
+  INTERCEPT_FUNCTION(writev);
+#endif
+
   INTERCEPT_FUNCTION(fwrite);
   INTERCEPT_FUNCTION(fclose);
   INTERCEPT_FUNCTION(fcntl);
@@ -415,8 +422,6 @@ void initialiseInterceptors() {
 #if SANITIZER_APPLE
   INTERCEPT_FUNCTION(OSSpinLockLock);
   INTERCEPT_FUNCTION(os_unfair_lock_lock);
-  INTERCEPT_FUNCTION(pread);
-  INTERCEPT_FUNCTION(readv);
 #elif SANITIZER_LINUX
   INTERCEPT_FUNCTION(pthread_spin_lock);
 #endif
