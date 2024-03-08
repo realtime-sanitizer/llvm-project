@@ -107,6 +107,20 @@ INTERCEPTOR(ssize_t, read, int fd, void *buf, size_t count) {
   return REAL(read)(fd, buf, count);
 }
 
+#if SANITIZER_APPLE
+INTERCEPTOR(ssize_t, pread, int fd, void *buf, size_t count, off_t offset) {
+  radsan::expectNotRealtime("pread");
+  return REAL(pread)(fd, buf, count, offset);
+}
+
+INTERCEPTOR(ssize_t, readv, int fd, const struct iovec *iov, int iovcnt) {
+  radsan::expectNotRealtime("readv");
+  return REAL(readv)(fd, iov, iovcnt);
+}
+#endif
+
+
+
 INTERCEPTOR(size_t, fwrite, const void *ptr, size_t size, size_t nitems,
             FILE *stream) {
   radsan::expectNotRealtime("fwrite");
@@ -384,6 +398,8 @@ void initialiseInterceptors() {
 #if SANITIZER_APPLE
   INTERCEPT_FUNCTION(OSSpinLockLock);
   INTERCEPT_FUNCTION(os_unfair_lock_lock);
+  INTERCEPT_FUNCTION(pread);
+  INTERCEPT_FUNCTION(readv);
 #elif SANITIZER_LINUX
   INTERCEPT_FUNCTION(pthread_spin_lock);
 #endif

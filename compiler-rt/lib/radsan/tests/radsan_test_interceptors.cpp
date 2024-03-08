@@ -16,6 +16,9 @@
 #if SANITIZER_APPLE
 #include <libkern/OSAtomic.h>
 #include <os/lock.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
 #endif
 
 #if SANITIZER_INTERCEPT_MEMALIGN || SANITIZER_INTERCEPT_PVALLOC
@@ -340,7 +343,32 @@ TEST(TestRadsanInterceptors, osUnfairLockLockDiesWhenRealtime) {
   expectRealtimeDeath(func, "os_unfair_lock_lock");
   expectNonrealtimeSurvival(func);
 }
-#endif
+
+TEST(TestRadsanInterceptors, preadDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_RDONLY);
+  auto func = [fd]() {
+    char c{};
+    pread(fd, &c, 1, 0);
+  };
+  expectRealtimeDeath(func, "pread");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
+TEST(TestRadsanInterceptors, readvDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_RDONLY);
+  auto func = [fd]() {
+    char c{};
+    iovec iov = {&c, 1};
+    readv(fd, &iov, 1);
+  };
+  expectRealtimeDeath(func, "readv");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+#endif // SANITIZER_APPLE
 
 #if SANITIZER_LINUX
 TEST(TestRadsanInterceptors, spinLockLockDiesWhenRealtime) {
