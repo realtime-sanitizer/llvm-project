@@ -239,6 +239,71 @@ TEST(TestRadsanInterceptors, readDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
+TEST(TestRadsanInterceptors, writeDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_WRONLY);
+  auto func = [fd]() {
+    char c{};
+    write(fd, &c, 1);
+  };
+  expectRealtimeDeath(func, "write");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
+#if SANITIZER_APPLE
+TEST(TestRadsanInterceptors, preadDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_RDONLY);
+  auto func = [fd]() {
+    char c{};
+    pread(fd, &c, 1, 0);
+  };
+  expectRealtimeDeath(func, "pread");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
+TEST(TestRadsanInterceptors, readvDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_RDONLY);
+  auto func = [fd]() {
+    char c{};
+    iovec iov = {&c, 1};
+    readv(fd, &iov, 1);
+  };
+  expectRealtimeDeath(func, "readv");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
+TEST(TestRadsanInterceptors, pwriteDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_WRONLY);
+  auto func = [fd]() {
+    char c{};
+    pwrite(fd, &c, 1, 0);
+  };
+  expectRealtimeDeath(func, "pwrite");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
+TEST(TestRadsanInterceptors, writevDiesWhenRealtime) {
+  auto fd = open(temporary_file_path(), O_WRONLY);
+  auto func = [fd]() {
+    char c{};
+    iovec iov = {&c, 1};
+    writev(fd, &iov, 1);
+  };
+  expectRealtimeDeath(func, "writev");
+  expectNonrealtimeSurvival(func);
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
+#endif // SANITIZER_APPLE
+
 TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
   ASSERT_NE(nullptr, fd);
@@ -344,30 +409,6 @@ TEST(TestRadsanInterceptors, osUnfairLockLockDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsanInterceptors, preadDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_RDONLY);
-  auto func = [fd]() {
-    char c{};
-    pread(fd, &c, 1, 0);
-  };
-  expectRealtimeDeath(func, "pread");
-  expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
-}
-
-TEST(TestRadsanInterceptors, readvDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_RDONLY);
-  auto func = [fd]() {
-    char c{};
-    iovec iov = {&c, 1};
-    readv(fd, &iov, 1);
-  };
-  expectRealtimeDeath(func, "readv");
-  expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
-}
 #endif // SANITIZER_APPLE
 
 #if SANITIZER_LINUX

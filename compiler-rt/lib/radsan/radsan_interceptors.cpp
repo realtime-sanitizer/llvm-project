@@ -107,6 +107,12 @@ INTERCEPTOR(ssize_t, read, int fd, void *buf, size_t count) {
   return REAL(read)(fd, buf, count);
 }
 
+// intercept write
+INTERCEPTOR(ssize_t, write, int fd, const void *buf, size_t count) {
+  radsan::expectNotRealtime("write");
+  return REAL(write)(fd, buf, count);
+}
+
 #if SANITIZER_APPLE
 INTERCEPTOR(ssize_t, pread, int fd, void *buf, size_t count, off_t offset) {
   radsan::expectNotRealtime("pread");
@@ -117,8 +123,19 @@ INTERCEPTOR(ssize_t, readv, int fd, const struct iovec *iov, int iovcnt) {
   radsan::expectNotRealtime("readv");
   return REAL(readv)(fd, iov, iovcnt);
 }
-#endif
 
+INTERCEPTOR(ssize_t, pwrite, int fd, const void *buf, size_t count,
+            off_t offset) {
+  radsan::expectNotRealtime("pwrite");
+  return REAL(pwrite)(fd, buf, count, offset);
+}
+
+INTERCEPTOR(ssize_t, writev, int fd, const struct iovec *iov, int iovcnt) {
+  radsan::expectNotRealtime("writev");
+  return REAL(writev)(fd, iov, iovcnt);
+}
+
+#endif
 
 
 INTERCEPTOR(size_t, fwrite, const void *ptr, size_t size, size_t nitems,
