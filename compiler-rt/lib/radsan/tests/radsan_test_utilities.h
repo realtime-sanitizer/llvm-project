@@ -19,8 +19,8 @@ template <typename Function>
 }
 
 template <typename Function>
-void expectRealtimeDeath(
-    Function &&func, const char* intercepted_method_name = nullptr) {
+void expectRealtimeDeath(Function &&func,
+                         const char *intercepted_method_name = nullptr) {
 
   using namespace testing;
 

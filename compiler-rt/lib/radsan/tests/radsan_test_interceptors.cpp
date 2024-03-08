@@ -18,6 +18,10 @@
 #include <os/lock.h>
 #endif
 
+#if SANITIZER_INTERCEPT_MEMALIGN || SANITIZER_INTERCEPT_PVALLOC
+#include <malloc.h>
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -115,6 +119,22 @@ TEST(TestRadsanInterceptors, posixMemalignDiesWhenRealtime) {
   expectRealtimeDeath(func, "posix_memalign");
   expectNonrealtimeSurvival(func);
 }
+
+#if SANITIZER_INTERCEPT_MEMALIGN
+TEST(TestRadsanInterceptors, memalignDiesWhenRealtime) {
+  auto func = []() { EXPECT_NE(memalign(2, 2048), nullptr); };
+  expectRealtimeDeath(func, "memalign");
+  expectNonrealtimeSurvival(func);
+}
+#endif
+
+#if SANITIZER_INTERCEPT_PVALLOC
+TEST(TestRadsanInterceptors, pvallocDiesWhenRealtime) {
+  auto func = []() { EXPECT_NE(pvalloc(2048), nullptr); };
+  expectRealtimeDeath(func, "pvalloc");
+  expectNonrealtimeSurvival(func);
+}
+#endif
 
 /*
     Sleeping

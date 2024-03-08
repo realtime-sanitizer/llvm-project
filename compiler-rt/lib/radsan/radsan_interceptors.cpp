@@ -24,6 +24,10 @@
 #include <os/lock.h>
 #endif
 
+#if SANITIZER_INTERCEPT_MEMALIGN || SANITIZER_INTERCEPT_PVALLOC
+#include <malloc.h>
+#endif
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -280,6 +284,20 @@ INTERCEPTOR(int, posix_memalign, void **memptr, size_t alignment, size_t size) {
   return REAL(posix_memalign)(memptr, alignment, size);
 }
 
+#if SANITIZER_INTERCEPT_MEMALIGN
+INTERCEPTOR(void *, memalign, size_t alignment, size_t size) {
+  radsan::expectNotRealtime("memalign");
+  return REAL(memalign)(alignment, size);
+}
+#endif
+
+#if SANITIZER_INTERCEPT_PVALLOC
+INTERCEPTOR(void *, pvalloc, size_t size) {
+  radsan::expectNotRealtime("pvalloc");
+  return REAL(pvalloc)(size);
+}
+#endif
+
 /*
     Sockets
 */
@@ -341,6 +359,12 @@ void initialiseInterceptors() {
   INTERCEPT_FUNCTION(valloc);
   RADSAN_MAYBE_INTERCEPT_ALIGNED_ALLOC;
   INTERCEPT_FUNCTION(posix_memalign);
+#if SANITIZER_INTERCEPT_MEMALIGN
+  INTERCEPT_FUNCTION(memalign);
+#endif
+#if SANITIZER_INTERCEPT_PVALLOC
+  INTERCEPT_FUNCTION(pvalloc);
+#endif
 
   INTERCEPT_FUNCTION(open);
   INTERCEPT_FUNCTION(openat);
