@@ -227,6 +227,7 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, readDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_RDONLY);
+  EXPECT_THAT(fd, Ne(-1));
   auto func = [fd]() {
     char c{};
     read(fd, &c, 1);
@@ -241,6 +242,7 @@ TEST(TestRadsanInterceptors, readDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, writeDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_WRONLY);
+  EXPECT_THAT(fd, Ne(-1));
   auto func = [fd]() {
     char c{};
     write(fd, &c, 1);
