@@ -225,20 +225,35 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
-TEST(TestRadsanInterceptors, readDiesWhenRealtime) {
-  auto fd = open(temporary_file_path(), O_RDONLY);
-  EXPECT_THAT(fd, Ne(-1));
-  auto func = [fd]() {
+
+class FileTestFixture : public ::testing::Test {
+protected:
+    int fd = -1; // File descriptor
+    const char* filePath = "testfile.txt";
+
+    void SetUp() override {
+        // Create and open the file, RW mode, create if not exist, permissions 0666
+        fd = open(filePath, O_RDWR | O_CREAT, 0666);
+        ASSERT_TRUE(fd != -1) << "Failed to open file";
+    }
+
+    void TearDown() override {
+        // Close the file
+        ASSERT_EQ(close(fd), 0) << "Failed to close file";
+        // Delete the file
+        ASSERT_EQ(remove(filePath), 0) << "Failed to delete file";
+    }
+};
+
+TEST_F(FileTestFixture, readDiesWhenRealtime) {
+  auto func = [this]() {
     char c{};
     read(fd, &c, 1);
-    // Avoid the read call be dead-code eliminated
-    EXPECT_THAT(c, Eq('\0'));
   };
   expectRealtimeDeath(func, "read");
   expectNonrealtimeSurvival(func);
-  close(fd);
-  std::remove(temporary_file_path());
 }
+
 
 TEST(TestRadsanInterceptors, writeDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_WRONLY);
@@ -256,6 +271,7 @@ TEST(TestRadsanInterceptors, writeDiesWhenRealtime) {
 #if SANITIZER_APPLE
 TEST(TestRadsanInterceptors, preadDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_RDONLY);
+  EXPECT_THAT(fd, Ne(-1));
   auto func = [fd]() {
     char c{};
     pread(fd, &c, 1, 0);
@@ -268,6 +284,7 @@ TEST(TestRadsanInterceptors, preadDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, readvDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_RDONLY);
+  EXPECT_THAT(fd, Ne(-1));
   auto func = [fd]() {
     char c{};
     iovec iov = {&c, 1};
@@ -281,6 +298,7 @@ TEST(TestRadsanInterceptors, readvDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, pwriteDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_WRONLY);
+  EXPECT_THAT(fd, Ne(-1));
   auto func = [fd]() {
     char c{};
     pwrite(fd, &c, 1, 0);
@@ -293,6 +311,7 @@ TEST(TestRadsanInterceptors, pwriteDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, writevDiesWhenRealtime) {
   auto fd = open(temporary_file_path(), O_WRONLY);
+  EXPECT_THAT(fd, Ne(-1));
   auto func = [fd]() {
     char c{};
     iovec iov = {&c, 1};
