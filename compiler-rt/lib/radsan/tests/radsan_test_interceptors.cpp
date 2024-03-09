@@ -16,6 +16,9 @@
 #if SANITIZER_APPLE
 #include <libkern/OSAtomic.h>
 #include <os/lock.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
 #endif
 
 #if SANITIZER_INTERCEPT_MEMALIGN || SANITIZER_INTERCEPT_PVALLOC
@@ -201,6 +204,7 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
 TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
   auto func = []() {
     auto fd = fopen(temporary_file_path(), "w");
+    // Avoid fopen being dead-code eliminated
     EXPECT_THAT(fd, Ne(nullptr));
   };
   expectRealtimeDeath(func, "fopen");
@@ -221,6 +225,83 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
+class FdFixture : public ::testing::Test {
+protected:
+  int fd = -1; 
+
+  void SetUp() override {
+    fd = open(temporary_file_path(), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    ASSERT_TRUE(fd != -1) << "Failed to open file";
+  }
+
+  void TearDown() override {
+    if (fd != -1)
+    {
+      close(fd);
+      remove(temporary_file_path());
+    }
+  }
+};
+
+TEST_F(FdFixture, readDiesWhenRealtime) {
+  auto func = [this]() {
+    char c{};
+    read(fd, &c, 1);
+  };
+  expectRealtimeDeath(func, "read");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST_F(FdFixture, writeDiesWhenRealtime) {
+  auto func = [this]() {
+    char c{};
+    write(fd, &c, 1);
+  };
+  expectRealtimeDeath(func, "write");
+  expectNonrealtimeSurvival(func);
+}
+
+#if SANITIZER_APPLE
+TEST_F(FdFixture, preadDiesWhenRealtime) {
+  auto func = [this]() {
+      char c{};
+      pread(fd, &c, 1, 0);
+  };
+  expectRealtimeDeath(func, "pread");
+  expectNonrealtimeSurvival(func);
+}
+
+TEST_F(FdFixture, readvDiesWhenRealtime) {
+    auto func = [this]() {
+        char c{};
+        iovec iov = {&c, 1};
+        readv(fd, &iov, 1);
+    };
+    expectRealtimeDeath(func, "readv");
+    expectNonrealtimeSurvival(func);
+}
+
+TEST_F(FdFixture, pwriteDiesWhenRealtime) {
+    auto func = [this]() {
+        char c{};
+        pwrite(fd, &c, 1, 0);
+    };
+    expectRealtimeDeath(func, "pwrite");
+    expectNonrealtimeSurvival(func);
+}
+
+TEST_F(FdFixture, writevDiesWhenRealtime) {
+    auto func = [this]() {
+        char c{};
+        iovec iov = {&c, 1};
+        writev(fd, &iov, 1);
+    };
+    expectRealtimeDeath(func, "writev");
+    expectNonrealtimeSurvival(func);
+}
+
+#endif // SANITIZER_APPLE
+
 TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
   ASSERT_NE(nullptr, fd);
@@ -233,7 +314,7 @@ TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
-  EXPECT_THAT(fd, Ne(nullptr));
+  EXPECT_THAT(fd, Ne(nullptr)); // Avoids DCE
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func, "fclose");
   expectNonrealtimeSurvival(func);
@@ -325,7 +406,8 @@ TEST(TestRadsanInterceptors, osUnfairLockLockDiesWhenRealtime) {
   expectRealtimeDeath(func, "os_unfair_lock_lock");
   expectNonrealtimeSurvival(func);
 }
-#endif
+
+#endif // SANITIZER_APPLE
 
 #if SANITIZER_LINUX
 TEST(TestRadsanInterceptors, spinLockLockDiesWhenRealtime) {
