@@ -9,7 +9,6 @@
 #include "radsan_test_utilities.h"
 
 #include "radsan_context.h"
-#include "radsan_user_interface.h"
 
 TEST(TestRadsanContext, canCreateContext) { auto context = radsan::Context{}; }
 
@@ -65,17 +64,4 @@ TEST(TestRadsanContext,
   context.expectNotRealtime("do_some_stuff");
   context.bypassPop();
   EXPECT_DEATH(context.expectNotRealtime("do_some_stuff"), "");
-}
-
-TEST(TestRadsanContext, onlyDiesIfExitWithFailureReturnedFromUser) {
-  auto fake_action = radsan::OnErrorAction::Continue;
-  auto action_getter = [&fake_action]() { return fake_action; };
-
-  auto context = radsan::Context{action_getter};
-  context.realtimePush();
-
-  context.expectNotRealtime("do_some_stuff_expecting_continue");
-
-  fake_action = radsan::OnErrorAction::ExitWithFailure;
-  EXPECT_DEATH(context.expectNotRealtime("do_some_stuff_expecting_exit"), "");
 }
