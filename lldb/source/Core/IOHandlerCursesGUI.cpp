@@ -3178,13 +3178,13 @@ public:
         m_debugger.GetListener(), llvm::StringRef(), &core_file_spec, false));
 
     if (!process_sp) {
-      SetError("Unable to find process plug-in for core file!");
+      SetError("Unknown core file format!");
       return;
     }
 
     Status status = process_sp->LoadCore();
     if (status.Fail()) {
-      SetError("Can't find plug-in for core file!");
+      SetError("Unknown core file format!");
       return;
     }
   }
@@ -4519,7 +4519,7 @@ struct Row {
       calculated_children = true;
       ValueObjectSP valobj = value.GetSP();
       if (valobj) {
-        const size_t num_children = valobj->GetNumChildren();
+        const uint32_t num_children = valobj->GetNumChildrenIgnoringErrors();
         for (size_t i = 0; i < num_children; ++i) {
           children.push_back(Row(valobj->GetChildAtIndex(i), this));
         }
@@ -7052,7 +7052,7 @@ public:
           m_file_sp->DisplaySourceLines(curr_line + 1, column, 0, 0,
                                         &lineStream);
           StringRef line = lineStream.GetString();
-          if (line.endswith("\n"))
+          if (line.ends_with("\n"))
             line = line.drop_back();
           bool wasWritten = window.OutputColoredStringTruncated(
               1, line, m_first_visible_column, is_pc_line);

@@ -14,6 +14,8 @@
 #ifndef LLVM_CLANG_EXTRACTAPI_EXTRACT_API_VISITOR_H
 #define LLVM_CLANG_EXTRACTAPI_EXTRACT_API_VISITOR_H
 
+#include "clang/AST/Availability.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/OperatorKinds.h"
@@ -74,6 +76,10 @@ public:
 
   bool WalkUpFromFunctionTemplateDecl(const FunctionTemplateDecl *Decl);
 
+  bool WalkUpFromNamespaceDecl(const NamespaceDecl *Decl);
+
+  bool VisitNamespaceDecl(const NamespaceDecl *Decl);
+
   bool VisitRecordDecl(const RecordDecl *Decl);
 
   bool VisitCXXRecordDecl(const CXXRecordDecl *Decl);
@@ -124,9 +130,10 @@ protected:
   void recordEnumConstants(EnumRecord *EnumRecord,
                            const EnumDecl::enumerator_range Constants);
 
-  /// Collect API information for the struct fields and associate with the
+  /// Collect API information for the record fields and associate with the
   /// parent struct.
-  void recordStructFields(StructRecord *StructRecord,
+  void recordRecordFields(RecordRecord *RecordRecord,
+                          APIRecord::RecordKind FieldKind,
                           const RecordDecl::field_range Fields);
 
   /// Collect API information for the Objective-C methods and associate with the
@@ -168,7 +175,7 @@ private:
   SmallVector<SymbolReference> getBases(const CXXRecordDecl *Decl) {
     // FIXME: store AccessSpecifier given by inheritance
     SmallVector<SymbolReference> Bases;
-    for (const auto BaseSpecifier : Decl->bases()) {
+    for (const auto &BaseSpecifier : Decl->bases()) {
       // skip classes not inherited as public
       if (BaseSpecifier.getAccessSpecifier() != AccessSpecifier::AS_public)
         continue;
@@ -186,6 +193,17 @@ private:
       Bases.emplace_back(BaseClass);
     }
     return Bases;
+  }
+
+  APIRecord *determineParentRecord(const DeclContext *Context) {
+    SmallString<128> ParentUSR;
+    if (Context->getDeclKind() == Decl::TranslationUnit)
+      return nullptr;
+
+    index::generateUSRForDecl(dyn_cast<Decl>(Context), ParentUSR);
+
+    APIRecord *Parent = API.findRecordForUSR(ParentUSR);
+    return Parent;
   }
 };
 
@@ -248,20 +266,22 @@ bool ExtractAPIVisitorBase<Derived>::VisitVarDecl(const VarDecl *Decl) {
       DeclarationFragmentsBuilder::getFragmentsForVar(Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
-
   if (Decl->isStaticDataMember()) {
     SymbolReference Context;
-    auto Record = dyn_cast<RecordDecl>(Decl->getDeclContext());
+    // getDeclContext() should return a RecordDecl since we
+    // are currently handling a static data member.
+    auto *Record = cast<RecordDecl>(Decl->getDeclContext());
     Context.Name = Record->getName();
     Context.USR = API.recordUSR(Record);
     auto Access = DeclarationFragmentsBuilder::getAccessControl(Decl);
-    API.addStaticField(Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment,
-                       Declaration, SubHeading, Context, Access,
-                       isInSystemHeader(Decl));
+    API.addStaticField(Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl),
+                       Linkage, Comment, Declaration, SubHeading, Context,
+                       Access, isInSystemHeader(Decl));
   } else
     // Add the global variable record to the API set.
-    API.addGlobalVar(Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment,
-                     Declaration, SubHeading, isInSystemHeader(Decl));
+    API.addGlobalVar(Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl),
+                     Linkage, Comment, Declaration, SubHeading,
+                     isInSystemHeader(Decl));
   return true;
 }
 
@@ -316,19 +336,19 @@ bool ExtractAPIVisitorBase<Derived>::VisitFunctionDecl(
       DeclarationFragmentsBuilder::getSubHeading(Decl);
   FunctionSignature Signature =
       DeclarationFragmentsBuilder::getFunctionSignature(Decl);
-
   if (Decl->getTemplateSpecializationInfo())
     API.addGlobalFunctionTemplateSpecialization(
-        Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment,
+        Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Linkage,
+        Comment,
         DeclarationFragmentsBuilder::
             getFragmentsForFunctionTemplateSpecialization(Decl),
         SubHeading, Signature, isInSystemHeader(Decl));
   else
     // Add the function record to the API set.
     API.addGlobalFunction(
-        Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment,
-        DeclarationFragmentsBuilder::getFragmentsForFunction(Decl), SubHeading,
-        Signature, isInSystemHeader(Decl));
+        Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Linkage,
+        Comment, DeclarationFragmentsBuilder::getFragmentsForFunction(Decl),
+        SubHeading, Signature, isInSystemHeader(Decl));
   return true;
 }
 
@@ -362,10 +382,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitEnumDecl(const EnumDecl *Decl) {
       DeclarationFragmentsBuilder::getFragmentsForEnum(Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
-
-  EnumRecord *EnumRecord =
-      API.addEnum(API.copyString(Name), USR, Loc, AvailabilitySet(Decl),
-                  Comment, Declaration, SubHeading, isInSystemHeader(Decl));
+  EnumRecord *EnumRecord = API.addEnum(
+      API.copyString(Name), USR, Loc, AvailabilityInfo::createFromDecl(Decl),
+      Comment, Declaration, SubHeading, isInSystemHeader(Decl));
 
   // Now collect information about the enumerators in this enum.
   getDerivedExtractAPIVisitor().recordEnumConstants(EnumRecord,
@@ -448,6 +467,45 @@ bool ExtractAPIVisitorBase<Derived>::WalkUpFromFunctionTemplateDecl(
 }
 
 template <typename Derived>
+bool ExtractAPIVisitorBase<Derived>::WalkUpFromNamespaceDecl(
+    const NamespaceDecl *Decl) {
+  getDerivedExtractAPIVisitor().VisitNamespaceDecl(Decl);
+  return true;
+}
+
+template <typename Derived>
+bool ExtractAPIVisitorBase<Derived>::VisitNamespaceDecl(
+    const NamespaceDecl *Decl) {
+
+  if (!getDerivedExtractAPIVisitor().shouldDeclBeIncluded(Decl))
+    return true;
+  if (Decl->isAnonymousNamespace())
+    return true;
+  StringRef Name = Decl->getName();
+  StringRef USR = API.recordUSR(Decl);
+  LinkageInfo Linkage = Decl->getLinkageAndVisibility();
+  PresumedLoc Loc =
+      Context.getSourceManager().getPresumedLoc(Decl->getLocation());
+  DocComment Comment;
+  if (auto *RawComment =
+          getDerivedExtractAPIVisitor().fetchRawCommentForDecl(Decl))
+    Comment = RawComment->getFormattedLines(Context.getSourceManager(),
+                                            Context.getDiagnostics());
+
+  // Build declaration fragments and sub-heading for the struct.
+  DeclarationFragments Declaration =
+      DeclarationFragmentsBuilder::getFragmentsForNamespace(Decl);
+  DeclarationFragments SubHeading =
+      DeclarationFragmentsBuilder::getSubHeading(Decl);
+  APIRecord *Parent = determineParentRecord(Decl->getDeclContext());
+  API.addNamespace(Parent, Name, USR, Loc,
+                   AvailabilityInfo::createFromDecl(Decl), Linkage, Comment,
+                   Declaration, SubHeading, isInSystemHeader(Decl));
+
+  return true;
+}
+
+template <typename Derived>
 bool ExtractAPIVisitorBase<Derived>::VisitRecordDecl(const RecordDecl *Decl) {
   if (!getDerivedExtractAPIVisitor().shouldDeclBeIncluded(Decl))
     return true;
@@ -469,17 +527,25 @@ bool ExtractAPIVisitorBase<Derived>::VisitRecordDecl(const RecordDecl *Decl) {
 
   // Build declaration fragments and sub-heading for the struct.
   DeclarationFragments Declaration =
-      DeclarationFragmentsBuilder::getFragmentsForStruct(Decl);
+      DeclarationFragmentsBuilder::getFragmentsForRecordDecl(Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
 
-  StructRecord *StructRecord =
-      API.addStruct(Name, USR, Loc, AvailabilitySet(Decl), Comment, Declaration,
-                    SubHeading, isInSystemHeader(Decl));
+  auto RecordKind = APIRecord::RK_Struct;
+  auto FieldRecordKind = APIRecord::RK_StructField;
+
+  if (Decl->isUnion()) {
+    RecordKind = APIRecord::RK_Union;
+    FieldRecordKind = APIRecord::RK_UnionField;
+  }
+
+  RecordRecord *RecordRecord = API.addRecord(
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
+      Declaration, SubHeading, RecordKind, isInSystemHeader(Decl));
 
   // Now collect information about the fields in this struct.
-  getDerivedExtractAPIVisitor().recordStructFields(StructRecord,
-                                                   Decl->fields());
+  getDerivedExtractAPIVisitor().recordRecordFields(
+      RecordRecord, FieldRecordKind, Decl->fields());
 
   return true;
 }
@@ -512,7 +578,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXRecordDecl(
     Kind = APIRecord::RecordKind::RK_Struct;
   else
     Kind = APIRecord::RecordKind::RK_CXXClass;
+  auto Access = DeclarationFragmentsBuilder::getAccessControl(Decl);
 
+  APIRecord *Parent = determineParentRecord(Decl->getDeclContext());
   CXXClassRecord *CXXClassRecord;
   if (Decl->getDescribedClassTemplate()) {
     // Inject template fragments before class fragments.
@@ -521,12 +589,13 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXRecordDecl(
         DeclarationFragmentsBuilder::getFragmentsForRedeclarableTemplate(
             Decl->getDescribedClassTemplate()));
     CXXClassRecord = API.addClassTemplate(
-        Name, USR, Loc, AvailabilitySet(Decl), Comment, Declaration, SubHeading,
-        Template(Decl->getDescribedClassTemplate()), isInSystemHeader(Decl));
+        Parent, Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
+        Declaration, SubHeading, Template(Decl->getDescribedClassTemplate()),
+        Access, isInSystemHeader(Decl));
   } else
-    CXXClassRecord =
-        API.addCXXClass(Name, USR, Loc, AvailabilitySet(Decl), Comment,
-                        Declaration, SubHeading, Kind, isInSystemHeader(Decl));
+    CXXClassRecord = API.addCXXClass(
+        Parent, Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
+        Declaration, SubHeading, Kind, Access, isInSystemHeader(Decl));
 
   CXXClassRecord->Bases = getBases(Decl);
 
@@ -566,7 +635,7 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
     FunctionTemplateDecl *TemplateDecl = Decl->getDescribedFunctionTemplate();
     API.addCXXMethodTemplate(
         API.findRecordForUSR(ParentUSR), Decl->getName(), USR, Loc,
-        AvailabilitySet(Decl), Comment,
+        AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForFunctionTemplate(
             TemplateDecl),
         SubHeading, DeclarationFragmentsBuilder::getFunctionSignature(Decl),
@@ -574,24 +643,27 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXMethodDecl(
         Template(TemplateDecl), isInSystemHeader(Decl));
   } else if (Decl->getTemplateSpecializationInfo())
     API.addCXXMethodTemplateSpec(
-        Parent, Decl->getName(), USR, Loc, AvailabilitySet(Decl), Comment,
+        Parent, Decl->getName(), USR, Loc,
+        AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::
             getFragmentsForFunctionTemplateSpecialization(Decl),
         SubHeading, Signature, Access, isInSystemHeader(Decl));
   else if (Decl->isOverloadedOperator())
     API.addCXXInstanceMethod(
         Parent, API.copyString(Decl->getNameAsString()), USR, Loc,
-        AvailabilitySet(Decl), Comment,
+        AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForOverloadedOperator(Decl),
         SubHeading, Signature, Access, isInSystemHeader(Decl));
   else if (Decl->isStatic())
     API.addCXXStaticMethod(
-        Parent, Decl->getName(), USR, Loc, AvailabilitySet(Decl), Comment,
+        Parent, Decl->getName(), USR, Loc,
+        AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForCXXMethod(Decl), SubHeading,
         Signature, Access, isInSystemHeader(Decl));
   else
     API.addCXXInstanceMethod(
-        Parent, Decl->getName(), USR, Loc, AvailabilitySet(Decl), Comment,
+        Parent, Decl->getName(), USR, Loc,
+        AvailabilityInfo::createFromDecl(Decl), Comment,
         DeclarationFragmentsBuilder::getFragmentsForCXXMethod(Decl), SubHeading,
         Signature, Access, isInSystemHeader(Decl));
 
@@ -620,13 +692,12 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXConstructorDecl(
   FunctionSignature Signature =
       DeclarationFragmentsBuilder::getFunctionSignature(Decl);
   AccessControl Access = DeclarationFragmentsBuilder::getAccessControl(Decl);
-
   SmallString<128> ParentUSR;
   index::generateUSRForDecl(dyn_cast<CXXRecordDecl>(Decl->getDeclContext()),
                             ParentUSR);
   API.addCXXInstanceMethod(API.findRecordForUSR(ParentUSR), Name, USR, Loc,
-                           AvailabilitySet(Decl), Comment, Declaration,
-                           SubHeading, Signature, Access,
+                           AvailabilityInfo::createFromDecl(Decl), Comment,
+                           Declaration, SubHeading, Signature, Access,
                            isInSystemHeader(Decl));
   return true;
 }
@@ -653,13 +724,12 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXDestructorDecl(
   FunctionSignature Signature =
       DeclarationFragmentsBuilder::getFunctionSignature(Decl);
   AccessControl Access = DeclarationFragmentsBuilder::getAccessControl(Decl);
-
   SmallString<128> ParentUSR;
   index::generateUSRForDecl(dyn_cast<CXXRecordDecl>(Decl->getDeclContext()),
                             ParentUSR);
   API.addCXXInstanceMethod(API.findRecordForUSR(ParentUSR), Name, USR, Loc,
-                           AvailabilitySet(Decl), Comment, Declaration,
-                           SubHeading, Signature, Access,
+                           AvailabilityInfo::createFromDecl(Decl), Comment,
+                           Declaration, SubHeading, Signature, Access,
                            isInSystemHeader(Decl));
   return true;
 }
@@ -682,8 +752,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitConceptDecl(const ConceptDecl *Decl) {
       DeclarationFragmentsBuilder::getFragmentsForConcept(Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
-  API.addConcept(Name, USR, Loc, AvailabilitySet(Decl), Comment, Declaration,
-                 SubHeading, Template(Decl), isInSystemHeader(Decl));
+  API.addConcept(Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl),
+                 Comment, Declaration, SubHeading, Template(Decl),
+                 isInSystemHeader(Decl));
   return true;
 }
 
@@ -708,8 +779,11 @@ bool ExtractAPIVisitorBase<Derived>::VisitClassTemplateSpecializationDecl(
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
 
+  APIRecord *Parent = determineParentRecord(Decl->getDeclContext());
   auto *ClassTemplateSpecializationRecord = API.addClassTemplateSpecialization(
-      Name, USR, Loc, AvailabilitySet(Decl), Comment, Declaration, SubHeading,
+      Parent, Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
+      Declaration, SubHeading,
+      DeclarationFragmentsBuilder::getAccessControl(Decl),
       isInSystemHeader(Decl));
 
   ClassTemplateSpecializationRecord->Bases = getBases(Decl);
@@ -737,11 +811,13 @@ bool ExtractAPIVisitorBase<Derived>::
       getFragmentsForClassTemplatePartialSpecialization(Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
-
+  APIRecord *Parent = determineParentRecord(Decl->getDeclContext());
   auto *ClassTemplatePartialSpecRecord =
       API.addClassTemplatePartialSpecialization(
-          Name, USR, Loc, AvailabilitySet(Decl), Comment, Declaration,
-          SubHeading, Template(Decl), isInSystemHeader(Decl));
+          Parent, Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl),
+          Comment, Declaration, SubHeading, Template(Decl),
+          DeclarationFragmentsBuilder::getAccessControl(Decl),
+          isInSystemHeader(Decl));
 
   ClassTemplatePartialSpecRecord->Bases = getBases(Decl);
 
@@ -782,12 +858,13 @@ bool ExtractAPIVisitorBase<Derived>::VisitVarTemplateDecl(
                             ParentUSR);
   if (Decl->getDeclContext()->getDeclKind() == Decl::CXXRecord)
     API.addCXXFieldTemplate(API.findRecordForUSR(ParentUSR), Name, USR, Loc,
-                            AvailabilitySet(Decl), Comment, Declaration,
-                            SubHeading,
+                            AvailabilityInfo::createFromDecl(Decl), Comment,
+                            Declaration, SubHeading,
                             DeclarationFragmentsBuilder::getAccessControl(Decl),
                             Template(Decl), isInSystemHeader(Decl));
   else
-    API.addGlobalVariableTemplate(Name, USR, Loc, AvailabilitySet(Decl),
+    API.addGlobalVariableTemplate(Name, USR, Loc,
+                                  AvailabilityInfo::createFromDecl(Decl),
                                   Linkage, Comment, Declaration, SubHeading,
                                   Template(Decl), isInSystemHeader(Decl));
   return true;
@@ -817,10 +894,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitVarTemplateSpecializationDecl(
           Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
-
   API.addGlobalVariableTemplateSpecialization(
-      Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment, Declaration,
-      SubHeading, isInSystemHeader(Decl));
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Linkage, Comment,
+      Declaration, SubHeading, isInSystemHeader(Decl));
   return true;
 }
 
@@ -847,10 +923,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitVarTemplatePartialSpecializationDecl(
       getFragmentsForVarTemplatePartialSpecialization(Decl);
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
-
   API.addGlobalVariableTemplatePartialSpecialization(
-      Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment, Declaration,
-      SubHeading, Template(Decl), isInSystemHeader(Decl));
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Linkage, Comment,
+      Declaration, SubHeading, Template(Decl), isInSystemHeader(Decl));
   return true;
 }
 
@@ -879,9 +954,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitFunctionTemplateDecl(
   FunctionSignature Signature =
       DeclarationFragmentsBuilder::getFunctionSignature(
           Decl->getTemplatedDecl());
-
   API.addGlobalFunctionTemplate(
-      Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment,
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Linkage, Comment,
       DeclarationFragmentsBuilder::getFragmentsForFunctionTemplate(Decl),
       SubHeading, Signature, Template(Decl), isInSystemHeader(Decl));
 
@@ -920,8 +994,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitObjCInterfaceDecl(
   }
 
   ObjCInterfaceRecord *ObjCInterfaceRecord = API.addObjCInterface(
-      Name, USR, Loc, AvailabilitySet(Decl), Linkage, Comment, Declaration,
-      SubHeading, SuperClass, isInSystemHeader(Decl));
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Linkage, Comment,
+      Declaration, SubHeading, SuperClass, isInSystemHeader(Decl));
 
   // Record all methods (selectors). This doesn't include automatically
   // synthesized property methods.
@@ -960,9 +1034,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitObjCProtocolDecl(
   DeclarationFragments SubHeading =
       DeclarationFragmentsBuilder::getSubHeading(Decl);
 
-  ObjCProtocolRecord *ObjCProtocolRecord =
-      API.addObjCProtocol(Name, USR, Loc, AvailabilitySet(Decl), Comment,
-                          Declaration, SubHeading, isInSystemHeader(Decl));
+  ObjCProtocolRecord *ObjCProtocolRecord = API.addObjCProtocol(
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
+      Declaration, SubHeading, isInSystemHeader(Decl));
 
   getDerivedExtractAPIVisitor().recordObjCMethods(ObjCProtocolRecord,
                                                   Decl->methods());
@@ -992,8 +1066,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitTypedefNameDecl(
           dyn_cast<ElaboratedType>(Decl->getUnderlyingType())) {
     if (const TagType *TagTy = dyn_cast<TagType>(ET->desugar())) {
       if (Decl->getName() == TagTy->getDecl()->getName()) {
-        if (TagTy->getDecl()->isStruct()) {
-          modifyRecords(API.getStructs(), Decl->getName());
+        if (isa<RecordDecl>(TagTy->getDecl())) {
+          modifyRecords(API.getRecords(), Decl->getName());
         }
         if (TagTy->getDecl()->isEnum()) {
           modifyRecords(API.getEnums(), Decl->getName());
@@ -1017,7 +1091,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitTypedefNameDecl(
       TypedefUnderlyingTypeResolver(Context).getSymbolReferenceForType(Type,
                                                                        API);
 
-  API.addTypedef(Name, USR, Loc, AvailabilitySet(Decl), Comment,
+  API.addTypedef(Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl),
+                 Comment,
                  DeclarationFragmentsBuilder::getFragmentsForTypedef(Decl),
                  DeclarationFragmentsBuilder::getSubHeading(Decl), SymRef,
                  isInSystemHeader(Decl));
@@ -1059,8 +1134,9 @@ bool ExtractAPIVisitorBase<Derived>::VisitObjCCategoryDecl(
   }
 
   ObjCCategoryRecord *ObjCCategoryRecord = API.addObjCCategory(
-      Name, USR, Loc, AvailabilitySet(Decl), Comment, Declaration, SubHeading,
-      Interface, isInSystemHeader(Decl), IsFromExternalModule);
+      Name, USR, Loc, AvailabilityInfo::createFromDecl(Decl), Comment,
+      Declaration, SubHeading, Interface, isInSystemHeader(Decl),
+      IsFromExternalModule);
 
   getDerivedExtractAPIVisitor().recordObjCMethods(ObjCCategoryRecord,
                                                   Decl->methods());
@@ -1097,17 +1173,18 @@ void ExtractAPIVisitorBase<Derived>::recordEnumConstants(
     DeclarationFragments SubHeading =
         DeclarationFragmentsBuilder::getSubHeading(Constant);
 
-    API.addEnumConstant(EnumRecord, Name, USR, Loc, AvailabilitySet(Constant),
-                        Comment, Declaration, SubHeading,
-                        isInSystemHeader(Constant));
+    API.addEnumConstant(EnumRecord, Name, USR, Loc,
+                        AvailabilityInfo::createFromDecl(Constant), Comment,
+                        Declaration, SubHeading, isInSystemHeader(Constant));
   }
 }
 
 /// Collect API information for the struct fields and associate with the
 /// parent struct.
 template <typename Derived>
-void ExtractAPIVisitorBase<Derived>::recordStructFields(
-    StructRecord *StructRecord, const RecordDecl::field_range Fields) {
+void ExtractAPIVisitorBase<Derived>::recordRecordFields(
+    RecordRecord *RecordRecord, APIRecord::RecordKind FieldKind,
+    const RecordDecl::field_range Fields) {
   for (const auto *Field : Fields) {
     // Collect symbol information.
     StringRef Name = Field->getName();
@@ -1126,9 +1203,9 @@ void ExtractAPIVisitorBase<Derived>::recordStructFields(
     DeclarationFragments SubHeading =
         DeclarationFragmentsBuilder::getSubHeading(Field);
 
-    API.addStructField(StructRecord, Name, USR, Loc, AvailabilitySet(Field),
-                       Comment, Declaration, SubHeading,
-                       isInSystemHeader(Field));
+    API.addRecordField(
+        RecordRecord, Name, USR, Loc, AvailabilityInfo::createFromDecl(Field),
+        Comment, Declaration, SubHeading, FieldKind, isInSystemHeader(Field));
   }
 }
 
@@ -1160,8 +1237,8 @@ bool ExtractAPIVisitorBase<Derived>::VisitFieldDecl(const FieldDecl *Decl) {
   index::generateUSRForDecl(dyn_cast<CXXRecordDecl>(Decl->getDeclContext()),
                             ParentUSR);
   API.addCXXField(API.findRecordForUSR(ParentUSR), Name, USR, Loc,
-                  AvailabilitySet(Decl), Comment, Declaration, SubHeading,
-                  Access, isInSystemHeader(Decl));
+                  AvailabilityInfo::createFromDecl(Decl), Comment, Declaration,
+                  SubHeading, Access, isInSystemHeader(Decl));
   return true;
 }
 
@@ -1192,13 +1269,13 @@ bool ExtractAPIVisitorBase<Derived>::VisitCXXConversionDecl(
                             ParentUSR);
   if (Decl->isStatic())
     API.addCXXStaticMethod(API.findRecordForUSR(ParentUSR), Name, USR, Loc,
-                           AvailabilitySet(Decl), Comment, Declaration,
-                           SubHeading, Signature, Access,
+                           AvailabilityInfo::createFromDecl(Decl), Comment,
+                           Declaration, SubHeading, Signature, Access,
                            isInSystemHeader(Decl));
   else
     API.addCXXInstanceMethod(API.findRecordForUSR(ParentUSR), Name, USR, Loc,
-                             AvailabilitySet(Decl), Comment, Declaration,
-                             SubHeading, Signature, Access,
+                             AvailabilityInfo::createFromDecl(Decl), Comment,
+                             Declaration, SubHeading, Signature, Access,
                              isInSystemHeader(Decl));
   return true;
 }
@@ -1232,8 +1309,9 @@ void ExtractAPIVisitorBase<Derived>::recordObjCMethods(
     FunctionSignature Signature =
         DeclarationFragmentsBuilder::getFunctionSignature(Method);
 
-    API.addObjCMethod(Container, Name, USR, Loc, AvailabilitySet(Method),
-                      Comment, Declaration, SubHeading, Signature,
+    API.addObjCMethod(Container, Name, USR, Loc,
+                      AvailabilityInfo::createFromDecl(Method), Comment,
+                      Declaration, SubHeading, Signature,
                       Method->isInstanceMethod(), isInSystemHeader(Method));
   }
 }
@@ -1271,8 +1349,8 @@ void ExtractAPIVisitorBase<Derived>::recordObjCProperties(
       Attributes |= ObjCPropertyRecord::ReadOnly;
 
     API.addObjCProperty(
-        Container, Name, USR, Loc, AvailabilitySet(Property), Comment,
-        Declaration, SubHeading,
+        Container, Name, USR, Loc, AvailabilityInfo::createFromDecl(Property),
+        Comment, Declaration, SubHeading,
         static_cast<ObjCPropertyRecord::AttributeKind>(Attributes), GetterName,
         SetterName, Property->isOptional(),
         !(Property->getPropertyAttributes() &
@@ -1307,9 +1385,9 @@ void ExtractAPIVisitorBase<Derived>::recordObjCInstanceVariables(
     ObjCInstanceVariableRecord::AccessControl Access =
         Ivar->getCanonicalAccessControl();
 
-    API.addObjCInstanceVariable(Container, Name, USR, Loc,
-                                AvailabilitySet(Ivar), Comment, Declaration,
-                                SubHeading, Access, isInSystemHeader(Ivar));
+    API.addObjCInstanceVariable(
+        Container, Name, USR, Loc, AvailabilityInfo::createFromDecl(Ivar),
+        Comment, Declaration, SubHeading, Access, isInSystemHeader(Ivar));
   }
 }
 

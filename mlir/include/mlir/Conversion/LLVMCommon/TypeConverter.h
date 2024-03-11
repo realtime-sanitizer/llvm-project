@@ -15,6 +15,7 @@
 #define MLIR_CONVERSION_LLVMCOMMON_TYPECONVERTER_H
 
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
@@ -125,17 +126,6 @@ public:
   /// integer type with the size configured for this type converter.
   Type getIndexType() const;
 
-  /// Returns true if using opaque pointers was enabled in the lowering options.
-  bool useOpaquePointers() const { return getOptions().useOpaquePointers; }
-
-  /// Creates an LLVM pointer type with the given element type and address
-  /// space.
-  /// This function is meant to be used in code supporting both typed and opaque
-  /// pointers, as it will create an opaque pointer with the given address space
-  /// if opaque pointers are enabled in the lowering options.
-  LLVM::LLVMPointerType getPointerType(Type elementType,
-                                       unsigned addressSpace = 0) const;
-
   /// Gets the bitwidth of the index type when converted to LLVM.
   unsigned getIndexTypeBitwidth() const { return options.getIndexBitwidth(); }
 
@@ -161,6 +151,12 @@ public:
 protected:
   /// Pointer to the LLVM dialect.
   LLVM::LLVMDialect *llvmDialect;
+
+  // Recursive structure detection.
+  // We store one entry per thread here, and rely on locking.
+  DenseMap<uint64_t, std::unique_ptr<SmallVector<Type>>> conversionCallStack;
+  llvm::sys::SmartRWMutex<true> callStackMutex;
+  SmallVector<Type> &getCurrentThreadRecursiveStack();
 
 private:
   /// Convert a function type.  The arguments and results are converted one by
@@ -193,7 +189,7 @@ private:
   /// Convert a memref type into a list of LLVM IR types that will form the
   /// memref descriptor. If `unpackAggregates` is true the `sizes` and `strides`
   /// arrays in the descriptors are unpacked to individual index-typed elements,
-  /// else they are are kept as rank-sized arrays of index type. In particular,
+  /// else they are kept as rank-sized arrays of index type. In particular,
   /// the list will contain:
   /// - two pointers to the memref element type, followed by
   /// - an index-typed offset, followed by
@@ -233,7 +229,7 @@ private:
   Type convertMemRefToBarePtr(BaseMemRefType type) const;
 
   /// Convert a 1D vector type into an LLVM vector type.
-  Type convertVectorType(VectorType type) const;
+  FailureOr<Type> convertVectorType(VectorType type) const;
 
   /// Options for customizing the llvm lowering.
   LowerToLLVMOptions options;

@@ -7,20 +7,76 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/Analyses/UnsafeBufferUsage.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/Basic/CharInfo.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <queue>
+#include <sstream>
 
 using namespace llvm;
 using namespace clang;
 using namespace ast_matchers;
+
+#ifndef NDEBUG
+namespace {
+class StmtDebugPrinter
+    : public ConstStmtVisitor<StmtDebugPrinter, std::string> {
+public:
+  std::string VisitStmt(const Stmt *S) { return S->getStmtClassName(); }
+
+  std::string VisitBinaryOperator(const BinaryOperator *BO) {
+    return "BinaryOperator(" + BO->getOpcodeStr().str() + ")";
+  }
+
+  std::string VisitUnaryOperator(const UnaryOperator *UO) {
+    return "UnaryOperator(" + UO->getOpcodeStr(UO->getOpcode()).str() + ")";
+  }
+
+  std::string VisitImplicitCastExpr(const ImplicitCastExpr *ICE) {
+    return "ImplicitCastExpr(" + std::string(ICE->getCastKindName()) + ")";
+  }
+};
+
+// Returns a string of ancestor `Stmt`s of the given `DRE` in such a form:
+// "DRE ==> parent-of-DRE ==> grandparent-of-DRE ==> ...".
+static std::string getDREAncestorString(const DeclRefExpr *DRE,
+                                        ASTContext &Ctx) {
+  std::stringstream SS;
+  const Stmt *St = DRE;
+  StmtDebugPrinter StmtPriner;
+
+  do {
+    SS << StmtPriner.Visit(St);
+
+    DynTypedNodeList StParents = Ctx.getParents(*St);
+
+    if (StParents.size() > 1)
+      return "unavailable due to multiple parents";
+    if (StParents.size() == 0)
+      break;
+    St = StParents.begin()->get<Stmt>();
+    if (St)
+      SS << " ==> ";
+  } while (St);
+  return SS.str();
+}
+} // namespace
+#endif /* NDEBUG */
 
 namespace clang::ast_matchers {
 // A `RecursiveASTVisitor` that traverses all descendants of a given node "n"
@@ -74,42 +130,42 @@ public:
 
   bool TraverseGenericSelectionExpr(GenericSelectionExpr *Node) {
     // These are unevaluated, except the result expression.
-    if(ignoreUnevaluatedContext)
+    if (ignoreUnevaluatedContext)
       return TraverseStmt(Node->getResultExpr());
     return VisitorBase::TraverseGenericSelectionExpr(Node);
   }
 
   bool TraverseUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Node) {
     // Unevaluated context.
-    if(ignoreUnevaluatedContext)
+    if (ignoreUnevaluatedContext)
       return true;
     return VisitorBase::TraverseUnaryExprOrTypeTraitExpr(Node);
   }
 
   bool TraverseTypeOfExprTypeLoc(TypeOfExprTypeLoc Node) {
     // Unevaluated context.
-    if(ignoreUnevaluatedContext)
+    if (ignoreUnevaluatedContext)
       return true;
     return VisitorBase::TraverseTypeOfExprTypeLoc(Node);
   }
 
   bool TraverseDecltypeTypeLoc(DecltypeTypeLoc Node) {
     // Unevaluated context.
-    if(ignoreUnevaluatedContext)
+    if (ignoreUnevaluatedContext)
       return true;
     return VisitorBase::TraverseDecltypeTypeLoc(Node);
   }
 
   bool TraverseCXXNoexceptExpr(CXXNoexceptExpr *Node) {
     // Unevaluated context.
-    if(ignoreUnevaluatedContext)
+    if (ignoreUnevaluatedContext)
       return true;
     return VisitorBase::TraverseCXXNoexceptExpr(Node);
   }
 
   bool TraverseCXXTypeidExpr(CXXTypeidExpr *Node) {
     // Unevaluated context.
-    if(ignoreUnevaluatedContext)
+    if (ignoreUnevaluatedContext)
       return true;
     return VisitorBase::TraverseCXXTypeidExpr(Node);
   }
@@ -157,24 +213,26 @@ private:
 
 // Because we're dealing with raw pointers, let's define what we mean by that.
 static auto hasPointerType() {
-    return hasType(hasCanonicalType(pointerType()));
+  return hasType(hasCanonicalType(pointerType()));
 }
 
-static auto hasArrayType() {
-    return hasType(hasCanonicalType(arrayType()));
-}
+static auto hasArrayType() { return hasType(hasCanonicalType(arrayType())); }
 
-AST_MATCHER_P(Stmt, forEachDescendantEvaluatedStmt, internal::Matcher<Stmt>, innerMatcher) {
+AST_MATCHER_P(Stmt, forEachDescendantEvaluatedStmt, internal::Matcher<Stmt>,
+              innerMatcher) {
   const DynTypedMatcher &DTM = static_cast<DynTypedMatcher>(innerMatcher);
 
-  MatchDescendantVisitor Visitor(&DTM, Finder, Builder, ASTMatchFinder::BK_All, true);
+  MatchDescendantVisitor Visitor(&DTM, Finder, Builder, ASTMatchFinder::BK_All,
+                                 true);
   return Visitor.findMatch(DynTypedNode::create(Node));
 }
 
-AST_MATCHER_P(Stmt, forEachDescendantStmt, internal::Matcher<Stmt>, innerMatcher) {
+AST_MATCHER_P(Stmt, forEachDescendantStmt, internal::Matcher<Stmt>,
+              innerMatcher) {
   const DynTypedMatcher &DTM = static_cast<DynTypedMatcher>(innerMatcher);
 
-  MatchDescendantVisitor Visitor(&DTM, Finder, Builder, ASTMatchFinder::BK_All, false);
+  MatchDescendantVisitor Visitor(&DTM, Finder, Builder, ASTMatchFinder::BK_All,
+                                 false);
   return Visitor.findMatch(DynTypedNode::create(Node));
 }
 
@@ -182,6 +240,11 @@ AST_MATCHER_P(Stmt, forEachDescendantStmt, internal::Matcher<Stmt>, innerMatcher
 AST_MATCHER_P(Stmt, notInSafeBufferOptOut, const UnsafeBufferUsageHandler *,
               Handler) {
   return !Handler->isSafeBufferOptOut(Node.getBeginLoc());
+}
+
+AST_MATCHER_P(Stmt, ignoreUnsafeBufferInContainer,
+              const UnsafeBufferUsageHandler *, Handler) {
+  return Handler->ignoreUnsafeBufferInContainer(Node.getBeginLoc());
 }
 
 AST_MATCHER_P(CastExpr, castSubExpr, internal::Matcher<Expr>, innerMatcher) {
@@ -207,9 +270,8 @@ static auto isInUnspecifiedLvalueContext(internal::Matcher<Expr> innerMatcher) {
         hasLHS(innerMatcher)
       )
     ));
-// clang-format on
+  // clang-format on
 }
-
 
 // Returns a matcher that matches any expression `e` such that `InnerMatcher`
 // matches `e` and `e` is in an Unspecified Pointer Context (UPC).
@@ -223,10 +285,13 @@ isInUnspecifiedPointerContext(internal::Matcher<Stmt> InnerMatcher) {
   // 4. the operand of a pointer subtraction operation
   //    (i.e., computing the distance between two pointers); or ...
 
-  auto CallArgMatcher =
-      callExpr(forEachArgumentWithParam(InnerMatcher,
-                  hasPointerType() /* array also decays to pointer type*/),
-          unless(callee(functionDecl(hasAttr(attr::UnsafeBufferUsage)))));
+  // clang-format off
+  auto CallArgMatcher = callExpr(
+    forEachArgumentWithParamType(
+      InnerMatcher,
+      isAnyPointer() /* array also decays to pointer type*/),
+    unless(callee(
+      functionDecl(hasAttr(attr::UnsafeBufferUsage)))));
 
   auto CastOperandMatcher =
       castExpr(anyOf(hasCastKind(CastKind::CK_PointerToIntegral),
@@ -248,9 +313,10 @@ isInUnspecifiedPointerContext(internal::Matcher<Stmt> InnerMatcher) {
 			   hasRHS(hasPointerType())),
 		     eachOf(hasLHS(InnerMatcher),
 			    hasRHS(InnerMatcher)));
+  // clang-format on
 
   return stmt(anyOf(CallArgMatcher, CastOperandMatcher, CompOperandMatcher,
-		    PtrSubtractionMatcher));
+                    PtrSubtractionMatcher));
   // FIXME: any more cases? (UPC excludes the RHS of an assignment.  For now we
   // don't have to check that.)
 }
@@ -277,6 +343,106 @@ isInUnspecifiedUntypedContext(internal::Matcher<Stmt> InnerMatcher) {
   // FIXME: Handle loop bodies.
   return stmt(anyOf(CompStmt, IfStmtThen, IfStmtElse));
 }
+
+// Given a two-param std::span construct call, matches iff the call has the
+// following forms:
+//   1. `std::span<T>{new T[n], n}`, where `n` is a literal or a DRE
+//   2. `std::span<T>{new T, 1}`
+//   3. `std::span<T>{&var, 1}`
+//   4. `std::span<T>{a, n}`, where `a` is of an array-of-T with constant size
+//   `n`
+//   5. `std::span<T>{any, 0}`
+AST_MATCHER(CXXConstructExpr, isSafeSpanTwoParamConstruct) {
+  assert(Node.getNumArgs() == 2 &&
+         "expecting a two-parameter std::span constructor");
+  const Expr *Arg0 = Node.getArg(0)->IgnoreImplicit();
+  const Expr *Arg1 = Node.getArg(1)->IgnoreImplicit();
+  auto HaveEqualConstantValues = [&Finder](const Expr *E0, const Expr *E1) {
+    if (auto E0CV = E0->getIntegerConstantExpr(Finder->getASTContext()))
+      if (auto E1CV = E1->getIntegerConstantExpr(Finder->getASTContext())) {
+        return APSInt::compareValues(*E0CV, *E1CV) == 0;
+      }
+    return false;
+  };
+  auto AreSameDRE = [](const Expr *E0, const Expr *E1) {
+    if (auto *DRE0 = dyn_cast<DeclRefExpr>(E0))
+      if (auto *DRE1 = dyn_cast<DeclRefExpr>(E1)) {
+        return DRE0->getDecl() == DRE1->getDecl();
+      }
+    return false;
+  };
+  std::optional<APSInt> Arg1CV =
+      Arg1->getIntegerConstantExpr(Finder->getASTContext());
+
+  if (Arg1CV && Arg1CV->isZero())
+    // Check form 5:
+    return true;
+  switch (Arg0->IgnoreImplicit()->getStmtClass()) {
+  case Stmt::CXXNewExprClass:
+    if (auto Size = cast<CXXNewExpr>(Arg0)->getArraySize()) {
+      // Check form 1:
+      return AreSameDRE((*Size)->IgnoreImplicit(), Arg1) ||
+             HaveEqualConstantValues(*Size, Arg1);
+    }
+    // TODO: what's placeholder type? avoid it for now.
+    if (!cast<CXXNewExpr>(Arg0)->hasPlaceholderType()) {
+      // Check form 2:
+      return Arg1CV && Arg1CV->isOne();
+    }
+    break;
+  case Stmt::UnaryOperatorClass:
+    if (cast<UnaryOperator>(Arg0)->getOpcode() ==
+        UnaryOperator::Opcode::UO_AddrOf)
+      // Check form 3:
+      return Arg1CV && Arg1CV->isOne();
+    break;
+  default:
+    break;
+  }
+
+  QualType Arg0Ty = Arg0->IgnoreImplicit()->getType();
+
+  if (Arg0Ty->isConstantArrayType()) {
+    const APInt &ConstArrSize = cast<ConstantArrayType>(Arg0Ty)->getSize();
+
+    // Check form 4:
+    return Arg1CV && APSInt::compareValues(APSInt(ConstArrSize), *Arg1CV) == 0;
+  }
+  return false;
+}
+
+AST_MATCHER(ArraySubscriptExpr, isSafeArraySubscript) {
+  // FIXME: Proper solution:
+  //  - refactor Sema::CheckArrayAccess
+  //    - split safe/OOB/unknown decision logic from diagnostics emitting code
+  //    -  e. g. "Try harder to find a NamedDecl to point at in the note."
+  //    already duplicated
+  //  - call both from Sema and from here
+
+  const auto *BaseDRE =
+      dyn_cast<DeclRefExpr>(Node.getBase()->IgnoreParenImpCasts());
+  if (!BaseDRE)
+    return false;
+  if (!BaseDRE->getDecl())
+    return false;
+  const auto *CATy = Finder->getASTContext().getAsConstantArrayType(
+      BaseDRE->getDecl()->getType());
+  if (!CATy)
+    return false;
+  const APInt ArrSize = CATy->getSize();
+
+  if (const auto *IdxLit = dyn_cast<IntegerLiteral>(Node.getIdx())) {
+    const APInt ArrIdx = IdxLit->getValue();
+    // FIXME: ArrIdx.isNegative() we could immediately emit an error as that's a
+    // bug
+    if (ArrIdx.isNonNegative() &&
+        ArrIdx.getLimitedValue() < ArrSize.getLimitedValue())
+      return true;
+  }
+
+  return false;
+}
+
 } // namespace clang::ast_matchers
 
 namespace {
@@ -286,9 +452,6 @@ using DeclUseList = SmallVector<const DeclRefExpr *, 1>;
 
 // Convenience typedef.
 using FixItList = SmallVector<FixItHint, 4>;
-
-// Defined below.
-class Strategy;
 } // namespace
 
 namespace {
@@ -319,7 +482,9 @@ public:
 #ifndef NDEBUG
   StringRef getDebugName() const {
     switch (K) {
-#define GADGET(x) case Kind::x: return #x;
+#define GADGET(x)                                                              \
+  case Kind::x:                                                                \
+    return #x;
 #include "clang/Analysis/Analyses/UnsafeBufferUsageGadgets.def"
     }
     llvm_unreachable("Unhandled Gadget::Kind enum");
@@ -340,7 +505,6 @@ private:
   Kind K;
 };
 
-
 /// Warning gadgets correspond to unsafe code patterns that warrants
 /// an immediate warning.
 class WarningGadget : public Gadget {
@@ -351,10 +515,10 @@ public:
   bool isWarningGadget() const final { return true; }
 };
 
-/// Fixable gadgets correspond to code patterns that aren't always unsafe but need to be
-/// properly recognized in order to emit fixes. For example, if a raw pointer-type
-/// variable is replaced by a safe C++ container, every use of such variable must be
-/// carefully considered and possibly updated.
+/// Fixable gadgets correspond to code patterns that aren't always unsafe but
+/// need to be properly recognized in order to emit fixes. For example, if a raw
+/// pointer-type variable is replaced by a safe C++ container, every use of such
+/// variable must be carefully considered and possibly updated.
 class FixableGadget : public Gadget {
 public:
   FixableGadget(Kind K) : Gadget(K) {}
@@ -365,24 +529,23 @@ public:
   /// Returns a fixit that would fix the current gadget according to
   /// the current strategy. Returns std::nullopt if the fix cannot be produced;
   /// returns an empty list if no fixes are necessary.
-  virtual std::optional<FixItList> getFixits(const Strategy &) const {
+  virtual std::optional<FixItList> getFixits(const FixitStrategy &) const {
     return std::nullopt;
   }
 
-  /// Returns a list of two elements where the first element is the LHS of a pointer assignment
-  /// statement and the second element is the RHS. This two-element list represents the fact that
-  /// the LHS buffer gets its bounds information from the RHS buffer. This information will be used
-  /// later to group all those variables whose types must be modified together to prevent type
-  /// mismatches.
+  /// Returns a list of two elements where the first element is the LHS of a
+  /// pointer assignment statement and the second element is the RHS. This
+  /// two-element list represents the fact that the LHS buffer gets its bounds
+  /// information from the RHS buffer. This information will be used later to
+  /// group all those variables whose types must be modified together to prevent
+  /// type mismatches.
   virtual std::optional<std::pair<const VarDecl *, const VarDecl *>>
   getStrategyImplications() const {
     return std::nullopt;
   }
 };
 
-static auto toSupportedVariable() {
-  return to(varDecl());
-}
+static auto toSupportedVariable() { return to(varDecl()); }
 
 using FixableGadgetList = std::vector<std::unique_ptr<FixableGadget>>;
 using WarningGadgetList = std::vector<std::unique_ptr<WarningGadget>>;
@@ -403,10 +566,10 @@ public:
   }
 
   static Matcher matcher() {
-    return stmt(unaryOperator(
-      hasOperatorName("++"),
-      hasUnaryOperand(ignoringParenImpCasts(hasPointerType()))
-    ).bind(OpTag));
+    return stmt(
+        unaryOperator(hasOperatorName("++"),
+                      hasUnaryOperand(ignoringParenImpCasts(hasPointerType())))
+            .bind(OpTag));
   }
 
   const UnaryOperator *getBaseStmt() const override { return Op; }
@@ -438,10 +601,10 @@ public:
   }
 
   static Matcher matcher() {
-    return stmt(unaryOperator(
-      hasOperatorName("--"),
-      hasUnaryOperand(ignoringParenImpCasts(hasPointerType()))
-    ).bind(OpTag));
+    return stmt(
+        unaryOperator(hasOperatorName("--"),
+                      hasUnaryOperand(ignoringParenImpCasts(hasPointerType())))
+            .bind(OpTag));
   }
 
   const UnaryOperator *getBaseStmt() const override { return Op; }
@@ -472,16 +635,16 @@ public:
   }
 
   static Matcher matcher() {
-    // FIXME: What if the index is integer literal 0? Should this be
-    // a safe gadget in this case?
-      // clang-format off
+    // clang-format off
       return stmt(arraySubscriptExpr(
             hasBase(ignoringParenImpCasts(
               anyOf(hasPointerType(), hasArrayType()))),
-            unless(hasIndex(
-                anyOf(integerLiteral(equals(0)), arrayInitIndexExpr())
-             )))
-            .bind(ArraySubscrTag));
+            unless(anyOf(
+              isSafeArraySubscript(),
+              hasIndex(
+                  anyOf(integerLiteral(equals(0)), arrayInitIndexExpr())
+              )
+            ))).bind(ArraySubscrTag));
     // clang-format on
   }
 
@@ -546,6 +709,44 @@ public:
   // FIXME: this gadge will need a fix-it
 };
 
+class SpanTwoParamConstructorGadget : public WarningGadget {
+  static constexpr const char *const SpanTwoParamConstructorTag =
+      "spanTwoParamConstructor";
+  const CXXConstructExpr *Ctor; // the span constructor expression
+
+public:
+  SpanTwoParamConstructorGadget(const MatchFinder::MatchResult &Result)
+      : WarningGadget(Kind::SpanTwoParamConstructor),
+        Ctor(Result.Nodes.getNodeAs<CXXConstructExpr>(
+            SpanTwoParamConstructorTag)) {}
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::SpanTwoParamConstructor;
+  }
+
+  static Matcher matcher() {
+    auto HasTwoParamSpanCtorDecl = hasDeclaration(
+        cxxConstructorDecl(hasDeclContext(isInStdNamespace()), hasName("span"),
+                           parameterCountIs(2)));
+
+    return stmt(cxxConstructExpr(HasTwoParamSpanCtorDecl,
+                                 unless(isSafeSpanTwoParamConstruct()))
+                    .bind(SpanTwoParamConstructorTag));
+  }
+
+  const Stmt *getBaseStmt() const override { return Ctor; }
+
+  DeclUseList getClaimedVarUseSites() const override {
+    // If the constructor call is of the form `std::span{var, n}`, `var` is
+    // considered an unsafe variable.
+    if (auto *DRE = dyn_cast<DeclRefExpr>(Ctor->getArg(0))) {
+      if (isa<VarDecl>(DRE->getDecl()))
+        return {DRE};
+    }
+    return {};
+  }
+};
+
 /// A pointer initialization expression of the form:
 ///  \code
 ///  int *p = q;
@@ -554,31 +755,31 @@ class PointerInitGadget : public FixableGadget {
 private:
   static constexpr const char *const PointerInitLHSTag = "ptrInitLHS";
   static constexpr const char *const PointerInitRHSTag = "ptrInitRHS";
-  const VarDecl * PtrInitLHS;         // the LHS pointer expression in `PI`
-  const DeclRefExpr * PtrInitRHS;         // the RHS pointer expression in `PI`
+  const VarDecl *PtrInitLHS;     // the LHS pointer expression in `PI`
+  const DeclRefExpr *PtrInitRHS; // the RHS pointer expression in `PI`
 
 public:
   PointerInitGadget(const MatchFinder::MatchResult &Result)
       : FixableGadget(Kind::PointerInit),
-    PtrInitLHS(Result.Nodes.getNodeAs<VarDecl>(PointerInitLHSTag)),
-    PtrInitRHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerInitRHSTag)) {}
+        PtrInitLHS(Result.Nodes.getNodeAs<VarDecl>(PointerInitLHSTag)),
+        PtrInitRHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerInitRHSTag)) {}
 
   static bool classof(const Gadget *G) {
     return G->getKind() == Kind::PointerInit;
   }
 
   static Matcher matcher() {
-    auto PtrInitStmt = declStmt(hasSingleDecl(varDecl(
-                                 hasInitializer(ignoringImpCasts(declRefExpr(
-                                                  hasPointerType(),
-                                                    toSupportedVariable()).
-                                                  bind(PointerInitRHSTag)))).
-                                              bind(PointerInitLHSTag)));
+    auto PtrInitStmt = declStmt(hasSingleDecl(
+        varDecl(hasInitializer(ignoringImpCasts(
+                    declRefExpr(hasPointerType(), toSupportedVariable())
+                        .bind(PointerInitRHSTag))))
+            .bind(PointerInitLHSTag)));
 
     return stmt(PtrInitStmt);
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
 
   virtual const Stmt *getBaseStmt() const override {
     // FIXME: This needs to be the entire DeclStmt, assuming that this method
@@ -592,8 +793,7 @@ public:
 
   virtual std::optional<std::pair<const VarDecl *, const VarDecl *>>
   getStrategyImplications() const override {
-      return std::make_pair(PtrInitLHS,
-                            cast<VarDecl>(PtrInitRHS->getDecl()));
+    return std::make_pair(PtrInitLHS, cast<VarDecl>(PtrInitRHS->getDecl()));
   }
 };
 
@@ -601,36 +801,38 @@ public:
 ///  \code
 ///  p = q;
 ///  \endcode
-class PointerAssignmentGadget : public FixableGadget {
+/// where both `p` and `q` are pointers.
+class PtrToPtrAssignmentGadget : public FixableGadget {
 private:
   static constexpr const char *const PointerAssignLHSTag = "ptrLHS";
   static constexpr const char *const PointerAssignRHSTag = "ptrRHS";
-  const DeclRefExpr * PtrLHS;         // the LHS pointer expression in `PA`
-  const DeclRefExpr * PtrRHS;         // the RHS pointer expression in `PA`
+  const DeclRefExpr *PtrLHS; // the LHS pointer expression in `PA`
+  const DeclRefExpr *PtrRHS; // the RHS pointer expression in `PA`
 
 public:
-  PointerAssignmentGadget(const MatchFinder::MatchResult &Result)
-      : FixableGadget(Kind::PointerAssignment),
-    PtrLHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerAssignLHSTag)),
-    PtrRHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerAssignRHSTag)) {}
+  PtrToPtrAssignmentGadget(const MatchFinder::MatchResult &Result)
+      : FixableGadget(Kind::PtrToPtrAssignment),
+        PtrLHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerAssignLHSTag)),
+        PtrRHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerAssignRHSTag)) {}
 
   static bool classof(const Gadget *G) {
-    return G->getKind() == Kind::PointerAssignment;
+    return G->getKind() == Kind::PtrToPtrAssignment;
   }
 
   static Matcher matcher() {
-    auto PtrAssignExpr = binaryOperator(allOf(hasOperatorName("="),
-      hasRHS(ignoringParenImpCasts(declRefExpr(hasPointerType(),
-                                               toSupportedVariable()).
-                                   bind(PointerAssignRHSTag))),
-                                   hasLHS(declRefExpr(hasPointerType(),
-                                                      toSupportedVariable()).
-                                          bind(PointerAssignLHSTag))));
+    auto PtrAssignExpr = binaryOperator(
+        allOf(hasOperatorName("="),
+              hasRHS(ignoringParenImpCasts(
+                  declRefExpr(hasPointerType(), toSupportedVariable())
+                      .bind(PointerAssignRHSTag))),
+              hasLHS(declRefExpr(hasPointerType(), toSupportedVariable())
+                         .bind(PointerAssignLHSTag))));
 
     return stmt(isInUnspecifiedUntypedContext(PtrAssignExpr));
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
 
   virtual const Stmt *getBaseStmt() const override {
     // FIXME: This should be the binary operator, assuming that this method
@@ -646,6 +848,60 @@ public:
   getStrategyImplications() const override {
     return std::make_pair(cast<VarDecl>(PtrLHS->getDecl()),
                           cast<VarDecl>(PtrRHS->getDecl()));
+  }
+};
+
+/// An assignment expression of the form:
+///  \code
+///  ptr = array;
+///  \endcode
+/// where `p` is a pointer and `array` is a constant size array.
+class CArrayToPtrAssignmentGadget : public FixableGadget {
+private:
+  static constexpr const char *const PointerAssignLHSTag = "ptrLHS";
+  static constexpr const char *const PointerAssignRHSTag = "ptrRHS";
+  const DeclRefExpr *PtrLHS; // the LHS pointer expression in `PA`
+  const DeclRefExpr *PtrRHS; // the RHS pointer expression in `PA`
+
+public:
+  CArrayToPtrAssignmentGadget(const MatchFinder::MatchResult &Result)
+      : FixableGadget(Kind::CArrayToPtrAssignment),
+        PtrLHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerAssignLHSTag)),
+        PtrRHS(Result.Nodes.getNodeAs<DeclRefExpr>(PointerAssignRHSTag)) {}
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::CArrayToPtrAssignment;
+  }
+
+  static Matcher matcher() {
+    auto PtrAssignExpr = binaryOperator(
+        allOf(hasOperatorName("="),
+              hasRHS(ignoringParenImpCasts(
+                  declRefExpr(hasType(hasCanonicalType(constantArrayType())),
+                              toSupportedVariable())
+                      .bind(PointerAssignRHSTag))),
+              hasLHS(declRefExpr(hasPointerType(), toSupportedVariable())
+                         .bind(PointerAssignLHSTag))));
+
+    return stmt(isInUnspecifiedUntypedContext(PtrAssignExpr));
+  }
+
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
+
+  virtual const Stmt *getBaseStmt() const override {
+    // FIXME: This should be the binary operator, assuming that this method
+    // makes sense at all on a FixableGadget.
+    return PtrLHS;
+  }
+
+  virtual DeclUseList getClaimedVarUseSites() const override {
+    return DeclUseList{PtrLHS, PtrRHS};
+  }
+
+  virtual std::optional<std::pair<const VarDecl *, const VarDecl *>>
+  getStrategyImplications() const override {
+    return {};
   }
 };
 
@@ -667,6 +923,35 @@ public:
   static Matcher matcher() {
     return stmt(callExpr(callee(functionDecl(hasAttr(attr::UnsafeBufferUsage))))
                     .bind(OpTag));
+  }
+  const Stmt *getBaseStmt() const override { return Op; }
+
+  DeclUseList getClaimedVarUseSites() const override { return {}; }
+};
+
+// Warning gadget for unsafe invocation of span::data method.
+// Triggers when the pointer returned by the invocation is immediately
+// cast to a larger type.
+
+class DataInvocationGadget : public WarningGadget {
+  constexpr static const char *const OpTag = "data_invocation_expr";
+  const ExplicitCastExpr *Op;
+
+public:
+  DataInvocationGadget(const MatchFinder::MatchResult &Result)
+      : WarningGadget(Kind::DataInvocation),
+        Op(Result.Nodes.getNodeAs<ExplicitCastExpr>(OpTag)) {}
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::DataInvocation;
+  }
+
+  static Matcher matcher() {
+    Matcher callExpr = cxxMemberCallExpr(
+        callee(cxxMethodDecl(hasName("data"), ofClass(hasName("std::span")))));
+    return stmt(
+        explicitCastExpr(anyOf(has(callExpr), has(parenExpr(has(callExpr)))))
+            .bind(OpTag));
   }
   const Stmt *getBaseStmt() const override { return Op; }
 
@@ -695,16 +980,16 @@ public:
 
   static Matcher matcher() {
     auto ArrayOrPtr = anyOf(hasPointerType(), hasArrayType());
-    auto BaseIsArrayOrPtrDRE =
-        hasBase(ignoringParenImpCasts(declRefExpr(ArrayOrPtr,
-                                                  toSupportedVariable())));
+    auto BaseIsArrayOrPtrDRE = hasBase(
+        ignoringParenImpCasts(declRefExpr(ArrayOrPtr, toSupportedVariable())));
     auto Target =
         arraySubscriptExpr(BaseIsArrayOrPtrDRE).bind(ULCArraySubscriptTag);
 
     return expr(isInUnspecifiedLvalueContext(Target));
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
 
   virtual const Stmt *getBaseStmt() const override { return Node; }
 
@@ -738,19 +1023,18 @@ public:
 
   static Matcher matcher() {
     auto ArrayOrPtr = anyOf(hasPointerType(), hasArrayType());
-    auto target = expr(
-        ignoringParenImpCasts(declRefExpr(allOf(ArrayOrPtr,
-                              toSupportedVariable())).bind(DeclRefExprTag)));
+    auto target = expr(ignoringParenImpCasts(
+        declRefExpr(allOf(ArrayOrPtr, toSupportedVariable()))
+            .bind(DeclRefExprTag)));
     return stmt(isInUnspecifiedPointerContext(target));
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
 
   virtual const Stmt *getBaseStmt() const override { return Node; }
 
-  virtual DeclUseList getClaimedVarUseSites() const override {
-    return {Node};
-  }
+  virtual DeclUseList getClaimedVarUseSites() const override { return {Node}; }
 };
 
 class PointerDereferenceGadget : public FixableGadget {
@@ -788,7 +1072,8 @@ public:
 
   virtual const Stmt *getBaseStmt() const final { return Op; }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
 };
 
 // Represents expressions of the form `&DRE[any]` in the Unspecified Pointer
@@ -814,14 +1099,15 @@ public:
 
   static Matcher matcher() {
     return expr(isInUnspecifiedPointerContext(expr(ignoringImpCasts(
-        unaryOperator(hasOperatorName("&"),
-                      hasUnaryOperand(arraySubscriptExpr(
-                          hasBase(ignoringParenImpCasts(declRefExpr(
-                                                  toSupportedVariable()))))))
+        unaryOperator(
+            hasOperatorName("&"),
+            hasUnaryOperand(arraySubscriptExpr(hasBase(
+                ignoringParenImpCasts(declRefExpr(toSupportedVariable()))))))
             .bind(UPCAddressofArraySubscriptTag)))));
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &) const override;
 
   virtual const Stmt *getBaseStmt() const override { return Node; }
 
@@ -895,66 +1181,23 @@ public:
   }
 
   const DeclStmt *lookupDecl(const VarDecl *VD) const {
-    auto It = Defs.find(VD);
-    if (It == Defs.end())
-      return nullptr;
-    return It->second;
+    return Defs.lookup(VD);
   }
 };
 } // namespace
-
-namespace {
-// Strategy is a map from variables to the way we plan to emit fixes for
-// these variables. It is figured out gradually by trying different fixes
-// for different variables depending on gadgets in which these variables
-// participate.
-class Strategy {
-public:
-  enum class Kind {
-    Wontfix,  // We don't plan to emit a fixit for this variable.
-    Span,     // We recommend replacing the variable with std::span.
-    Iterator, // We recommend replacing the variable with std::span::iterator.
-    Array,    // We recommend replacing the variable with std::array.
-    Vector    // We recommend replacing the variable with std::vector.
-  };
-
-private:
-  using MapTy = llvm::DenseMap<const VarDecl *, Kind>;
-
-  MapTy Map;
-
-public:
-  Strategy() = default;
-  Strategy(const Strategy &) = delete; // Let's avoid copies.
-  Strategy &operator=(const Strategy &) = delete;
-  Strategy(Strategy &&) = default;
-  Strategy &operator=(Strategy &&) = default;
-
-  void set(const VarDecl *VD, Kind K) { Map[VD] = K; }
-
-  Kind lookup(const VarDecl *VD) const {
-    auto I = Map.find(VD);
-    if (I == Map.end())
-      return Kind::Wontfix;
-
-    return I->second;
-  }
-};
-} // namespace
-
 
 // Representing a pointer type expression of the form `++Ptr` in an Unspecified
 // Pointer Context (UPC):
 class UPCPreIncrementGadget : public FixableGadget {
 private:
   static constexpr const char *const UPCPreIncrementTag =
-    "PointerPreIncrementUnderUPC";
+      "PointerPreIncrementUnderUPC";
   const UnaryOperator *Node; // the `++Ptr` node
 
 public:
   UPCPreIncrementGadget(const MatchFinder::MatchResult &Result)
-    : FixableGadget(Kind::UPCPreIncrement),
-      Node(Result.Nodes.getNodeAs<UnaryOperator>(UPCPreIncrementTag)) {
+      : FixableGadget(Kind::UPCPreIncrement),
+        Node(Result.Nodes.getNodeAs<UnaryOperator>(UPCPreIncrementTag)) {
     assert(Node != nullptr && "Expecting a non-null matching result");
   }
 
@@ -968,18 +1211,64 @@ public:
     // can have the matcher be general, so long as `getClaimedVarUseSites` does
     // things right.
     return stmt(isInUnspecifiedPointerContext(expr(ignoringImpCasts(
-								    unaryOperator(isPreInc(),
-										  hasUnaryOperand(declRefExpr(
-                                                    toSupportedVariable()))
-										  ).bind(UPCPreIncrementTag)))));
+        unaryOperator(isPreInc(),
+                      hasUnaryOperand(declRefExpr(toSupportedVariable())))
+            .bind(UPCPreIncrementTag)))));
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &S) const override;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
 
   virtual const Stmt *getBaseStmt() const override { return Node; }
 
   virtual DeclUseList getClaimedVarUseSites() const override {
     return {dyn_cast<DeclRefExpr>(Node->getSubExpr())};
+  }
+};
+
+// Representing a pointer type expression of the form `Ptr += n` in an
+// Unspecified Untyped Context (UUC):
+class UUCAddAssignGadget : public FixableGadget {
+private:
+  static constexpr const char *const UUCAddAssignTag =
+      "PointerAddAssignUnderUUC";
+  static constexpr const char *const OffsetTag = "Offset";
+
+  const BinaryOperator *Node; // the `Ptr += n` node
+  const Expr *Offset = nullptr;
+
+public:
+  UUCAddAssignGadget(const MatchFinder::MatchResult &Result)
+      : FixableGadget(Kind::UUCAddAssign),
+        Node(Result.Nodes.getNodeAs<BinaryOperator>(UUCAddAssignTag)),
+        Offset(Result.Nodes.getNodeAs<Expr>(OffsetTag)) {
+    assert(Node != nullptr && "Expecting a non-null matching result");
+  }
+
+  static bool classof(const Gadget *G) {
+    return G->getKind() == Kind::UUCAddAssign;
+  }
+
+  static Matcher matcher() {
+    // clang-format off
+    return stmt(isInUnspecifiedUntypedContext(expr(ignoringImpCasts(
+        binaryOperator(hasOperatorName("+="),
+                       hasLHS(
+                        declRefExpr(
+                          hasPointerType(),
+                          toSupportedVariable())),
+                       hasRHS(expr().bind(OffsetTag)))
+            .bind(UUCAddAssignTag)))));
+    // clang-format on
+  }
+
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &S) const override;
+
+  virtual const Stmt *getBaseStmt() const override { return Node; }
+
+  virtual DeclUseList getClaimedVarUseSites() const override {
+    return {dyn_cast<DeclRefExpr>(Node->getLHS())};
   }
 };
 
@@ -1024,7 +1313,8 @@ public:
     // clang-format on
   }
 
-  virtual std::optional<FixItList> getFixits(const Strategy &s) const final;
+  virtual std::optional<FixItList>
+  getFixits(const FixitStrategy &s) const final;
 
   // TODO remove this method from FixableGadget interface
   virtual const Stmt *getBaseStmt() const final { return nullptr; }
@@ -1096,6 +1386,10 @@ findGadgets(const Decl *D, const UnsafeBufferUsageHandler &Handler,
 #define WARNING_GADGET(x)                                                      \
           allOf(x ## Gadget::matcher().bind(#x),                               \
                 notInSafeBufferOptOut(&Handler)),
+#define WARNING_CONTAINER_GADGET(x)                                            \
+          allOf(x ## Gadget::matcher().bind(#x),                               \
+                notInSafeBufferOptOut(&Handler),                               \
+                unless(ignoreUnsafeBufferInContainer(&Handler))),
 #include "clang/Analysis/Analyses/UnsafeBufferUsageGadgets.def"
             // Avoid a hanging comma.
             unless(stmt())
@@ -1230,66 +1524,113 @@ bool clang::internal::anyConflict(const SmallVectorImpl<FixItHint> &FixIts,
 }
 
 std::optional<FixItList>
-PointerAssignmentGadget::getFixits(const Strategy &S) const {
+PtrToPtrAssignmentGadget::getFixits(const FixitStrategy &S) const {
   const auto *LeftVD = cast<VarDecl>(PtrLHS->getDecl());
   const auto *RightVD = cast<VarDecl>(PtrRHS->getDecl());
   switch (S.lookup(LeftVD)) {
-    case Strategy::Kind::Span:
-      if (S.lookup(RightVD) == Strategy::Kind::Span)
-        return FixItList{};
-      return std::nullopt;
-    case Strategy::Kind::Wontfix:
-      return std::nullopt;
-    case Strategy::Kind::Iterator:
-    case Strategy::Kind::Array:
-    case Strategy::Kind::Vector:
-      llvm_unreachable("unsupported strategies for FixableGadgets");
-  }
-  return std::nullopt;
-}
-
-std::optional<FixItList>
-PointerInitGadget::getFixits(const Strategy &S) const {
-  const auto *LeftVD = PtrInitLHS;
-  const auto *RightVD = cast<VarDecl>(PtrInitRHS->getDecl());
-  switch (S.lookup(LeftVD)) {
-    case Strategy::Kind::Span:
-      if (S.lookup(RightVD) == Strategy::Kind::Span)
-        return FixItList{};
-      return std::nullopt;
-    case Strategy::Kind::Wontfix:
-      return std::nullopt;
-    case Strategy::Kind::Iterator:
-    case Strategy::Kind::Array:
-    case Strategy::Kind::Vector:
+  case FixitStrategy::Kind::Span:
+    if (S.lookup(RightVD) == FixitStrategy::Kind::Span)
+      return FixItList{};
+    return std::nullopt;
+  case FixitStrategy::Kind::Wontfix:
+    return std::nullopt;
+  case FixitStrategy::Kind::Iterator:
+  case FixitStrategy::Kind::Array:
+    return std::nullopt;
+  case FixitStrategy::Kind::Vector:
     llvm_unreachable("unsupported strategies for FixableGadgets");
   }
   return std::nullopt;
 }
 
+/// \returns fixit that adds .data() call after \DRE.
+static inline std::optional<FixItList> createDataFixit(const ASTContext &Ctx,
+                                                       const DeclRefExpr *DRE);
+
 std::optional<FixItList>
-ULCArraySubscriptGadget::getFixits(const Strategy &S) const {
+CArrayToPtrAssignmentGadget::getFixits(const FixitStrategy &S) const {
+  const auto *LeftVD = cast<VarDecl>(PtrLHS->getDecl());
+  const auto *RightVD = cast<VarDecl>(PtrRHS->getDecl());
+  // TLDR: Implementing fixits for non-Wontfix strategy on both LHS and RHS is
+  // non-trivial.
+  //
+  // CArrayToPtrAssignmentGadget doesn't have strategy implications because
+  // constant size array propagates its bounds. Because of that LHS and RHS are
+  // addressed by two different fixits.
+  //
+  // At the same time FixitStrategy S doesn't reflect what group a fixit belongs
+  // to and can't be generally relied on in multi-variable Fixables!
+  //
+  // E. g. If an instance of this gadget is fixing variable on LHS then the
+  // variable on RHS is fixed by a different fixit and its strategy for LHS
+  // fixit is as if Wontfix.
+  //
+  // The only exception is Wontfix strategy for a given variable as that is
+  // valid for any fixit produced for the given input source code.
+  if (S.lookup(LeftVD) == FixitStrategy::Kind::Span) {
+    if (S.lookup(RightVD) == FixitStrategy::Kind::Wontfix) {
+      return FixItList{};
+    }
+  } else if (S.lookup(LeftVD) == FixitStrategy::Kind::Wontfix) {
+    if (S.lookup(RightVD) == FixitStrategy::Kind::Array) {
+      return createDataFixit(RightVD->getASTContext(), PtrRHS);
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<FixItList>
+PointerInitGadget::getFixits(const FixitStrategy &S) const {
+  const auto *LeftVD = PtrInitLHS;
+  const auto *RightVD = cast<VarDecl>(PtrInitRHS->getDecl());
+  switch (S.lookup(LeftVD)) {
+  case FixitStrategy::Kind::Span:
+    if (S.lookup(RightVD) == FixitStrategy::Kind::Span)
+      return FixItList{};
+    return std::nullopt;
+  case FixitStrategy::Kind::Wontfix:
+    return std::nullopt;
+  case FixitStrategy::Kind::Iterator:
+  case FixitStrategy::Kind::Array:
+    return std::nullopt;
+  case FixitStrategy::Kind::Vector:
+    llvm_unreachable("unsupported strategies for FixableGadgets");
+  }
+  return std::nullopt;
+}
+
+static bool isNonNegativeIntegerExpr(const Expr *Expr, const VarDecl *VD,
+                                     const ASTContext &Ctx) {
+  if (auto ConstVal = Expr->getIntegerConstantExpr(Ctx)) {
+    if (ConstVal->isNegative())
+      return false;
+  } else if (!Expr->getType()->isUnsignedIntegerType())
+    return false;
+  return true;
+}
+
+std::optional<FixItList>
+ULCArraySubscriptGadget::getFixits(const FixitStrategy &S) const {
   if (const auto *DRE =
           dyn_cast<DeclRefExpr>(Node->getBase()->IgnoreImpCasts()))
     if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
       switch (S.lookup(VD)) {
-      case Strategy::Kind::Span: {
+      case FixitStrategy::Kind::Span: {
+
         // If the index has a negative constant value, we give up as no valid
         // fix-it can be generated:
         const ASTContext &Ctx = // FIXME: we need ASTContext to be passed in!
             VD->getASTContext();
-        if (auto ConstVal = Node->getIdx()->getIntegerConstantExpr(Ctx)) {
-          if (ConstVal->isNegative())
-            return std::nullopt;
-        } else if (!Node->getIdx()->getType()->isUnsignedIntegerType())
+        if (!isNonNegativeIntegerExpr(Node->getIdx(), VD, Ctx))
           return std::nullopt;
         // no-op is a good fix-it, otherwise
         return FixItList{};
       }
-      case Strategy::Kind::Wontfix:
-      case Strategy::Kind::Iterator:
-      case Strategy::Kind::Array:
-      case Strategy::Kind::Vector:
+      case FixitStrategy::Kind::Array:
+        return FixItList{};
+      case FixitStrategy::Kind::Wontfix:
+      case FixitStrategy::Kind::Iterator:
+      case FixitStrategy::Kind::Vector:
         llvm_unreachable("unsupported strategies for FixableGadgets");
       }
     }
@@ -1300,17 +1641,18 @@ static std::optional<FixItList> // forward declaration
 fixUPCAddressofArraySubscriptWithSpan(const UnaryOperator *Node);
 
 std::optional<FixItList>
-UPCAddressofArraySubscriptGadget::getFixits(const Strategy &S) const {
+UPCAddressofArraySubscriptGadget::getFixits(const FixitStrategy &S) const {
   auto DREs = getClaimedVarUseSites();
   const auto *VD = cast<VarDecl>(DREs.front()->getDecl());
 
   switch (S.lookup(VD)) {
-  case Strategy::Kind::Span:
+  case FixitStrategy::Kind::Span:
     return fixUPCAddressofArraySubscriptWithSpan(Node);
-  case Strategy::Kind::Wontfix:
-  case Strategy::Kind::Iterator:
-  case Strategy::Kind::Array:
-  case Strategy::Kind::Vector:
+  case FixitStrategy::Kind::Wontfix:
+  case FixitStrategy::Kind::Iterator:
+  case FixitStrategy::Kind::Array:
+    return std::nullopt;
+  case FixitStrategy::Kind::Vector:
     llvm_unreachable("unsupported strategies for FixableGadgets");
   }
   return std::nullopt; // something went wrong, no fix-it
@@ -1328,15 +1670,6 @@ std::string getUserFillPlaceHolder(StringRef HintTextToUser = "placeholder") {
   s += HintTextToUser;
   s += " #>";
   return s;
-}
-
-// Return the text representation of the given `APInt Val`:
-static std::string getAPIntText(APInt Val) {
-  SmallVector<char> Txt;
-  Val.toString(Txt, 10, true);
-  // APInt::toString does not add '\0' to the end of the string for us:
-  Txt.push_back('\0');
-  return Txt.data();
 }
 
 // Return the source location of the last character of the AST `Node`.
@@ -1360,10 +1693,8 @@ static std::optional<SourceLocation> getPastLoc(const NodeTy *Node,
                                                 const LangOptions &LangOpts) {
   SourceLocation Loc =
       Lexer::getLocForEndOfToken(Node->getEndLoc(), 0, SM, LangOpts);
-
   if (Loc.isValid())
     return Loc;
-
   return std::nullopt;
 }
 
@@ -1435,6 +1766,22 @@ static bool hasUnsupportedSpecifiers(const VarDecl *VD,
   return VD->isInlineSpecified() || VD->isConstexpr() ||
          VD->hasConstantInitialization() || !VD->hasLocalStorage() ||
          AttrRangeOverlapping;
+}
+
+// Returns the `SourceRange` of `D`.  The reason why this function exists is
+// that `D->getSourceRange()` may return a range where the end location is the
+// starting location of the last token.  The end location of the source range
+// returned by this function is the last location of the last token.
+static SourceRange getSourceRangeToTokenEnd(const Decl *D,
+                                            const SourceManager &SM,
+                                            const LangOptions &LangOpts) {
+  SourceLocation Begin = D->getBeginLoc();
+  SourceLocation
+      End = // `D->getEndLoc` should always return the starting location of the
+      // last token, so we should get the end of the token
+      Lexer::getLocForEndOfToken(D->getEndLoc(), 0, SM, LangOpts);
+
+  return SourceRange(Begin, End);
 }
 
 // Returns the text of the pointee type of `T` from a `VarDecl` of a pointer
@@ -1531,11 +1878,26 @@ static std::optional<StringRef> getFunNameText(const FunctionDecl *FD,
   return getRangeText(NameRange, SM, LangOpts);
 }
 
+// Returns the text representing a `std::span` type where the element type is
+// represented by `EltTyText`.
+//
+// Note the optional parameter `Qualifiers`: one needs to pass qualifiers
+// explicitly if the element type needs to be qualified.
+static std::string
+getSpanTypeText(StringRef EltTyText,
+                std::optional<Qualifiers> Quals = std::nullopt) {
+  const char *const SpanOpen = "std::span<";
+
+  if (Quals)
+    return SpanOpen + EltTyText.str() + ' ' + Quals->getAsString() + '>';
+  return SpanOpen + EltTyText.str() + '>';
+}
+
 std::optional<FixItList>
-DerefSimplePtrArithFixableGadget::getFixits(const Strategy &s) const {
+DerefSimplePtrArithFixableGadget::getFixits(const FixitStrategy &s) const {
   const VarDecl *VD = dyn_cast<VarDecl>(BaseDeclRefExpr->getDecl());
 
-  if (VD && s.lookup(VD) == Strategy::Kind::Span) {
+  if (VD && s.lookup(VD) == FixitStrategy::Kind::Span) {
     ASTContext &Ctx = VD->getASTContext();
     // std::span can't represent elements before its begin()
     if (auto ConstVal = Offset->getIntegerConstantExpr(Ctx))
@@ -1595,10 +1957,10 @@ DerefSimplePtrArithFixableGadget::getFixits(const Strategy &s) const {
 }
 
 std::optional<FixItList>
-PointerDereferenceGadget::getFixits(const Strategy &S) const {
+PointerDereferenceGadget::getFixits(const FixitStrategy &S) const {
   const VarDecl *VD = cast<VarDecl>(BaseDeclRefExpr->getDecl());
   switch (S.lookup(VD)) {
-  case Strategy::Kind::Span: {
+  case FixitStrategy::Kind::Span: {
     ASTContext &Ctx = VD->getASTContext();
     SourceManager &SM = Ctx.getSourceManager();
     // Required changes: *(ptr); => (ptr[0]); and *ptr; => ptr[0]
@@ -1606,50 +1968,55 @@ PointerDereferenceGadget::getFixits(const Strategy &S) const {
     CharSourceRange derefRange = clang::CharSourceRange::getCharRange(
         Op->getBeginLoc(), Op->getBeginLoc().getLocWithOffset(1));
     // Inserts the [0]
-    std::optional<SourceLocation> EndOfOperand =
-        getEndCharLoc(BaseDeclRefExpr, SM, Ctx.getLangOpts());
-    if (EndOfOperand) {
+    if (auto LocPastOperand =
+            getPastLoc(BaseDeclRefExpr, SM, Ctx.getLangOpts())) {
       return FixItList{{FixItHint::CreateRemoval(derefRange),
-                        FixItHint::CreateInsertion(
-                            (*EndOfOperand).getLocWithOffset(1), "[0]")}};
+                        FixItHint::CreateInsertion(*LocPastOperand, "[0]")}};
     }
     break;
   }
-  case Strategy::Kind::Iterator:
-  case Strategy::Kind::Array:
-  case Strategy::Kind::Vector:
-    llvm_unreachable("Strategy not implemented yet!");
-  case Strategy::Kind::Wontfix:
+  case FixitStrategy::Kind::Iterator:
+  case FixitStrategy::Kind::Array:
+    return std::nullopt;
+  case FixitStrategy::Kind::Vector:
+    llvm_unreachable("FixitStrategy not implemented yet!");
+  case FixitStrategy::Kind::Wontfix:
     llvm_unreachable("Invalid strategy!");
   }
 
   return std::nullopt;
 }
 
+static inline std::optional<FixItList> createDataFixit(const ASTContext &Ctx,
+                                                       const DeclRefExpr *DRE) {
+  const SourceManager &SM = Ctx.getSourceManager();
+  // Inserts the .data() after the DRE
+  std::optional<SourceLocation> EndOfOperand =
+      getPastLoc(DRE, SM, Ctx.getLangOpts());
+
+  if (EndOfOperand)
+    return FixItList{{FixItHint::CreateInsertion(*EndOfOperand, ".data()")}};
+
+  return std::nullopt;
+}
+
 // Generates fix-its replacing an expression of the form UPC(DRE) with
 // `DRE.data()`
-std::optional<FixItList> UPCStandalonePointerGadget::getFixits(const Strategy &S)
-      const {
+std::optional<FixItList>
+UPCStandalonePointerGadget::getFixits(const FixitStrategy &S) const {
   const auto VD = cast<VarDecl>(Node->getDecl());
   switch (S.lookup(VD)) {
-    case Strategy::Kind::Span: {
-      ASTContext &Ctx = VD->getASTContext();
-      SourceManager &SM = Ctx.getSourceManager();
-      // Inserts the .data() after the DRE
-      std::optional<SourceLocation> EndOfOperand =
-          getPastLoc(Node, SM, Ctx.getLangOpts());
-
-      if (EndOfOperand)
-        return FixItList{{FixItHint::CreateInsertion(
-            *EndOfOperand, ".data()")}};
-      // FIXME: Points inside a macro expansion.
-      break;
-    }
-    case Strategy::Kind::Wontfix:
-    case Strategy::Kind::Iterator:
-    case Strategy::Kind::Array:
-    case Strategy::Kind::Vector:
-      llvm_unreachable("unsupported strategies for FixableGadgets");
+  case FixitStrategy::Kind::Array:
+  case FixitStrategy::Kind::Span: {
+    return createDataFixit(VD->getASTContext(), Node);
+    // FIXME: Points inside a macro expansion.
+    break;
+  }
+  case FixitStrategy::Kind::Wontfix:
+  case FixitStrategy::Kind::Iterator:
+    return std::nullopt;
+  case FixitStrategy::Kind::Vector:
+    llvm_unreachable("unsupported strategies for FixableGadgets");
   }
 
   return std::nullopt;
@@ -1692,15 +2059,57 @@ fixUPCAddressofArraySubscriptWithSpan(const UnaryOperator *Node) {
       FixItHint::CreateReplacement(Node->getSourceRange(), SS.str())};
 }
 
+std::optional<FixItList>
+UUCAddAssignGadget::getFixits(const FixitStrategy &S) const {
+  DeclUseList DREs = getClaimedVarUseSites();
 
-std::optional<FixItList> UPCPreIncrementGadget::getFixits(const Strategy &S) const {
+  if (DREs.size() != 1)
+    return std::nullopt; // In cases of `Ptr += n` where `Ptr` is not a DRE, we
+                         // give up
+  if (const VarDecl *VD = dyn_cast<VarDecl>(DREs.front()->getDecl())) {
+    if (S.lookup(VD) == FixitStrategy::Kind::Span) {
+      FixItList Fixes;
+
+      const Stmt *AddAssignNode = getBaseStmt();
+      StringRef varName = VD->getName();
+      const ASTContext &Ctx = VD->getASTContext();
+
+      if (!isNonNegativeIntegerExpr(Offset, VD, Ctx))
+        return std::nullopt;
+
+      // To transform UUC(p += n) to UUC(p = p.subspan(..)):
+      bool NotParenExpr =
+          (Offset->IgnoreParens()->getBeginLoc() == Offset->getBeginLoc());
+      std::string SS = varName.str() + " = " + varName.str() + ".subspan";
+      if (NotParenExpr)
+        SS += "(";
+
+      std::optional<SourceLocation> AddAssignLocation = getEndCharLoc(
+          AddAssignNode, Ctx.getSourceManager(), Ctx.getLangOpts());
+      if (!AddAssignLocation)
+        return std::nullopt;
+
+      Fixes.push_back(FixItHint::CreateReplacement(
+          SourceRange(AddAssignNode->getBeginLoc(), Node->getOperatorLoc()),
+          SS));
+      if (NotParenExpr)
+        Fixes.push_back(FixItHint::CreateInsertion(
+            Offset->getEndLoc().getLocWithOffset(1), ")"));
+      return Fixes;
+    }
+  }
+  return std::nullopt; // Not in the cases that we can handle for now, give up.
+}
+
+std::optional<FixItList>
+UPCPreIncrementGadget::getFixits(const FixitStrategy &S) const {
   DeclUseList DREs = getClaimedVarUseSites();
 
   if (DREs.size() != 1)
     return std::nullopt; // In cases of `++Ptr` where `Ptr` is not a DRE, we
                          // give up
   if (const VarDecl *VD = dyn_cast<VarDecl>(DREs.front()->getDecl())) {
-    if (S.lookup(VD) == Strategy::Kind::Span) {
+    if (S.lookup(VD) == FixitStrategy::Kind::Span) {
       FixItList Fixes;
       std::stringstream SS;
       const Stmt *PreIncNode = getBaseStmt();
@@ -1723,22 +2132,24 @@ std::optional<FixItList> UPCPreIncrementGadget::getFixits(const Strategy &S) con
   return std::nullopt; // Not in the cases that we can handle for now, give up.
 }
 
-
 // For a non-null initializer `Init` of `T *` type, this function returns
 // `FixItHint`s producing a list initializer `{Init,  S}` as a part of a fix-it
 // to output stream.
 // In many cases, this function cannot figure out the actual extent `S`.  It
 // then will use a place holder to replace `S` to ask users to fill `S` in.  The
 // initializer shall be used to initialize a variable of type `std::span<T>`.
+// In some cases (e. g. constant size array) the initializer should remain
+// unchanged and the function returns empty list. In case the function can't
+// provide the right fixit it will return nullopt.
 //
 // FIXME: Support multi-level pointers
 //
 // Parameters:
 //   `Init` a pointer to the initializer expression
 //   `Ctx` a reference to the ASTContext
-static FixItList
+static std::optional<FixItList>
 FixVarInitializerWithSpan(const Expr *Init, ASTContext &Ctx,
-                                 const StringRef UserFillPlaceHolder) {
+                          const StringRef UserFillPlaceHolder) {
   const SourceManager &SM = Ctx.getSourceManager();
   const LangOptions &LangOpts = Ctx.getLangOpts();
 
@@ -1746,7 +2157,8 @@ FixVarInitializerWithSpan(const Expr *Init, ASTContext &Ctx,
   // NULL pointer, we use the default constructor to initialize the span
   // object, i.e., a `std:span` variable declaration with no initializer.
   // So the fix-it is just to remove the initializer.
-  if (Init->isNullPointerConstant(Ctx,
+  if (Init->isNullPointerConstant(
+          Ctx,
           // FIXME: Why does this function not ask for `const ASTContext
           // &`? It should. Maybe worth an NFC patch later.
           Expr::NullPointerConstantValueDependence::
@@ -1754,11 +2166,11 @@ FixVarInitializerWithSpan(const Expr *Init, ASTContext &Ctx,
     std::optional<SourceLocation> InitLocation =
         getEndCharLoc(Init, SM, LangOpts);
     if (!InitLocation)
-      return {};
+      return std::nullopt;
 
     SourceRange SR(Init->getBeginLoc(), *InitLocation);
 
-    return {FixItHint::CreateRemoval(SR)};
+    return FixItList{FixItHint::CreateRemoval(SR)};
   }
 
   FixItList FixIts{};
@@ -1777,19 +2189,18 @@ FixVarInitializerWithSpan(const Expr *Init, ASTContext &Ctx,
       if (!Ext->HasSideEffects(Ctx)) {
         std::optional<StringRef> ExtentString = getExprText(Ext, SM, LangOpts);
         if (!ExtentString)
-          return {};
+          return std::nullopt;
         ExtentText = *ExtentString;
       }
     } else if (!CxxNew->isArray())
       // Although the initializer is not allocating a buffer, the pointer
       // variable could still be used in buffer access operations.
       ExtentText = One;
-  } else if (const auto *CArrTy = Ctx.getAsConstantArrayType(
-                 Init->IgnoreImpCasts()->getType())) {
-    // In cases `Init` is of an array type after stripping off implicit casts,
-    // the extent is the array size.  Note that if the array size is not a
-    // constant, we cannot use it as the extent.
-    ExtentText = getAPIntText(CArrTy->getSize());
+  } else if (Ctx.getAsConstantArrayType(Init->IgnoreImpCasts()->getType())) {
+    // std::span has a single parameter constructor for initialization with
+    // constant size array. The size is auto-deduced as the constructor is a
+    // function template. The correct fixit is empty - no changes should happen.
+    return FixItList{};
   } else {
     // In cases `Init` is of the form `&Var` after stripping of implicit
     // casts, where `&` is the built-in operator, the extent is 1.
@@ -1805,7 +2216,7 @@ FixVarInitializerWithSpan(const Expr *Init, ASTContext &Ctx,
   std::optional<SourceLocation> LocPassInit = getPastLoc(Init, SM, LangOpts);
 
   if (!LocPassInit)
-    return {};
+    return std::nullopt;
 
   StrBuffer.append(", ");
   StrBuffer.append(ExtentText);
@@ -1815,8 +2226,10 @@ FixVarInitializerWithSpan(const Expr *Init, ASTContext &Ctx,
 }
 
 #ifndef NDEBUG
-#define DEBUG_NOTE_DECL_FAIL(D, Msg)  \
-Handler.addDebugNoteForVar((D), (D)->getBeginLoc(), "failed to produce fixit for declaration '" + (D)->getNameAsString() + "'" + (Msg))
+#define DEBUG_NOTE_DECL_FAIL(D, Msg)                                           \
+  Handler.addDebugNoteForVar((D), (D)->getBeginLoc(),                          \
+                             "failed to produce fixit for declaration '" +     \
+                                 (D)->getNameAsString() + "'" + (Msg))
 #else
 #define DEBUG_NOTE_DECL_FAIL(D, Msg)
 #endif
@@ -1824,8 +2237,8 @@ Handler.addDebugNoteForVar((D), (D)->getBeginLoc(), "failed to produce fixit for
 // For the given variable declaration with a pointer-to-T type, returns the text
 // `std::span<T>`.  If it is unable to generate the text, returns
 // `std::nullopt`.
-static std::optional<std::string> createSpanTypeForVarDecl(const VarDecl *VD,
-                                                           const ASTContext &Ctx) {
+static std::optional<std::string>
+createSpanTypeForVarDecl(const VarDecl *VD, const ASTContext &Ctx) {
   assert(VD->getType()->isPointerType());
 
   std::optional<Qualifiers> PteTyQualifiers = std::nullopt;
@@ -1862,8 +2275,8 @@ static std::optional<std::string> createSpanTypeForVarDecl(const VarDecl *VD,
 //    the non-empty fix-it list, if fix-its are successfuly generated; empty
 //    list otherwise.
 static FixItList fixLocalVarDeclWithSpan(const VarDecl *D, ASTContext &Ctx,
-					 const StringRef UserFillPlaceHolder,
-					 UnsafeBufferUsageHandler &Handler) {
+                                         const StringRef UserFillPlaceHolder,
+                                         UnsafeBufferUsageHandler &Handler) {
   if (hasUnsupportedSpecifiers(D, Ctx.getSourceManager()))
     return {};
 
@@ -1879,37 +2292,30 @@ static FixItList fixLocalVarDeclWithSpan(const VarDecl *D, ASTContext &Ctx,
   std::stringstream SS;
 
   SS << *SpanTyText;
-  // Append qualifiers to the type of `D`, if any:
-  if (D->getType().hasQualifiers())
-    SS << " " << D->getType().getQualifiers().getAsString();
-
-  // The end of the range of the original source that will be replaced
-  // by `std::span<T> ident`:
-  SourceLocation EndLocForReplacement = D->getEndLoc();
-  std::optional<StringRef> IdentText =
-      getVarDeclIdentifierText(D, Ctx.getSourceManager(), Ctx.getLangOpts());
-
-  if (!IdentText) {
-    DEBUG_NOTE_DECL_FAIL(D, " : failed to locate the identifier");
-    return {};
-  }
   // Fix the initializer if it exists:
   if (const Expr *Init = D->getInit()) {
-    FixItList InitFixIts =
+    std::optional<FixItList> InitFixIts =
         FixVarInitializerWithSpan(Init, Ctx, UserFillPlaceHolder);
-    if (InitFixIts.empty())
+    if (!InitFixIts)
       return {};
-    FixIts.insert(FixIts.end(), std::make_move_iterator(InitFixIts.begin()),
-                  std::make_move_iterator(InitFixIts.end()));
-    // If the declaration has the form `T *ident = init`, we want to replace
-    // `T *ident = ` with `std::span<T> ident`:
-    EndLocForReplacement = Init->getBeginLoc().getLocWithOffset(-1);
+    FixIts.insert(FixIts.end(), std::make_move_iterator(InitFixIts->begin()),
+                  std::make_move_iterator(InitFixIts->end()));
   }
-  SS << " " << IdentText->str();
+  // For declaration of the form `T * ident = init;`, we want to replace
+  // `T * ` with `std::span<T>`.
+  // We ignore CV-qualifiers so for `T * const ident;` we also want to replace
+  // just `T *` with `std::span<T>`.
+  const SourceLocation EndLocForReplacement = D->getTypeSpecEndLoc();
   if (!EndLocForReplacement.isValid()) {
     DEBUG_NOTE_DECL_FAIL(D, " : failed to locate the end of the declaration");
     return {};
   }
+  // The only exception is that for `T *ident` we'll add a single space between
+  // "std::span<T>" and "ident".
+  // FIXME: The condition is false for identifiers expended from macros.
+  if (EndLocForReplacement.getLocWithOffset(1) == getVarDeclIdentifierLoc(D))
+    SS << " ";
+
   FixIts.push_back(FixItHint::CreateReplacement(
       SourceRange(D->getBeginLoc(), EndLocForReplacement), SS.str()));
   return FixIts;
@@ -1919,11 +2325,11 @@ static bool hasConflictingOverload(const FunctionDecl *FD) {
   return !FD->getDeclContext()->lookup(FD->getDeclName()).isSingleResult();
 }
 
-// For a `FunDecl`, one of whose `ParmVarDecl`s is being changed to have a new
-// type, this function produces fix-its to make the change self-contained.  Let
-// 'F' be the entity defined by the original `FunDecl` and "NewF" be the entity
-// defined by the `FunDecl` after the change to the parameter.  Fix-its produced
-// by this function are
+// For a `FunctionDecl`, whose `ParmVarDecl`s are being changed to have new
+// types, this function produces fix-its to make the change self-contained.  Let
+// 'F' be the entity defined by the original `FunctionDecl` and "NewF" be the
+// entity defined by the `FunctionDecl` after the change to the parameters.
+// Fix-its produced by this function are
 //   1. Add the `[[clang::unsafe_buffer_usage]]` attribute to each declaration
 //   of 'F';
 //   2. Create a declaration of "NewF" next to each declaration of `F`;
@@ -1950,17 +2356,9 @@ static bool hasConflictingOverload(const FunctionDecl *FD) {
 //   return f(std::span(p, <# size #>));
 // }
 //
-// The actual fix-its may contain more details, e.g., the attribute may be guard
-// by a macro
-//   #if __has_cpp_attribute(clang::unsafe_buffer_usage)
-//   [[clang::unsafe_buffer_usage]]
-//   #endif
-//
-// `NewTypeText` is the string representation of the new type, to which the
-// parameter indexed by `ParmIdx` is being changed.
 static std::optional<FixItList>
-createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
-                              const FunctionDecl *FD, const ASTContext &Ctx,
+createOverloadsForFixedParams(const FixitStrategy &S, const FunctionDecl *FD,
+                              const ASTContext &Ctx,
                               UnsafeBufferUsageHandler &Handler) {
   // FIXME: need to make this conflict checking better:
   if (hasConflictingOverload(FD))
@@ -1968,13 +2366,43 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
 
   const SourceManager &SM = Ctx.getSourceManager();
   const LangOptions &LangOpts = Ctx.getLangOpts();
+  const unsigned NumParms = FD->getNumParams();
+  std::vector<std::string> NewTysTexts(NumParms);
+  std::vector<bool> ParmsMask(NumParms, false);
+  bool AtLeastOneParmToFix = false;
+
+  for (unsigned i = 0; i < NumParms; i++) {
+    const ParmVarDecl *PVD = FD->getParamDecl(i);
+
+    if (S.lookup(PVD) == FixitStrategy::Kind::Wontfix)
+      continue;
+    if (S.lookup(PVD) != FixitStrategy::Kind::Span)
+      // Not supported, not suppose to happen:
+      return std::nullopt;
+
+    std::optional<Qualifiers> PteTyQuals = std::nullopt;
+    std::optional<std::string> PteTyText =
+        getPointeeTypeText(PVD, SM, LangOpts, &PteTyQuals);
+
+    if (!PteTyText)
+      // something wrong in obtaining the text of the pointee type, give up
+      return std::nullopt;
+    // FIXME: whether we should create std::span type depends on the
+    // FixitStrategy.
+    NewTysTexts[i] = getSpanTypeText(*PteTyText, PteTyQuals);
+    ParmsMask[i] = true;
+    AtLeastOneParmToFix = true;
+  }
+  if (!AtLeastOneParmToFix)
+    // No need to create function overloads:
+    return {};
   // FIXME Respect indentation of the original code.
 
   // A lambda that creates the text representation of a function declaration
-  // with the new type signature:
+  // with the new type signatures:
   const auto NewOverloadSignatureCreator =
-      [&SM, &LangOpts](const FunctionDecl *FD, unsigned ParmIdx,
-                       StringRef NewTypeText) -> std::optional<std::string> {
+      [&SM, &LangOpts, &NewTysTexts,
+       &ParmsMask](const FunctionDecl *FD) -> std::optional<std::string> {
     std::stringstream SS;
 
     SS << ";";
@@ -1994,13 +2422,16 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
 
       if (Parm->isImplicit())
         continue;
-      if (i == ParmIdx) {
-        SS << NewTypeText.str();
+      if (ParmsMask[i]) {
+        // This `i`-th parameter will be fixed with `NewTysTexts[i]` being its
+        // new type:
+        SS << NewTysTexts[i];
         // print parameter name if provided:
-        if (IdentifierInfo * II = Parm->getIdentifier())
-          SS << " " << II->getName().str();
+        if (IdentifierInfo *II = Parm->getIdentifier())
+          SS << ' ' << II->getName().str();
       } else if (auto ParmTypeText =
-                     getRangeText(Parm->getSourceRange(), SM, LangOpts)) {
+                     getRangeText(getSourceRangeToTokenEnd(Parm, SM, LangOpts),
+                                  SM, LangOpts)) {
         // print the whole `Parm` without modification:
         SS << ParmTypeText->str();
       } else
@@ -2015,9 +2446,8 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
   // A lambda that creates the text representation of a function definition with
   // the original signature:
   const auto OldOverloadDefCreator =
-      [&SM, &Handler,
-       &LangOpts](const FunctionDecl *FD, unsigned ParmIdx,
-                  StringRef NewTypeText) -> std::optional<std::string> {
+      [&Handler, &SM, &LangOpts, &NewTysTexts,
+       &ParmsMask](const FunctionDecl *FD) -> std::optional<std::string> {
     std::stringstream SS;
 
     SS << getEndOfLine().str();
@@ -2047,10 +2477,10 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
       if (!Parm->getIdentifier())
         // If a parameter of a function definition has no name:
         return std::nullopt;
-      if (i == ParmIdx)
+      if (ParmsMask[i])
         // This is our spanified paramter!
-        SS << NewTypeText.str() << "(" << Parm->getIdentifier()->getName().str() << ", "
-           << getUserFillPlaceHolder("size") << ")";
+        SS << NewTysTexts[i] << "(" << Parm->getIdentifier()->getName().str()
+           << ", " << getUserFillPlaceHolder("size") << ")";
       else
         SS << Parm->getIdentifier()->getName().str();
       if (i != NumParms - 1)
@@ -2072,8 +2502,7 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
       assert(FReDecl == FD && "inconsistent function definition");
       // Inserts a definition with the old signature to the end of
       // `FReDecl`:
-      if (auto OldOverloadDef =
-              OldOverloadDefCreator(FReDecl, ParmIdx, NewTyText))
+      if (auto OldOverloadDef = OldOverloadDefCreator(FReDecl))
         FixIts.emplace_back(FixItHint::CreateInsertion(*Loc, *OldOverloadDef));
       else
         return {}; // give up
@@ -2085,8 +2514,7 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
                                         FReDecl->getBeginLoc(), " ")));
       }
       // Inserts a declaration with the new signature to the end of `FReDecl`:
-      if (auto NewOverloadDecl =
-              NewOverloadSignatureCreator(FReDecl, ParmIdx, NewTyText))
+      if (auto NewOverloadDecl = NewOverloadSignatureCreator(FReDecl))
         FixIts.emplace_back(FixItHint::CreateInsertion(*Loc, *NewOverloadDecl));
       else
         return {};
@@ -2095,9 +2523,7 @@ createOverloadsForFixedParams(unsigned ParmIdx, StringRef NewTyText,
   return FixIts;
 }
 
-// To fix a `ParmVarDecl` to be of `std::span` type.  In addition, creating a
-// new overload of the function so that the change is self-contained (see
-// `createOverloadsForFixedParams`).
+// To fix a `ParmVarDecl` to be of `std::span` type.
 static FixItList fixParamWithSpan(const ParmVarDecl *PVD, const ASTContext &Ctx,
                                   UnsafeBufferUsageHandler &Handler) {
   if (hasUnsupportedSpecifiers(PVD, Ctx.getSourceManager())) {
@@ -2110,49 +2536,37 @@ static FixItList fixParamWithSpan(const ParmVarDecl *PVD, const ASTContext &Ctx,
     return {};
   }
 
-  assert(PVD->getType()->isPointerType());
-  auto *FD = dyn_cast<FunctionDecl>(PVD->getDeclContext());
+  std::optional<Qualifiers> PteTyQualifiers = std::nullopt;
+  std::optional<std::string> PteTyText = getPointeeTypeText(
+      PVD, Ctx.getSourceManager(), Ctx.getLangOpts(), &PteTyQualifiers);
 
-  if (!FD) {
-    DEBUG_NOTE_DECL_FAIL(PVD, " : invalid func decl");
+  if (!PteTyText) {
+    DEBUG_NOTE_DECL_FAIL(PVD, " : invalid pointee type");
+    return {};
+  }
+
+  std::optional<StringRef> PVDNameText = PVD->getIdentifier()->getName();
+
+  if (!PVDNameText) {
+    DEBUG_NOTE_DECL_FAIL(PVD, " : invalid identifier name");
     return {};
   }
 
   std::stringstream SS;
   std::optional<std::string> SpanTyText = createSpanTypeForVarDecl(PVD, Ctx);
-  std::optional<StringRef> ParmIdentText;
 
-  if (!SpanTyText)
-    return {};
-  SS << *SpanTyText;
+  if (PteTyQualifiers)
+    // Append qualifiers if they exist:
+    SS << getSpanTypeText(*PteTyText, PteTyQualifiers);
+  else
+    SS << getSpanTypeText(*PteTyText);
   // Append qualifiers to the type of the parameter:
   if (PVD->getType().hasQualifiers())
-    SS << " " << PVD->getType().getQualifiers().getAsString();
-  ParmIdentText =
-      getVarDeclIdentifierText(PVD, Ctx.getSourceManager(), Ctx.getLangOpts());
-  if (!ParmIdentText)
-    return {};
+    SS << ' ' << PVD->getType().getQualifiers().getAsString();
   // Append parameter's name:
-  SS << " " << ParmIdentText->str();
-
-  FixItList Fixes;
-  unsigned ParmIdx = 0;
-
-  Fixes.push_back(
-      FixItHint::CreateReplacement(PVD->getSourceRange(), SS.str()));
-  for (auto *ParmIter : FD->parameters()) {
-    if (PVD == ParmIter)
-      break;
-    ParmIdx++;
-  }
-  if (ParmIdx < FD->getNumParams())
-    if (auto OverloadFix = createOverloadsForFixedParams(ParmIdx, *SpanTyText,
-                                                         FD, Ctx, Handler)) {
-      Fixes.append(*OverloadFix);
-      return Fixes;
-    }
-  DEBUG_NOTE_DECL_FAIL(PVD, " : invalid number of parameters");
-  return {};
+  SS << ' ' << PVDNameText->str();
+  // Add replacement fix-it:
+  return {FixItHint::CreateReplacement(PVD->getSourceRange(), SS.str())};
 }
 
 static FixItList fixVariableWithSpan(const VarDecl *VD,
@@ -2161,7 +2575,8 @@ static FixItList fixVariableWithSpan(const VarDecl *VD,
                                      UnsafeBufferUsageHandler &Handler) {
   const DeclStmt *DS = Tracker.lookupDecl(VD);
   if (!DS) {
-    DEBUG_NOTE_DECL_FAIL(VD, " : variables declared this way not implemented yet");
+    DEBUG_NOTE_DECL_FAIL(VD,
+                         " : variables declared this way not implemented yet");
     return {};
   }
   if (!DS->isSingleDecl()) {
@@ -2178,10 +2593,103 @@ static FixItList fixVariableWithSpan(const VarDecl *VD,
   return fixLocalVarDeclWithSpan(VD, Ctx, getUserFillPlaceHolder(), Handler);
 }
 
+static FixItList fixVarDeclWithArray(const VarDecl *D, const ASTContext &Ctx,
+                                     UnsafeBufferUsageHandler &Handler) {
+  FixItList FixIts{};
+
+  // Note: the code below expects the declaration to not use any type sugar like
+  // typedef.
+  if (auto CAT = dyn_cast<clang::ConstantArrayType>(D->getType())) {
+    const QualType &ArrayEltT = CAT->getElementType();
+    assert(!ArrayEltT.isNull() && "Trying to fix a non-array type variable!");
+    // FIXME: support multi-dimensional arrays
+    if (isa<clang::ArrayType>(ArrayEltT.getCanonicalType()))
+      return {};
+
+    const SourceLocation IdentifierLoc = getVarDeclIdentifierLoc(D);
+
+    // Get the spelling of the element type as written in the source file
+    // (including macros, etc.).
+    auto MaybeElemTypeTxt =
+        getRangeText({D->getBeginLoc(), IdentifierLoc}, Ctx.getSourceManager(),
+                     Ctx.getLangOpts());
+    if (!MaybeElemTypeTxt)
+      return {};
+    const llvm::StringRef ElemTypeTxt = MaybeElemTypeTxt->trim();
+
+    // Find the '[' token.
+    std::optional<Token> NextTok = Lexer::findNextToken(
+        IdentifierLoc, Ctx.getSourceManager(), Ctx.getLangOpts());
+    while (NextTok && !NextTok->is(tok::l_square) &&
+           NextTok->getLocation() <= D->getSourceRange().getEnd())
+      NextTok = Lexer::findNextToken(NextTok->getLocation(),
+                                     Ctx.getSourceManager(), Ctx.getLangOpts());
+    if (!NextTok)
+      return {};
+    const SourceLocation LSqBracketLoc = NextTok->getLocation();
+
+    // Get the spelling of the array size as written in the source file
+    // (including macros, etc.).
+    auto MaybeArraySizeTxt = getRangeText(
+        {LSqBracketLoc.getLocWithOffset(1), D->getTypeSpecEndLoc()},
+        Ctx.getSourceManager(), Ctx.getLangOpts());
+    if (!MaybeArraySizeTxt)
+      return {};
+    const llvm::StringRef ArraySizeTxt = MaybeArraySizeTxt->trim();
+    if (ArraySizeTxt.empty()) {
+      // FIXME: Support array size getting determined from the initializer.
+      // Examples:
+      //    int arr1[] = {0, 1, 2};
+      //    int arr2{3, 4, 5};
+      // We might be able to preserve the non-specified size with `auto` and
+      // `std::to_array`:
+      //    auto arr1 = std::to_array<int>({0, 1, 2});
+      return {};
+    }
+
+    std::optional<StringRef> IdentText =
+        getVarDeclIdentifierText(D, Ctx.getSourceManager(), Ctx.getLangOpts());
+
+    if (!IdentText) {
+      DEBUG_NOTE_DECL_FAIL(D, " : failed to locate the identifier");
+      return {};
+    }
+
+    SmallString<32> Replacement;
+    raw_svector_ostream OS(Replacement);
+    OS << "std::array<" << ElemTypeTxt << ", " << ArraySizeTxt << "> "
+       << IdentText->str();
+
+    FixIts.push_back(FixItHint::CreateReplacement(
+        SourceRange{D->getBeginLoc(), D->getTypeSpecEndLoc()}, OS.str()));
+  }
+
+  return FixIts;
+}
+
+static FixItList fixVariableWithArray(const VarDecl *VD,
+                                      const DeclUseTracker &Tracker,
+                                      const ASTContext &Ctx,
+                                      UnsafeBufferUsageHandler &Handler) {
+  const DeclStmt *DS = Tracker.lookupDecl(VD);
+  assert(DS && "Fixing non-local variables not implemented yet!");
+  if (!DS->isSingleDecl()) {
+    // FIXME: to support handling multiple `VarDecl`s in a single `DeclStmt`
+    return {};
+  }
+  // Currently DS is an unused variable but we'll need it when
+  // non-single decls are implemented, where the pointee type name
+  // and the '*' are spread around the place.
+  (void)DS;
+
+  // FIXME: handle cases where DS has multiple declarations
+  return fixVarDeclWithArray(VD, Ctx, Handler);
+}
+
 // TODO: we should be consistent to use `std::nullopt` to represent no-fix due
 // to any unexpected problem.
 static FixItList
-fixVariable(const VarDecl *VD, Strategy::Kind K,
+fixVariable(const VarDecl *VD, FixitStrategy::Kind K,
             /* The function decl under analysis */ const Decl *D,
             const DeclUseTracker &Tracker, ASTContext &Ctx,
             UnsafeBufferUsageHandler &Handler) {
@@ -2212,7 +2720,7 @@ fixVariable(const VarDecl *VD, Strategy::Kind K,
   }
 
   switch (K) {
-  case Strategy::Kind::Span: {
+  case FixitStrategy::Kind::Span: {
     if (VD->getType()->isPointerType()) {
       if (const auto *PVD = dyn_cast<ParmVarDecl>(VD))
         return fixParamWithSpan(PVD, Ctx, Handler);
@@ -2223,11 +2731,18 @@ fixVariable(const VarDecl *VD, Strategy::Kind K,
     DEBUG_NOTE_DECL_FAIL(VD, " : not a pointer");
     return {};
   }
-  case Strategy::Kind::Iterator:
-  case Strategy::Kind::Array:
-  case Strategy::Kind::Vector:
-    llvm_unreachable("Strategy not implemented yet!");
-  case Strategy::Kind::Wontfix:
+  case FixitStrategy::Kind::Array: {
+    if (VD->isLocalVarDecl() &&
+        isa<clang::ConstantArrayType>(VD->getType().getCanonicalType()))
+      return fixVariableWithArray(VD, Tracker, Ctx, Handler);
+
+    DEBUG_NOTE_DECL_FAIL(VD, " : not a local const-size array");
+    return {};
+  }
+  case FixitStrategy::Kind::Iterator:
+  case FixitStrategy::Kind::Vector:
+    llvm_unreachable("FixitStrategy not implemented yet!");
+  case FixitStrategy::Kind::Wontfix:
     llvm_unreachable("Invalid strategy!");
   }
   llvm_unreachable("Unknown strategy!");
@@ -2247,6 +2762,12 @@ static bool overlapWithMacro(const FixItList &FixIts) {
   });
 }
 
+// Returns true iff `VD` is a parameter of the declaration `D`:
+static bool isParameterOf(const VarDecl *VD, const Decl *D) {
+  return isa<ParmVarDecl>(VD) &&
+         VD->getDeclContext() == dyn_cast<DeclContext>(D);
+}
+
 // Erases variables in `FixItsForVariable`, if such a variable has an unfixable
 // group mate.  A variable `v` is unfixable iff `FixItsForVariable` does not
 // contain `v`.
@@ -2256,12 +2777,11 @@ static void eraseVarsForUnfixableGroupMates(
   // Variables will be removed from `FixItsForVariable`:
   SmallVector<const VarDecl *, 8> ToErase;
 
-  for (auto [VD, Ignore] : FixItsForVariable) {
+  for (const auto &[VD, Ignore] : FixItsForVariable) {
     VarGrpRef Grp = VarGrpMgr.getGroupOfVar(VD);
     if (llvm::any_of(Grp,
                      [&FixItsForVariable](const VarDecl *GrpMember) -> bool {
-                       return FixItsForVariable.find(GrpMember) ==
-                              FixItsForVariable.end();
+                       return !FixItsForVariable.count(GrpMember);
                      })) {
       // At least one group member cannot be fixed, so we have to erase the
       // whole group:
@@ -2273,9 +2793,39 @@ static void eraseVarsForUnfixableGroupMates(
     FixItsForVariable.erase(VarToErase);
 }
 
+// Returns the fix-its that create bounds-safe function overloads for the
+// function `D`, if `D`'s parameters will be changed to safe-types through
+// fix-its in `FixItsForVariable`.
+//
+// NOTE: In case `D`'s parameters will be changed but bounds-safe function
+// overloads cannot created, the whole group that contains the parameters will
+// be erased from `FixItsForVariable`.
+static FixItList createFunctionOverloadsForParms(
+    std::map<const VarDecl *, FixItList> &FixItsForVariable /* mutable */,
+    const VariableGroupsManager &VarGrpMgr, const FunctionDecl *FD,
+    const FixitStrategy &S, ASTContext &Ctx,
+    UnsafeBufferUsageHandler &Handler) {
+  FixItList FixItsSharedByParms{};
+
+  std::optional<FixItList> OverloadFixes =
+      createOverloadsForFixedParams(S, FD, Ctx, Handler);
+
+  if (OverloadFixes) {
+    FixItsSharedByParms.append(*OverloadFixes);
+  } else {
+    // Something wrong in generating `OverloadFixes`, need to remove the
+    // whole group, where parameters are in, from `FixItsForVariable` (Note
+    // that all parameters should be in the same group):
+    for (auto *Member : VarGrpMgr.getGroupOfParms())
+      FixItsForVariable.erase(Member);
+  }
+  return FixItsSharedByParms;
+}
+
+// Constructs self-contained fix-its for each variable in `FixablesForAllVars`.
 static std::map<const VarDecl *, FixItList>
-getFixIts(FixableGadgetSets &FixablesForAllVars, const Strategy &S,
-	  ASTContext &Ctx,
+getFixIts(FixableGadgetSets &FixablesForAllVars, const FixitStrategy &S,
+          ASTContext &Ctx,
           /* The function decl under analysis */ const Decl *D,
           const DeclUseTracker &Tracker, UnsafeBufferUsageHandler &Handler,
           const VariableGroupsManager &VarGrpMgr) {
@@ -2326,21 +2876,36 @@ getFixIts(FixableGadgetSets &FixablesForAllVars, const Strategy &S,
   // `FixItsForVariable` iff it can be fixed and all its group mates can be
   // fixed.
 
+  // Fix-its of bounds-safe overloads of `D` are shared by parameters of `D`.
+  // That is,  when fixing multiple parameters in one step,  these fix-its will
+  // be applied only once (instead of being applied per parameter).
+  FixItList FixItsSharedByParms{};
+
+  if (auto *FD = dyn_cast<FunctionDecl>(D))
+    FixItsSharedByParms = createFunctionOverloadsForParms(
+        FixItsForVariable, VarGrpMgr, FD, S, Ctx, Handler);
+
   // The map that maps each variable `v` to fix-its for the whole group where
   // `v` is in:
   std::map<const VarDecl *, FixItList> FinalFixItsForVariable{
       FixItsForVariable};
 
   for (auto &[Var, Ignore] : FixItsForVariable) {
-    const auto VarGroupForVD = VarGrpMgr.getGroupOfVar(Var);
+    bool AnyParm = false;
+    const auto VarGroupForVD = VarGrpMgr.getGroupOfVar(Var, &AnyParm);
 
     for (const VarDecl *GrpMate : VarGroupForVD) {
       if (Var == GrpMate)
         continue;
       if (FixItsForVariable.count(GrpMate))
-        FinalFixItsForVariable[Var].insert(FinalFixItsForVariable[Var].end(),
-                                           FixItsForVariable[GrpMate].begin(),
-                                           FixItsForVariable[GrpMate].end());
+        FinalFixItsForVariable[Var].append(FixItsForVariable[GrpMate]);
+    }
+    if (AnyParm) {
+      // This assertion should never fail.  Otherwise we have a bug.
+      assert(!FixItsSharedByParms.empty() &&
+             "Should not try to fix a parameter that does not belong to a "
+             "FunctionDecl");
+      FinalFixItsForVariable[Var].append(FixItsSharedByParms);
     }
   }
   // Fix-its that will be applied in one step shall NOT:
@@ -2357,11 +2922,15 @@ getFixIts(FixableGadgetSets &FixablesForAllVars, const Strategy &S,
   return FinalFixItsForVariable;
 }
 
-static Strategy
-getNaiveStrategy(const llvm::SmallVectorImpl<const VarDecl *> &UnsafeVars) {
-  Strategy S;
+template <typename VarDeclIterTy>
+static FixitStrategy
+getNaiveStrategy(llvm::iterator_range<VarDeclIterTy> UnsafeVars) {
+  FixitStrategy S;
   for (const VarDecl *VD : UnsafeVars) {
-    S.set(VD, Strategy::Kind::Span);
+    if (isa<ConstantArrayType>(VD->getType().getCanonicalType()))
+      S.set(VD, FixitStrategy::Kind::Array);
+    else
+      S.set(VD, FixitStrategy::Kind::Span);
   }
   return S;
 }
@@ -2370,17 +2939,34 @@ getNaiveStrategy(const llvm::SmallVectorImpl<const VarDecl *> &UnsafeVars) {
 class VariableGroupsManagerImpl : public VariableGroupsManager {
   const std::vector<VarGrpTy> Groups;
   const std::map<const VarDecl *, unsigned> &VarGrpMap;
+  const llvm::SetVector<const VarDecl *> &GrpsUnionForParms;
 
 public:
   VariableGroupsManagerImpl(
       const std::vector<VarGrpTy> &Groups,
-      const std::map<const VarDecl *, unsigned> &VarGrpMap)
-      : Groups(Groups), VarGrpMap(VarGrpMap) {}
+      const std::map<const VarDecl *, unsigned> &VarGrpMap,
+      const llvm::SetVector<const VarDecl *> &GrpsUnionForParms)
+      : Groups(Groups), VarGrpMap(VarGrpMap),
+        GrpsUnionForParms(GrpsUnionForParms) {}
 
-  VarGrpRef getGroupOfVar(const VarDecl *Var) const override {
-    auto I = VarGrpMap.find(Var);
-    assert(I != VarGrpMap.end());
-    return Groups[I->second];
+  VarGrpRef getGroupOfVar(const VarDecl *Var, bool *HasParm) const override {
+    if (GrpsUnionForParms.contains(Var)) {
+      if (HasParm)
+        *HasParm = true;
+      return GrpsUnionForParms.getArrayRef();
+    }
+    if (HasParm)
+      *HasParm = false;
+
+    auto It = VarGrpMap.find(Var);
+
+    if (It == VarGrpMap.end())
+      return std::nullopt;
+    return Groups[It->second];
+  }
+
+  VarGrpRef getGroupOfParms() const override {
+    return GrpsUnionForParms.getArrayRef();
   }
 };
 
@@ -2392,8 +2978,8 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
 #endif
 
   assert(D && D->getBody());
-  // We do not want to visit a Lambda expression defined inside a method independently.
-  // Instead, it should be visited along with the outer method.
+  // We do not want to visit a Lambda expression defined inside a method
+  // independently. Instead, it should be visited along with the outer method.
   // FIXME: do we want to do the same thing for `BlockDecl`s?
   if (const auto *fd = dyn_cast<CXXMethodDecl>(D)) {
     if (fd->getParent()->isLambda() && fd->getParent()->isLocalClass())
@@ -2403,7 +2989,7 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   // Do not emit fixit suggestions for functions declared in an
   // extern "C" block.
   if (const auto *FD = dyn_cast<FunctionDecl>(D)) {
-      for (FunctionDecl *FReDecl : FD->redecls()) {
+    for (FunctionDecl *FReDecl : FD->redecls()) {
       if (FReDecl->isExternC()) {
         EmitSuggestions = false;
         break;
@@ -2415,15 +3001,15 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   FixableGadgetSets FixablesForAllVars;
 
   auto [FixableGadgets, WarningGadgets, Tracker] =
-    findGadgets(D, Handler, EmitSuggestions);
+      findGadgets(D, Handler, EmitSuggestions);
 
   if (!EmitSuggestions) {
     // Our job is very easy without suggestions. Just warn about
     // every problematic operation and consider it done. No need to deal
     // with fixable gadgets, no need to group operations by variable.
     for (const auto &G : WarningGadgets) {
-      Handler.handleUnsafeOperation(G->getBaseStmt(),
-                                    /*IsRelatedToDecl=*/false);
+      Handler.handleUnsafeOperation(G->getBaseStmt(), /*IsRelatedToDecl=*/false,
+                                    D->getASTContext());
     }
 
     // This return guarantees that most of the machine doesn't run when
@@ -2468,42 +3054,57 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   // Filter out non-local vars and vars with unclaimed DeclRefExpr-s.
   for (auto it = FixablesForAllVars.byVar.cbegin();
        it != FixablesForAllVars.byVar.cend();) {
-      // FIXME: need to deal with global variables later
-      if ((!it->first->isLocalVarDecl() && !isa<ParmVarDecl>(it->first))) {
+    // FIXME: need to deal with global variables later
+    if ((!it->first->isLocalVarDecl() && !isa<ParmVarDecl>(it->first))) {
 #ifndef NDEBUG
-          Handler.addDebugNoteForVar(
-              it->first, it->first->getBeginLoc(),
-              ("failed to produce fixit for '" + it->first->getNameAsString() +
-               "' : neither local nor a parameter"));
+      Handler.addDebugNoteForVar(it->first, it->first->getBeginLoc(),
+                                 ("failed to produce fixit for '" +
+                                  it->first->getNameAsString() +
+                                  "' : neither local nor a parameter"));
 #endif
-        it = FixablesForAllVars.byVar.erase(it);
-      } else if (Tracker.hasUnclaimedUses(it->first)) {
+      it = FixablesForAllVars.byVar.erase(it);
+    } else if (it->first->getType().getCanonicalType()->isReferenceType()) {
 #ifndef NDEBUG
-        auto AllUnclaimed = Tracker.getUnclaimedUses(it->first);
-        for (auto UnclaimedDRE : AllUnclaimed) {
-          Handler.addDebugNoteForVar(
-              it->first, UnclaimedDRE->getBeginLoc(),
-                                     ("failed to produce fixit for '" + it->first->getNameAsString() +
-                                      "' : has an unclaimed use"));
-          }
+      Handler.addDebugNoteForVar(it->first, it->first->getBeginLoc(),
+                                 ("failed to produce fixit for '" +
+                                  it->first->getNameAsString() +
+                                  "' : has a reference type"));
 #endif
-        it = FixablesForAllVars.byVar.erase(it);
-      } else if (it->first->isInitCapture()) {
+      it = FixablesForAllVars.byVar.erase(it);
+    } else if (Tracker.hasUnclaimedUses(it->first)) {
+      it = FixablesForAllVars.byVar.erase(it);
+    } else if (it->first->isInitCapture()) {
 #ifndef NDEBUG
-        Handler.addDebugNoteForVar(
-            it->first, it->first->getBeginLoc(),
-                                   ("failed to produce fixit for '" + it->first->getNameAsString() +
-                                    "' : init capture"));
+      Handler.addDebugNoteForVar(it->first, it->first->getBeginLoc(),
+                                 ("failed to produce fixit for '" +
+                                  it->first->getNameAsString() +
+                                  "' : init capture"));
 #endif
-        it = FixablesForAllVars.byVar.erase(it);
-      }else {
+      it = FixablesForAllVars.byVar.erase(it);
+    } else {
       ++it;
     }
   }
 
-  llvm::SmallVector<const VarDecl *, 16> UnsafeVars;
-  for (const auto &[VD, ignore] : FixablesForAllVars.byVar)
-    UnsafeVars.push_back(VD);
+#ifndef NDEBUG
+  for (const auto &it : UnsafeOps.byVar) {
+    const VarDecl *const UnsafeVD = it.first;
+    auto UnclaimedDREs = Tracker.getUnclaimedUses(UnsafeVD);
+    if (UnclaimedDREs.empty())
+      continue;
+    const auto UnfixedVDName = UnsafeVD->getNameAsString();
+    for (const clang::DeclRefExpr *UnclaimedDRE : UnclaimedDREs) {
+      std::string UnclaimedUseTrace =
+          getDREAncestorString(UnclaimedDRE, D->getASTContext());
+
+      Handler.addDebugNoteForVar(
+          UnsafeVD, UnclaimedDRE->getBeginLoc(),
+          ("failed to produce fixit for '" + UnfixedVDName +
+           "' : has an unclaimed use\nThe unclaimed DRE trace: " +
+           UnclaimedUseTrace));
+    }
+  }
+#endif
 
   // Fixpoint iteration for pointer assignments
   using DepMapTy = DenseMap<const VarDecl *, llvm::SetVector<const VarDecl *>>;
@@ -2513,7 +3114,7 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   for (auto it : FixablesForAllVars.byVar) {
     for (const FixableGadget *fixable : it.second) {
       std::optional<std::pair<const VarDecl *, const VarDecl *>> ImplPair =
-                                  fixable->getStrategyImplications();
+          fixable->getStrategyImplications();
       if (ImplPair) {
         std::pair<const VarDecl *, const VarDecl *> Impl = std::move(*ImplPair);
         PtrAssignmentGraph[Impl.first].insert(Impl.second);
@@ -2542,10 +3143,10 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   for (const auto &[Var, ignore] : UnsafeOps.byVar) {
     if (VisitedVarsDirected.find(Var) == VisitedVarsDirected.end()) {
 
-      std::queue<const VarDecl*> QueueDirected{};
+      std::queue<const VarDecl *> QueueDirected{};
       QueueDirected.push(Var);
-      while(!QueueDirected.empty()) {
-        const VarDecl* CurrentVar = QueueDirected.front();
+      while (!QueueDirected.empty()) {
+        const VarDecl *CurrentVar = QueueDirected.front();
         QueueDirected.pop();
         VisitedVarsDirected.insert(CurrentVar);
         auto AdjacentNodes = PtrAssignmentGraph[CurrentVar];
@@ -2566,6 +3167,9 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   // variables belong to.  Group indexes refer to the elements in `Groups`.
   // `VarGrpMap` is complete in that every variable that needs fix is in it.
   std::map<const VarDecl *, unsigned> VarGrpMap;
+  // The union group over the ones in "Groups" that contain parameters of `D`:
+  llvm::SetVector<const VarDecl *>
+      GrpsUnionForParms; // these variables need to be fixed in one step
 
   // Group Connected Components for Unsafe Vars
   // (Dependencies based on pointer assignments)
@@ -2573,11 +3177,11 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   for (const auto &[Var, ignore] : UnsafeOps.byVar) {
     if (VisitedVars.find(Var) == VisitedVars.end()) {
       VarGrpTy &VarGroup = Groups.emplace_back();
-      std::queue<const VarDecl*> Queue{};
+      std::queue<const VarDecl *> Queue{};
 
       Queue.push(Var);
-      while(!Queue.empty()) {
-        const VarDecl* CurrentVar = Queue.front();
+      while (!Queue.empty()) {
+        const VarDecl *CurrentVar = Queue.front();
         Queue.pop();
         VisitedVars.insert(CurrentVar);
         VarGroup.push_back(CurrentVar);
@@ -2588,11 +3192,17 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
           }
         }
       }
+
+      bool HasParm = false;
       unsigned GrpIdx = Groups.size() - 1;
 
       for (const VarDecl *V : VarGroup) {
         VarGrpMap[V] = GrpIdx;
+        if (!HasParm && isParameterOf(V, D))
+          HasParm = true;
       }
+      if (HasParm)
+        GrpsUnionForParms.insert(VarGroup.begin(), VarGroup.end());
     }
   }
 
@@ -2617,32 +3227,44 @@ void clang::checkUnsafeBufferUsage(const Decl *D,
   for (auto I = FixablesForAllVars.byVar.begin();
        I != FixablesForAllVars.byVar.end();) {
     // Note `VisitedVars` contain all the variables in the graph:
-    if (VisitedVars.find((*I).first) == VisitedVars.end()) {
+    if (!VisitedVars.count((*I).first)) {
       // no such var in graph:
       I = FixablesForAllVars.byVar.erase(I);
     } else
       ++I;
   }
 
-  Strategy NaiveStrategy = getNaiveStrategy(UnsafeVars);
-  VariableGroupsManagerImpl VarGrpMgr(Groups, VarGrpMap);
+  // We assign strategies to variables that are 1) in the graph and 2) can be
+  // fixed. Other variables have the default "Won't fix" strategy.
+  FixitStrategy NaiveStrategy = getNaiveStrategy(llvm::make_filter_range(
+      VisitedVars, [&FixablesForAllVars](const VarDecl *V) {
+        // If a warned variable has no "Fixable", it is considered unfixable:
+        return FixablesForAllVars.byVar.count(V);
+      }));
+  VariableGroupsManagerImpl VarGrpMgr(Groups, VarGrpMap, GrpsUnionForParms);
 
-  FixItsForVariableGroup =
-      getFixIts(FixablesForAllVars, NaiveStrategy, D->getASTContext(), D,
-                Tracker, Handler, VarGrpMgr);
+  if (isa<NamedDecl>(D))
+    // The only case where `D` is not a `NamedDecl` is when `D` is a
+    // `BlockDecl`. Let's not fix variables in blocks for now
+    FixItsForVariableGroup =
+        getFixIts(FixablesForAllVars, NaiveStrategy, D->getASTContext(), D,
+                  Tracker, Handler, VarGrpMgr);
 
   for (const auto &G : UnsafeOps.noVar) {
-    Handler.handleUnsafeOperation(G->getBaseStmt(), /*IsRelatedToDecl=*/false);
+    Handler.handleUnsafeOperation(G->getBaseStmt(), /*IsRelatedToDecl=*/false,
+                                  D->getASTContext());
   }
 
   for (const auto &[VD, WarningGadgets] : UnsafeOps.byVar) {
     auto FixItsIt = FixItsForVariableGroup.find(VD);
     Handler.handleUnsafeVariableGroup(VD, VarGrpMgr,
                                       FixItsIt != FixItsForVariableGroup.end()
-                                      ? std::move(FixItsIt->second)
-                                      : FixItList{});
+                                          ? std::move(FixItsIt->second)
+                                          : FixItList{},
+                                      D, NaiveStrategy);
     for (const auto &G : WarningGadgets) {
-      Handler.handleUnsafeOperation(G->getBaseStmt(), /*IsRelatedToDecl=*/true);
+      Handler.handleUnsafeOperation(G->getBaseStmt(), /*IsRelatedToDecl=*/true,
+                                    D->getASTContext());
     }
   }
 }

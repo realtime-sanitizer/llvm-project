@@ -113,6 +113,8 @@ def Tosa_Weight : AnyTypeOf<[Tosa_Int4, Tosa_Int8,
 def Tosa_Int32Tensor : TensorOf<[Tosa_Int32]>;
 def Tosa_Int32Or64Tensor : TensorOf<[Tosa_Int32Or64]>;
 
+def Tosa_FloatTensor : TensorOf<[Tosa_Float]>;
+
 // Either ranked or unranked tensor of TOSA supported element types.
 def Tosa_Tensor : TensorOf<[Tosa_AnyNumber]>;
 def Tosa_Tensor_Plus_F64 : TensorOf<[Tosa_AnyNumber_Plus_F64]>;
@@ -196,6 +198,12 @@ def Tosa_IntArrayAttr6 : ConfinedAttr<DenseI64ArrayAttr, [DenseArrayCount<6>]>;
 def Tosa_IntArrayAttrUpto2 : ConfinedAttr<DenseI64ArrayAttr, [DenseArrayMaxCt<2>]>;
 def Tosa_IntArrayAttrUpto4 : ConfinedAttr<DenseI64ArrayAttr, [DenseArrayMaxCt<4>]>;
 def Tosa_IntArrayAttrUpto5 : ConfinedAttr<DenseI64ArrayAttr, [DenseArrayMaxCt<5>]>;
+
+def Tosa_FloatAttr : Attr<CPred<"::llvm::isa<::mlir::FloatAttr>($_self)">,
+                          "arbitrary float attribute"> {
+  let storageType = [{ ::mlir::FloatAttr }];
+  let returnType = [{ ::mlir::APFloat }];
+}
 
 //===----------------------------------------------------------------------===//
 // Iterable attributes.

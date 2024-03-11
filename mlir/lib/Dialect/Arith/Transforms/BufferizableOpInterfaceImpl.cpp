@@ -26,16 +26,17 @@ struct ConstantOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     auto constantOp = cast<arith::ConstantOp>(op);
-
-    Attribute memorySpace;
-    if (options.defaultMemorySpace.has_value())
-      memorySpace = *options.defaultMemorySpace;
-    else
-      return constantOp->emitError("could not infer memory space");
+    auto type = constantOp.getType().dyn_cast<RankedTensorType>();
 
     // Only ranked tensors are supported.
-    if (!isa<RankedTensorType>(constantOp.getType()))
+    if (!type)
       return failure();
+
+    Attribute memorySpace;
+    if (auto memSpace = options.defaultMemorySpaceFn(type))
+      memorySpace = *memSpace;
+    else
+      return constantOp->emitError("could not infer memory space");
 
     // Only constants inside a module are supported.
     auto moduleOp = constantOp->getParentOfType<ModuleOp>();
@@ -133,6 +134,13 @@ struct SelectOpInterface
                           const BufferizationOptions &options) const {
     auto selectOp = cast<arith::SelectOp>(op);
     Location loc = selectOp.getLoc();
+
+    // Elementwise conditions are not supported yet. To bufferize such an op,
+    // it could be lowered to an elementwise "linalg.generic" with a new
+    // "tensor.empty" out tensor, followed by "empty tensor elimination". Such
+    // IR will bufferize.
+    if (!selectOp.getCondition().getType().isInteger(1))
+      return op->emitOpError("only i1 condition values are supported");
 
     // TODO: It would be more efficient to copy the result of the `select` op
     // instead of its OpOperands. In the worst case, 2 copies are inserted at

@@ -314,10 +314,10 @@ class EventAPITestCase(TestBase):
             self.state, "stopped", "Both expected state changed events received"
         )
 
-    def wait_for_next_event(self, expected_state, test_shadow = False):
+    def wait_for_next_event(self, expected_state, test_shadow=False):
         """Wait for an event from self.primary & self.shadow listener.
-           If test_shadow is true, we also check that the shadow listener only 
-           receives events AFTER the primary listener does."""
+        If test_shadow is true, we also check that the shadow listener only
+        receives events AFTER the primary listener does."""
         # Waiting on the shadow listener shouldn't have events yet because
         # we haven't fetched them for the primary listener yet:
         event = lldb.SBEvent()
@@ -336,15 +336,23 @@ class EventAPITestCase(TestBase):
             restart = lldb.SBProcess.GetRestartedFromEvent(event)
 
         if expected_state != None:
-            self.assertEqual(state, expected_state, "Primary thread got the correct event")
-            
+            self.assertEqual(
+                state, expected_state, "Primary thread got the correct event"
+            )
+
         # And after pulling that one there should be an equivalent event for the shadow
         # listener:
         success = self.shadow_listener.WaitForEvent(5, event)
         self.assertTrue(success, "Shadow listener got event too")
-        self.assertEqual(state, lldb.SBProcess.GetStateFromEvent(event), "It was the same event")
-        self.assertEqual(restart, lldb.SBProcess.GetRestartedFromEvent(event), "It was the same restarted")
-            
+        self.assertEqual(
+            state, lldb.SBProcess.GetStateFromEvent(event), "It was the same event"
+        )
+        self.assertEqual(
+            restart,
+            lldb.SBProcess.GetRestartedFromEvent(event),
+            "It was the same restarted",
+        )
+
         return state, restart
 
     @expectedFlakeyLinux("llvm.org/pr23730")  # Flaky, fails ~1/100 cases
@@ -361,19 +369,21 @@ class EventAPITestCase(TestBase):
         # Now create a breakpoint on main.c by name 'c'.
         bkpt1 = target.BreakpointCreateByName("c", "a.out")
         self.trace("breakpoint:", bkpt1)
-        self.assertTrue(bkpt1.GetNumLocations() == 1, VALID_BREAKPOINT)
+        self.assertEqual(bkpt1.GetNumLocations(), 1, VALID_BREAKPOINT)
 
         self.primary_listener = lldb.SBListener("my listener")
         self.shadow_listener = lldb.SBListener("shadow listener")
 
         self.cur_thread = None
-        
+
         error = lldb.SBError()
         launch_info = target.GetLaunchInfo()
         launch_info.SetListener(self.primary_listener)
         launch_info.SetShadowListener(self.shadow_listener)
 
-        self.runCmd("settings set target.process.extra-startup-command QSetLogging:bitmask=LOG_PROCESS|LOG_EXCEPTIONS|LOG_RNB_PACKETS|LOG_STEP;")
+        self.runCmd(
+            "settings set target.process.extra-startup-command QSetLogging:bitmask=LOG_PROCESS|LOG_EXCEPTIONS|LOG_RNB_PACKETS|LOG_STEP;"
+        )
         self.dbg.SetAsync(True)
 
         self.process = target.Launch(launch_info, error)
@@ -394,8 +404,14 @@ class EventAPITestCase(TestBase):
         # Make sure we're at our expected breakpoint:
         self.assertTrue(self.cur_thread.IsValid(), "Got a zeroth thread")
         self.assertEqual(self.cur_thread.stop_reason, lldb.eStopReasonBreakpoint)
-        self.assertEqual(self.cur_thread.GetStopReasonDataCount(), 2, "Only one breakpoint/loc here")
-        self.assertEqual(bkpt1.GetID(), self.cur_thread.GetStopReasonDataAtIndex(0), "Hit the right breakpoint")
+        self.assertEqual(
+            self.cur_thread.GetStopReasonDataCount(), 2, "Only one breakpoint/loc here"
+        )
+        self.assertEqual(
+            bkpt1.GetID(),
+            self.cur_thread.GetStopReasonDataAtIndex(0),
+            "Hit the right breakpoint",
+        )
         # Disable the first breakpoint so it doesn't get in the way...
         bkpt1.SetEnabled(False)
 
@@ -415,11 +431,11 @@ class EventAPITestCase(TestBase):
 
         main_spec = lldb.SBFileSpec("main.c")
         bkpt2 = target.BreakpointCreateBySourceRegex("b.2. returns %d", main_spec)
-        self.assertTrue(bkpt2.GetNumLocations() > 0, "BP2 worked")
+        self.assertGreater(bkpt2.GetNumLocations(), 0, "BP2 worked")
         bkpt2.SetAutoContinue(True)
 
         bkpt3 = target.BreakpointCreateBySourceRegex("a.3. returns %d", main_spec)
-        self.assertTrue(bkpt3.GetNumLocations() > 0, "BP3 worked")
+        self.assertGreater(bkpt3.GetNumLocations(), 0, "BP3 worked")
 
         state = lldb.eStateStopped
         restarted = False
@@ -429,8 +445,9 @@ class EventAPITestCase(TestBase):
         counter = 0
         while state != lldb.eStateExited:
             counter += 1
-            self.assertLess(counter, 50, "Took more than 50 events to hit two breakpoints.")
+            self.assertLess(
+                counter, 50, "Took more than 50 events to hit two breakpoints."
+            )
             if state == lldb.eStateStopped and not restarted:
                 self.process.Continue()
-            state, restarted  = self.wait_for_next_event(None, False)
-            
+            state, restarted = self.wait_for_next_event(None, False)

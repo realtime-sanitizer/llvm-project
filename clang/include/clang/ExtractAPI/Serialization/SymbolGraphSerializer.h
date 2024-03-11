@@ -159,6 +159,8 @@ protected:
   llvm::StringSet<> visitedCategories;
 
 public:
+  void visitNamespaceRecord(const NamespaceRecord &Record);
+
   /// Visit a global function record.
   void visitGlobalFunctionRecord(const GlobalFunctionRecord &Record);
 
@@ -168,8 +170,8 @@ public:
   /// Visit an enum record.
   void visitEnumRecord(const EnumRecord &Record);
 
-  /// Visit a struct record.
-  void visitStructRecord(const StructRecord &Record);
+  /// Visit a record record.
+  void visitRecordRecord(const RecordRecord &Record);
 
   void visitStaticFieldRecord(const StaticFieldRecord &Record);
 

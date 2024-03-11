@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Bufferization/IR/UnstructuredControlFlow.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -65,7 +66,7 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
   assert(tensorType && "expected TensorType");
 
   BaseMemRefType memrefType = options.functionArgTypeConverterFn(
-      tensorType, *options.defaultMemorySpace, funcOp, options);
+      tensorType, *options.defaultMemorySpaceFn(tensorType), funcOp, options);
 
   auto layoutAttr = funcOp.getArgAttrOfType<AffineMapAttr>(
       index, BufferizationDialect::kBufferLayoutAttrName);
@@ -319,16 +320,61 @@ struct ReturnOpInterface
 };
 
 struct FuncOpInterface
-    : public BufferizableOpInterface::ExternalModel<FuncOpInterface, FuncOp> {
+    : public OpWithUnstructuredControlFlowBufferizableOpInterfaceExternalModel<
+          FuncOpInterface, FuncOp> {
+
+  static bool supportsUnstructuredControlFlow() { return true; }
+
+  bool hasTensorSemantics(Operation *op) const {
+    auto isaTensor = [](Type type) { return isa<TensorType>(type); };
+
+    // A function has tensor semantics if it has tensor arguments/results.
+    auto funcOp = cast<FuncOp>(op);
+    bool hasTensorArg = any_of(funcOp.getArgumentTypes(), isaTensor);
+    bool hasTensorResult = any_of(funcOp.getResultTypes(), isaTensor);
+    if (hasTensorArg || hasTensorResult)
+      return true;
+
+    // It also has tensor semantics if it has tensor block arguments.
+    // TODO: Decouple bufferization of unstructured control flow from
+    // BufferizableOpInterface implementations. We should only care about
+    // region entry block arguments here (which are already covered by the
+    // argument types of the function).
+    for (Block &block : funcOp.getBody())
+      if (any_of(block.getArgumentTypes(), isaTensor))
+        return true;
+
+    return false;
+  }
+
+  AliasingOpOperandList
+  getAliasingOpOperands(Operation *op, Value value,
+                        const AnalysisState &state) const {
+    return getAliasingBranchOpOperands(op, cast<BlockArgument>(value), state);
+  }
+
   FailureOr<BaseMemRefType>
   getBufferType(Operation *op, Value value, const BufferizationOptions &options,
                 SmallVector<Value> &invocationStack) const {
     auto funcOp = cast<FuncOp>(op);
     auto bbArg = cast<BlockArgument>(value);
-    // Unstructured control flow is not supported.
-    assert(bbArg.getOwner() == &funcOp.getBody().front() &&
-           "expected that block argument belongs to first block");
-    return getBufferizedFunctionArgType(funcOp, bbArg.getArgNumber(), options);
+
+    // Function arguments are special.
+    if (bbArg.getOwner() == &funcOp.getBody().front())
+      return getBufferizedFunctionArgType(funcOp, bbArg.getArgNumber(),
+                                          options);
+
+    return OpWithUnstructuredControlFlowBufferizableOpInterfaceExternalModel::
+        getBufferType(op, value, options, invocationStack);
+  }
+
+  LogicalResult verifyAnalysis(Operation *op,
+                               const AnalysisState &state) const {
+    auto funcOp = cast<func::FuncOp>(op);
+    // TODO: func.func with multiple returns are not supported.
+    if (!getAssumedUniqueReturnOp(funcOp) && !funcOp.isExternal())
+      return op->emitOpError("op without unique func.return is not supported");
+    return success();
   }
 
   /// Rewrite function bbArgs and return values into buffer form. This function
@@ -347,7 +393,7 @@ struct FuncOpInterface
     SmallVector<Type> argTypes;
     for (const auto &it : llvm::enumerate(funcType.getInputs())) {
       Type argType = it.value();
-      if (auto tensorType = dyn_cast<TensorType>(argType)) {
+      if (dyn_cast<TensorType>(argType)) {
         argTypes.push_back(
             getBufferizedFunctionArgType(funcOp, it.index(), options));
         continue;
@@ -358,7 +404,7 @@ struct FuncOpInterface
     // Bodiless functions are assumed opaque and we cannot know the
     // bufferization contract they want to enforce. As a consequence, only
     // support functions that don't return any tensors atm.
-    if (funcOp.getBody().empty()) {
+    if (funcOp.isExternal()) {
       SmallVector<Type> retTypes;
       for (Type resultType : funcType.getResults()) {
         if (isa<TensorType>(resultType))
@@ -397,7 +443,8 @@ struct FuncOpInterface
       // Note: If `inferFunctionResultLayout = true`, cast are later folded
       // away.
       BaseMemRefType resultType = options.functionArgTypeConverterFn(
-          tensorType, *options.defaultMemorySpace, funcOp, options);
+          tensorType, *options.defaultMemorySpaceFn(tensorType), funcOp,
+          options);
       Value toMemrefOp = rewriter.create<bufferization::ToMemrefOp>(
           loc, resultType, returnVal);
       returnValues.push_back(toMemrefOp);
@@ -419,6 +466,11 @@ struct FuncOpInterface
     auto funcOp = cast<FuncOp>(op);
     BlockArgument bbArg = dyn_cast<BlockArgument>(value);
     assert(bbArg && "expected BlockArgument");
+
+    // Non-entry block arguments are always writable. (They may alias with
+    // values that are not writable, which will turn them into read-only.)
+    if (bbArg.getOwner() != &funcOp.getBody().front())
+      return true;
 
     // "bufferization.writable" overrides other writability decisions. This is
     // currently used for testing only.

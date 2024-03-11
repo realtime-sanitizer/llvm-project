@@ -33,6 +33,16 @@ static OmpClauseSet privateSet{
     Clause::OMPC_private, Clause::OMPC_firstprivate, Clause::OMPC_lastprivate};
 static OmpClauseSet privateReductionSet{
     OmpClauseSet{Clause::OMPC_reduction} | privateSet};
+// omp.td cannot differentiate allowed/not allowed clause list for few
+// directives for fortran. nowait is not allowed on begin directive clause list
+// for below list of directives. Directives with conflicting list of clauses are
+// included in below list.
+static const OmpDirectiveSet noWaitClauseNotAllowedSet{
+    Directive::OMPD_do,
+    Directive::OMPD_do_simd,
+    Directive::OMPD_sections,
+    Directive::OMPD_single,
+};
 } // namespace omp
 } // namespace llvm
 
@@ -61,6 +71,7 @@ public:
   void Enter(const parser::OpenMPLoopConstruct &);
   void Leave(const parser::OpenMPLoopConstruct &);
   void Enter(const parser::OmpEndLoopDirective &);
+  void Leave(const parser::OmpEndLoopDirective &);
 
   void Enter(const parser::OpenMPBlockConstruct &);
   void Leave(const parser::OpenMPBlockConstruct &);
@@ -79,6 +90,9 @@ public:
   void Leave(const parser::OpenMPDeclarativeAllocate &);
   void Enter(const parser::OpenMPDeclareTargetConstruct &);
   void Leave(const parser::OpenMPDeclareTargetConstruct &);
+  void Enter(const parser::OmpDeclareTargetWithList &);
+  void Enter(const parser::OmpDeclareTargetWithClause &);
+  void Leave(const parser::OmpDeclareTargetWithClause &);
   void Enter(const parser::OpenMPExecutableAllocate &);
   void Leave(const parser::OpenMPExecutableAllocate &);
   void Enter(const parser::OpenMPAllocatorsConstruct &);
@@ -175,11 +189,14 @@ private:
   template <typename T, typename D> bool IsOperatorValid(const T &, const D &);
   void CheckAtomicMemoryOrderClause(
       const parser::OmpAtomicClauseList *, const parser::OmpAtomicClauseList *);
-  void CheckAtomicUpdateAssignmentStmt(const parser::AssignmentStmt &);
+  void CheckAtomicUpdateStmt(const parser::AssignmentStmt &);
+  void CheckAtomicCaptureStmt(const parser::AssignmentStmt &);
+  void CheckAtomicWriteStmt(const parser::AssignmentStmt &);
   void CheckAtomicConstructStructure(const parser::OpenMPAtomicConstruct &);
   void CheckDistLinear(const parser::OpenMPLoopConstruct &x);
   void CheckSIMDNest(const parser::OpenMPConstruct &x);
   void CheckTargetNest(const parser::OpenMPConstruct &x);
+  void CheckTargetUpdate();
   void CheckCancellationNest(
       const parser::CharBlock &source, const parser::OmpCancelType::Type &type);
   std::int64_t GetOrdCollapseLevel(const parser::OpenMPLoopConstruct &x);
@@ -208,13 +225,16 @@ private:
 
   void CheckAllowedRequiresClause(llvmOmpClause clause);
   bool deviceConstructFound_{false};
-  bool atomicDirectiveDefaultOrderFound_{false};
 
   void EnterDirectiveNest(const int index) { directiveNest_[index]++; }
   void ExitDirectiveNest(const int index) { directiveNest_[index]--; }
   int GetDirectiveNest(const int index) { return directiveNest_[index]; }
   template <typename D> void CheckHintClause(D *, D *);
-
+  inline void ErrIfAllocatableVariable(const parser::Variable &);
+  inline void ErrIfLHSAndRHSSymbolsMatch(
+      const parser::Variable &, const parser::Expr &);
+  inline void ErrIfNonScalarAssignmentStmt(
+      const parser::Variable &, const parser::Expr &);
   enum directiveNestType {
     SIMDNest,
     TargetBlockOnlyTeams,

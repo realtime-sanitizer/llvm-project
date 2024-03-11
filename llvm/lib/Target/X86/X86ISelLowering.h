@@ -966,6 +966,11 @@ namespace llvm {
     /// Check if Op is an operation that could be folded into a zero extend x86
     /// instruction.
     bool mayFoldIntoZeroExtend(SDValue Op);
+
+    /// True if the target supports the extended frame for async Swift
+    /// functions.
+    bool isExtendedSwiftAsyncFrameSupported(const X86Subtarget &Subtarget,
+                                            const MachineFunction &MF);
   } // end namespace X86
 
   //===--------------------------------------------------------------------===//
@@ -1138,7 +1143,16 @@ namespace llvm {
         unsigned OldShiftOpcode, unsigned NewShiftOpcode,
         SelectionDAG &DAG) const override;
 
+    unsigned preferedOpcodeForCmpEqPiecesOfOperand(
+        EVT VT, unsigned ShiftOpc, bool MayTransformRotate,
+        const APInt &ShiftOrRotateAmt,
+        const std::optional<APInt> &AndMask) const override;
+
     bool preferScalarizeSplat(SDNode *N) const override;
+
+    CondMergingParams
+    getJumpConditionMergingParams(Instruction::BinaryOps Opc, const Value *Lhs,
+                                  const Value *Rhs) const override;
 
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
@@ -1274,15 +1288,14 @@ namespace llvm {
     /// Lower the specified operand into the Ops vector. If it is invalid, don't
     /// add anything to Ops. If hasMemory is true it means one of the asm
     /// constraint of the inline asm instruction being processed is 'm'.
-    void LowerAsmOperandForConstraint(SDValue Op,
-                                      std::string &Constraint,
+    void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                       std::vector<SDValue> &Ops,
                                       SelectionDAG &DAG) const override;
 
-    unsigned
+    InlineAsm::ConstraintCode
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
       if (ConstraintCode == "v")
-        return InlineAsm::Constraint_v;
+        return InlineAsm::ConstraintCode::v;
       return TargetLowering::getInlineAsmMemConstraint(ConstraintCode);
     }
 
@@ -1562,9 +1575,8 @@ namespace llvm {
     bool lowerInterleavedStore(StoreInst *SI, ShuffleVectorInst *SVI,
                                unsigned Factor) const override;
 
-    SDValue expandIndirectJTBranch(const SDLoc& dl, SDValue Value,
-                                   SDValue Addr, SelectionDAG &DAG)
-                                   const override;
+    SDValue expandIndirectJTBranch(const SDLoc &dl, SDValue Value, SDValue Addr,
+                                   int JTI, SelectionDAG &DAG) const override;
 
     Align getPrefLoopAlignment(MachineLoop *ML) const override;
 
@@ -1711,16 +1723,6 @@ namespace llvm {
       MachineBasicBlock *Entry,
       const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
 
-    bool splitValueIntoRegisterParts(
-        SelectionDAG & DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
-        unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC)
-        const override;
-
-    SDValue joinRegisterPartsIntoValue(
-        SelectionDAG & DAG, const SDLoc &DL, const SDValue *Parts,
-        unsigned NumParts, MVT PartVT, EVT ValueVT,
-        std::optional<CallingConv::ID> CC) const override;
-
     bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
 
     bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
@@ -1750,12 +1752,7 @@ namespace llvm {
     LoadInst *
     lowerIdempotentRMWIntoFencedLoad(AtomicRMWInst *AI) const override;
 
-    bool lowerAtomicStoreAsStoreSDNode(const StoreInst &SI) const override;
-    bool lowerAtomicLoadAsLoadSDNode(const LoadInst &LI) const override;
-
     bool needsCmpXchgNb(Type *MemType) const;
-
-    template<typename T> bool isSoftFP16(T VT) const;
 
     void SetupEntryBlockForSjLj(MachineInstr &MI, MachineBasicBlock *MBB,
                                 MachineBasicBlock *DispatchBB, int FI) const;
@@ -1810,6 +1807,9 @@ namespace llvm {
     SDValue emitFlagsForSetcc(SDValue Op0, SDValue Op1, ISD::CondCode CC,
                               const SDLoc &dl, SelectionDAG &DAG,
                               SDValue &X86CC) const;
+
+    bool optimizeFMulOrFDivAsShiftAddBitcast(SDNode *N, SDValue FPConst,
+                                             SDValue IntPow2) const override;
 
     /// Check if replacement of SQRT with RSQRT should be disabled.
     bool isFsqrtCheap(SDValue Op, SelectionDAG &DAG) const override;

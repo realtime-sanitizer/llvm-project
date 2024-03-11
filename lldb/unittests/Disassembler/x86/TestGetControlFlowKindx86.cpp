@@ -1,4 +1,4 @@
-//===-- TextX86GetControlFlowKind.cpp ------------------------------------------===//
+//===-- TestX86GetControlFlowKind.cpp -------------------------------------===//
 
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -20,6 +20,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
+namespace {
 class TestGetControlFlowKindx86 : public testing::Test {
 public:
   static void SetUpTestCase();
@@ -39,6 +40,7 @@ void TestGetControlFlowKindx86::SetUpTestCase() {
 void TestGetControlFlowKindx86::TearDownTestCase() {
   DisassemblerLLVMC::Terminate();
 }
+} // namespace
 
 TEST_F(TestGetControlFlowKindx86, TestX86_64Instruction) {
   ArchSpec arch("x86_64-*-linux");

@@ -191,7 +191,7 @@ public:
 };
 #endif /* KMP_USE_HWLOC */
 
-#if KMP_OS_LINUX || KMP_OS_FREEBSD
+#if KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DRAGONFLY
 #if KMP_OS_LINUX
 /* On some of the older OS's that we build on, these constants aren't present
    in <asm/unistd.h> #included from <sys.syscall.h>. They must be the same on
@@ -286,12 +286,37 @@ public:
 #elif __NR_sched_getaffinity != 123
 #error Wrong code for getaffinity system call.
 #endif /* __NR_sched_getaffinity */
+#elif KMP_ARCH_VE
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity 203
+#elif __NR_sched_setaffinity != 203
+#error Wrong code for setaffinity system call.
+#endif /* __NR_sched_setaffinity */
+#ifndef __NR_sched_getaffinity
+#define __NR_sched_getaffinity 204
+#elif __NR_sched_getaffinity != 204
+#error Wrong code for getaffinity system call.
+#endif /* __NR_sched_getaffinity */
+#elif KMP_ARCH_S390X
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity 239
+#elif __NR_sched_setaffinity != 239
+#error Wrong code for setaffinity system call.
+#endif /* __NR_sched_setaffinity */
+#ifndef __NR_sched_getaffinity
+#define __NR_sched_getaffinity 240
+#elif __NR_sched_getaffinity != 240
+#error Wrong code for getaffinity system call.
+#endif /* __NR_sched_getaffinity */
 #else
 #error Unknown or unsupported architecture
 #endif /* KMP_ARCH_* */
-#elif KMP_OS_FREEBSD
+#elif KMP_OS_FREEBSD || KMP_OS_DRAGONFLY
 #include <pthread.h>
 #include <pthread_np.h>
+#elif KMP_OS_NETBSD
+#include <pthread.h>
+#include <sched.h>
 #endif
 class KMPNativeAffinity : public KMPAffinity {
   class Mask : public KMPAffinity::Mask {
@@ -385,7 +410,7 @@ class KMPNativeAffinity : public KMPAffinity {
 #if KMP_OS_LINUX
       long retval =
           syscall(__NR_sched_getaffinity, 0, __kmp_affin_mask_size, mask);
-#elif KMP_OS_FREEBSD
+#elif KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DRAGONFLY
       int r = pthread_getaffinity_np(pthread_self(), __kmp_affin_mask_size,
                                      reinterpret_cast<cpuset_t *>(mask));
       int retval = (r == 0 ? 0 : -1);
@@ -406,7 +431,7 @@ class KMPNativeAffinity : public KMPAffinity {
 #if KMP_OS_LINUX
       long retval =
           syscall(__NR_sched_setaffinity, 0, __kmp_affin_mask_size, mask);
-#elif KMP_OS_FREEBSD
+#elif KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DRAGONFLY
       int r = pthread_setaffinity_np(pthread_self(), __kmp_affin_mask_size,
                                      reinterpret_cast<cpuset_t *>(mask));
       int retval = (r == 0 ? 0 : -1);
@@ -449,7 +474,8 @@ class KMPNativeAffinity : public KMPAffinity {
   }
   api_type get_api_type() const override { return NATIVE_OS; }
 };
-#endif /* KMP_OS_LINUX || KMP_OS_FREEBSD */
+#endif /* KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DRAGONFLY  \
+        */
 
 #if KMP_OS_WINDOWS
 class KMPNativeAffinity : public KMPAffinity {

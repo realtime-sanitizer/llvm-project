@@ -143,6 +143,7 @@ syn keyword llvmKeyword
       \ nosanitize_coverage
       \ nosanitize_realtime
       \ null_pointer_is_valid
+      \ optdebug
       \ optforfuzzing
       \ optnone
       \ optsize

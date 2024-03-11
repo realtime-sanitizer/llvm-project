@@ -31,15 +31,15 @@
 using namespace mlir;
 
 // Skip the test if the AMDGPU target was not built.
-#if MLIR_ROCM_CONVERSIONS_ENABLED == 0
-#define SKIP_WITHOUT_AMDGPU(x) DISABLED_##x
-#else
+#if MLIR_ENABLE_ROCM_CONVERSIONS
 #define SKIP_WITHOUT_AMDGPU(x) x
+#else
+#define SKIP_WITHOUT_AMDGPU(x) DISABLED_##x
 #endif
 
 class MLIRTargetLLVMROCDL : public ::testing::Test {
 protected:
-  virtual void SetUp() {
+  void SetUp() override {
     registerBuiltinDialectTranslation(registry);
     registerLLVMDialectTranslation(registry);
     registerGPUDialectTranslation(registry);
@@ -83,13 +83,13 @@ TEST_F(MLIRTargetLLVMROCDL, SKIP_WITHOUT_AMDGPU(SerializeROCDLMToLLVM)) {
   // Serialize the module.
   auto serializer = dyn_cast<gpu::TargetAttrInterface>(target);
   ASSERT_TRUE(!!serializer);
-  gpu::TargetOptions options("", {}, "", gpu::TargetOptions::offload);
+  gpu::TargetOptions options("", {}, "", gpu::CompilationTarget::Offload);
   for (auto gpuModule : (*module).getBody()->getOps<gpu::GPUModuleOp>()) {
     std::optional<SmallVector<char, 0>> object =
         serializer.serializeToObject(gpuModule, options);
     // Check that the serializer was successful.
     ASSERT_TRUE(object != std::nullopt);
-    ASSERT_TRUE(object->size() > 0);
+    ASSERT_TRUE(!object->empty());
 
     // Read the serialized module.
     llvm::MemoryBufferRef buffer(StringRef(object->data(), object->size()),
@@ -119,13 +119,13 @@ TEST_F(MLIRTargetLLVMROCDL, SKIP_WITHOUT_AMDGPU(SerializeROCDLToPTX)) {
   // Serialize the module.
   auto serializer = dyn_cast<gpu::TargetAttrInterface>(target);
   ASSERT_TRUE(!!serializer);
-  gpu::TargetOptions options("", {}, "", gpu::TargetOptions::assembly);
+  gpu::TargetOptions options("", {}, "", gpu::CompilationTarget::Assembly);
   for (auto gpuModule : (*module).getBody()->getOps<gpu::GPUModuleOp>()) {
     std::optional<SmallVector<char, 0>> object =
         serializer.serializeToObject(gpuModule, options);
     // Check that the serializer was successful.
     ASSERT_TRUE(object != std::nullopt);
-    ASSERT_TRUE(object->size() > 0);
+    ASSERT_TRUE(!object->empty());
 
     ASSERT_TRUE(
         StringRef(object->data(), object->size()).contains("rocdl_kernel"));
@@ -149,7 +149,7 @@ TEST_F(MLIRTargetLLVMROCDL, SKIP_WITHOUT_AMDGPU(SerializeROCDLToBinary)) {
   // Serialize the module.
   auto serializer = dyn_cast<gpu::TargetAttrInterface>(target);
   ASSERT_TRUE(!!serializer);
-  gpu::TargetOptions options("", {}, "", gpu::TargetOptions::binary);
+  gpu::TargetOptions options("", {}, "", gpu::CompilationTarget::Binary);
   for (auto gpuModule : (*module).getBody()->getOps<gpu::GPUModuleOp>()) {
     std::optional<SmallVector<char, 0>> object =
         serializer.serializeToObject(gpuModule, options);

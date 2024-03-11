@@ -800,6 +800,11 @@ private:
                            llvm::MDTuple *&TemplateParameters,
                            llvm::DIScope *&VDContext);
 
+  /// Create a DIExpression representing the constant corresponding
+  /// to the specified 'Val'. Returns nullptr on failure.
+  llvm::DIExpression *createConstantValueExpression(const clang::ValueDecl *VD,
+                                                    const APValue &Val);
+
   /// Allocate a copy of \p A using the DebugInfoNames allocator
   /// and return a reference to it. If multiple arguments are given the strings
   /// are concatenated.
@@ -835,8 +840,10 @@ public:
 
   // Define copy assignment operator.
   ApplyDebugLocation &operator=(ApplyDebugLocation &&Other) {
-    CGF = Other.CGF;
-    Other.CGF = nullptr;
+    if (this != &Other) {
+      CGF = Other.CGF;
+      Other.CGF = nullptr;
+    }
     return *this;
   }
 

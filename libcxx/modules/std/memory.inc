@@ -41,9 +41,9 @@ export namespace std {
   // [allocator.traits], allocator traits
   using std::allocator_traits;
 
+#if _LIBCPP_STD_VER >= 23
   using std::allocation_result;
-
-  using std::allocate_at_least;
+#endif
 
   // [default.allocator], the default allocator
   using std::allocator;
@@ -154,7 +154,9 @@ export namespace std {
   using std::reinterpret_pointer_cast;
   using std::static_pointer_cast;
 
+#ifndef _LIBCPP_HAS_NO_RTTI
   using std::get_deleter;
+#endif // _LIBCPP_HAS_NO_RTTI
 
   // [util.smartptr.shared.io], shared_ptr I/O
 
@@ -187,6 +189,7 @@ export namespace std {
   // [inout.ptr], function template inout_ptr
   //  using std::inout_ptr;
 
+#ifndef _LIBCPP_HAS_NO_THREADS
   // [depr.util.smartptr.shared.atomic]
   using std::atomic_is_lock_free;
 
@@ -203,4 +206,5 @@ export namespace std {
   using std::atomic_compare_exchange_strong_explicit;
   using std::atomic_compare_exchange_weak;
   using std::atomic_compare_exchange_weak_explicit;
+#endif // _LIBCPP_HAS_NO_THREADS
 } // namespace std

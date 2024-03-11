@@ -12,6 +12,9 @@ subroutine test
       integer, intent(in), optional :: x
       real, intent(in), pointer :: y
     end
+    subroutine optionalAllocatable(x)
+      integer, intent(in), allocatable, optional :: x
+    end
     function f0()
       real :: f0
     end function
@@ -62,12 +65,22 @@ subroutine test
   real(kind=eight) :: r8check
   logical, pointer :: lp
   ip0 => null() ! ok
+  ip0 => null(null()) ! ok
+  ip0 => null(null(null())) ! ok
   ip1 => null() ! ok
+  ip1 => null(null()) ! ok
+  ip1 => null(null(null())) ! ok
   ip2 => null() ! ok
+  ip2 => null(null()) ! ok
+  ip2 => null(null(null())) ! ok
   !ERROR: MOLD= argument to NULL() must be a pointer or allocatable
   ip0 => null(mold=1)
   !ERROR: MOLD= argument to NULL() must be a pointer or allocatable
+  ip0 => null(null(mold=1))
+  !ERROR: MOLD= argument to NULL() must be a pointer or allocatable
   ip0 => null(mold=j)
+  !ERROR: MOLD= argument to NULL() must be a pointer or allocatable
+  ip0 => null(mold=null(mold=j))
   dt0x = dt0(null())
   dt0x = dt0(ip0=null())
   dt0x = dt0(ip0=null(ip0))
@@ -95,6 +108,7 @@ subroutine test
   dt4x = dt4(null(dt2x%pps0))
   call canbenull(null(), null()) ! fine
   call canbenull(null(mold=ip0), null(mold=rp0)) ! fine
+  call optionalAllocatable(null(mold=ip0)) ! fine
   !ERROR: Null pointer argument requires an explicit interface
   call implicit(null())
   !ERROR: Null pointer argument requires an explicit interface

@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_platform.h"
+#include "sanitizer_symbolizer_markup.h"
 #if SANITIZER_POSIX
 #  include <dlfcn.h>  // for dlsym()
 #  include <errno.h>
@@ -46,22 +47,17 @@ namespace __sanitizer {
 
 // Attempts to demangle the name via __cxa_demangle from __cxxabiv1.
 const char *DemangleCXXABI(const char *name) {
-  // __cxa_demangle aggressively insists on allocating memory.
+  // FIXME: __cxa_demangle aggressively insists on allocating memory.
   // There's not much we can do about that, short of providing our
   // own demangler (libc++abi's implementation could be adapted so that
-  // it does not allocate). For now, we just call it anyway, and use
-  // InternalAlloc to prevent lsan error.
-  if (&__cxxabiv1::__cxa_demangle) {
-    if (char *demangled_name = __cxxabiv1::__cxa_demangle(name, 0, 0, 0)) {
-      size_t size = internal_strlen(demangled_name) + 1;
-      char *buf = (char *)InternalAlloc(size);
-      internal_memcpy(buf, demangled_name, size);
-      free(demangled_name);
-      return buf;
-    }
-  }
+  // it does not allocate). For now, we just call it anyway, and we leak
+  // the returned value.
+  if (&__cxxabiv1::__cxa_demangle)
+    if (const char *demangled_name =
+          __cxxabiv1::__cxa_demangle(name, 0, 0, 0))
+      return demangled_name;
 
-  return name;
+  return nullptr;
 }
 
 // As of now, there are no headers for the Swift runtime. Once they are
@@ -329,9 +325,12 @@ __sanitizer_symbolize_code(const char *ModuleName, u64 ModuleOffset,
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE bool
 __sanitizer_symbolize_data(const char *ModuleName, u64 ModuleOffset,
                            char *Buffer, int MaxLength);
+SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE bool
+__sanitizer_symbolize_frame(const char *ModuleName, u64 ModuleOffset,
+                            char *Buffer, int MaxLength);
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE void
 __sanitizer_symbolize_flush();
-SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE int
+SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE bool
 __sanitizer_symbolize_demangle(const char *Name, char *Buffer, int MaxLength);
 SANITIZER_INTERFACE_ATTRIBUTE SANITIZER_WEAK_ATTRIBUTE bool
 __sanitizer_symbolize_set_demangle(bool Demangle);
@@ -342,19 +341,19 @@ __sanitizer_symbolize_set_inline_frames(bool InlineFrames);
 class InternalSymbolizer final : public SymbolizerTool {
  public:
   static InternalSymbolizer *get(LowLevelAllocator *alloc) {
-    if (__sanitizer_symbolize_set_demangle)
-      CHECK(__sanitizer_symbolize_set_demangle(common_flags()->demangle));
-    if (__sanitizer_symbolize_set_inline_frames)
-      CHECK(__sanitizer_symbolize_set_inline_frames(
-          common_flags()->symbolize_inline_frames));
-    if (__sanitizer_symbolize_code && __sanitizer_symbolize_data)
-      return new (*alloc) InternalSymbolizer();
-    return 0;
+    // These one is the most used one, so we will use it to detect a presence of
+    // internal symbolizer.
+    if (&__sanitizer_symbolize_code == nullptr)
+      return nullptr;
+    CHECK(__sanitizer_symbolize_set_demangle(common_flags()->demangle));
+    CHECK(__sanitizer_symbolize_set_inline_frames(
+        common_flags()->symbolize_inline_frames));
+    return new (*alloc) InternalSymbolizer();
   }
 
   bool SymbolizePC(uptr addr, SymbolizedStack *stack) override {
     bool result = __sanitizer_symbolize_code(
-        stack->info.module, stack->info.module_offset, buffer_, kBufferSize);
+        stack->info.module, stack->info.module_offset, buffer_, sizeof(buffer_));
     if (result)
       ParseSymbolizePCOutput(buffer_, stack);
     return result;
@@ -362,7 +361,7 @@ class InternalSymbolizer final : public SymbolizerTool {
 
   bool SymbolizeData(uptr addr, DataInfo *info) override {
     bool result = __sanitizer_symbolize_data(info->module, info->module_offset,
-                                             buffer_, kBufferSize);
+                                             buffer_, sizeof(buffer_));
     if (result) {
       ParseSymbolizeDataOutput(buffer_, info);
       info->start += (addr - info->module_offset);  // Add the base address.
@@ -370,34 +369,29 @@ class InternalSymbolizer final : public SymbolizerTool {
     return result;
   }
 
-  void Flush() override {
-    if (__sanitizer_symbolize_flush)
-      __sanitizer_symbolize_flush();
+  bool SymbolizeFrame(uptr addr, FrameInfo *info) override {
+    bool result = __sanitizer_symbolize_frame(info->module, info->module_offset,
+                                              buffer_, sizeof(buffer_));
+    if (result)
+      ParseSymbolizeFrameOutput(buffer_, &info->locals);
+    return result;
   }
 
+  void Flush() override { __sanitizer_symbolize_flush(); }
+
   const char *Demangle(const char *name) override {
-    if (__sanitizer_symbolize_demangle) {
-      for (uptr res_length = 1024;
-           res_length <= InternalSizeClassMap::kMaxSize;) {
-        char *res_buff = static_cast<char *>(InternalAlloc(res_length));
-        uptr req_length =
-            __sanitizer_symbolize_demangle(name, res_buff, res_length);
-        if (req_length > res_length) {
-          res_length = req_length + 1;
-          InternalFree(res_buff);
-          continue;
-        }
-        return res_buff;
-      }
+    if (__sanitizer_symbolize_demangle(name, buffer_, sizeof(buffer_))) {
+      char *res_buff = nullptr;
+      ExtractToken(buffer_, "", &res_buff);
+      return res_buff;
     }
-    return name;
+    return nullptr;
   }
 
  private:
   InternalSymbolizer() {}
 
-  static const int kBufferSize = 16 * 1024;
-  char buffer_[kBufferSize];
+  char buffer_[16 * 1024];
 };
 #  else  // SANITIZER_SUPPORTS_WEAK_HOOKS
 
@@ -474,6 +468,12 @@ static void ChooseSymbolizerTools(IntrusiveList<SymbolizerTool> *list,
   if (!common_flags()->symbolize) {
     VReport(2, "Symbolizer is disabled.\n");
     return;
+  }
+  if (common_flags()->enable_symbolizer_markup) {
+    VReport(2, "Using symbolizer markup");
+    SymbolizerTool *tool = new (*allocator) MarkupSymbolizerTool();
+    CHECK(tool);
+    list->push_back(tool);
   }
   if (IsAllocatorOutOfMemory()) {
     VReport(2, "Cannot use internal symbolizer: out of memory\n");

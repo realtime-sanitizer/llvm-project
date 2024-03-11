@@ -11,9 +11,14 @@ endif()
 
 if(LLDB_ENFORCE_STRICT_TEST_REQUIREMENTS)
   message(STATUS "Enforcing strict test requirements for LLDB")
-  set(useful_python_modules
-    psutil # Lit uses psutil to do per-test timeouts.
-  )
+  # Lit uses psutil to do per-test timeouts.
+  set(useful_python_modules psutil)
+
+  if(NOT WIN32)
+    # We no longer vendor pexpect and it is not used on Windows.
+    list(APPEND pexpect)
+  endif()
+
   foreach(module ${useful_python_modules})
     lldb_find_python_module(${module})
     if (NOT PY_${module}_FOUND)
@@ -24,6 +29,23 @@ if(LLDB_ENFORCE_STRICT_TEST_REQUIREMENTS)
         "`LLDB_ENFORCE_STRICT_TEST_REQUIREMENTS=OFF`")
     endif()
   endforeach()
+endif()
+
+# The "pexpect" package should come from the system environment, not from the
+# LLDB tree. However, we delay the deletion of it from the tree in case
+# users/buildbots don't have the package yet and need some time to install it.
+# Windows is configured to skip all pexpect tests, and guards all
+# "import pexpect" calls, so we do not need pexpect installed there.
+if (NOT LLDB_TEST_USE_VENDOR_PACKAGES AND NOT WIN32)
+  unset(PY_pexpect_FOUND CACHE)
+  lldb_find_python_module(pexpect)
+  if (NOT PY_pexpect_FOUND)
+    message(FATAL_ERROR
+      "Python module 'pexpect' not found. Please install it via pip or via "
+      "your operating system's package manager. For a temporary workaround, "
+      "use a version from the LLDB tree with "
+      "`LLDB_TEST_USE_VENDOR_PACKAGES=ON`")
+  endif()
 endif()
 
 if(LLDB_BUILT_STANDALONE)
@@ -114,8 +136,8 @@ if(TARGET lldb-server)
   add_lldb_test_dependency(lldb-server)
 endif()
 
-if(TARGET lldb-vscode)
-  add_lldb_test_dependency(lldb-vscode)
+if(TARGET lldb-dap)
+  add_lldb_test_dependency(lldb-dap)
 endif()
 
 if(TARGET liblldb)
@@ -139,6 +161,10 @@ if(NOT LLDB_BUILT_STANDALONE)
   )
 endif()
 
+if (LLVM_ENABLE_RUNTIMES)
+  add_lldb_test_dependency(runtimes)
+endif()
+
 # Add dependencies if we test with the in-tree clang.
 # This works with standalone builds as they import the clang target.
 if(TARGET clang)
@@ -157,12 +183,10 @@ if(TARGET clang)
       set(LIBCXX_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib${LIBCXX_LIBDIR_SUFFIX})
       set(LIBCXX_GENERATED_INCLUDE_DIR "${CMAKE_BINARY_DIR}/include/c++/v1")
     endif()
-    add_lldb_test_dependency(cxx)
   endif()
 
   if (TARGET compiler-rt OR "compiler-rt" IN_LIST LLVM_ENABLE_RUNTIMES)
     set(LLDB_HAS_COMPILER_RT ON)
-    add_lldb_test_dependency(compiler-rt)
   endif()
 
   if(APPLE AND NOT LLVM_TARGET_IS_CROSSCOMPILE_HOST)
@@ -238,7 +262,8 @@ llvm_canonicalize_cmake_booleans(
   LLDB_HAS_LIBCXX
   LLDB_TOOL_LLDB_SERVER_BUILD
   LLDB_USE_SYSTEM_DEBUGSERVER
-  LLDB_IS_64_BITS)
+  LLDB_IS_64_BITS
+  LLDB_TEST_USE_VENDOR_PACKAGES)
 
 # Configure the individual test suites.
 add_subdirectory(API)

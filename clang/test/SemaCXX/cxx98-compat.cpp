@@ -84,7 +84,7 @@ struct DelayedDefaultArgumentParseInitList {
   }
 };
 
-int operator""_hello(const char *); // expected-warning {{literal operators are incompatible with C++98}}
+int operator"" _hello(const char *); // expected-warning {{literal operators are incompatible with C++98}}
 
 enum EnumFixed : int { // expected-warning {{enumeration types with a fixed underlying type are incompatible with C++98}}
 };
@@ -220,7 +220,8 @@ struct HasExplicitConversion {
 struct Struct {};
 enum Enum { enum_val = 0 };
 struct BadFriends {
-  friend enum ::Enum; // expected-warning {{befriending enumeration type 'enum ::Enum' is incompatible with C++98}}
+  friend enum ::Enum; // expected-warning {{elaborated enum specifier cannot be declared as a friend}}
+                      // expected-note@-1 {{remove 'enum' to befriend an enum}}
   friend int; // expected-warning {{non-class friend type 'int' is incompatible with C++98}}
   friend Struct; // expected-warning {{befriending 'Struct' without 'struct' keyword is incompatible with C++98}}
 };

@@ -12,6 +12,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "NS";
+  let usePropertiesForAttributes = 0;
 }
 class NS_Op<string mnemonic, list<Trait> traits> :
     Op<Test_Dialect, mnemonic, traits>;
@@ -96,7 +97,7 @@ def NS_AOp : NS_Op<"a_op", [IsolatedFromAbove, IsolatedFromAbove]> {
 // CHECK:   ::mlir::Operation::operand_range getODSOperands(unsigned index);
 // CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getA();
 // CHECK:   ::mlir::Operation::operand_range getB();
-// CHECK:   ::mlir::MutableOperandRange getAMutable();
+// CHECK:   ::mlir::OpOperand &getAMutable();
 // CHECK:   ::mlir::MutableOperandRange getBMutable();
 // CHECK:   ::mlir::Operation::result_range getODSResults(unsigned index);
 // CHECK:   ::mlir::TypedValue<::mlir::IntegerType> getR();
@@ -357,7 +358,9 @@ def Test_Dialect2 : Dialect {
   let name = "test";
   let cppNamespace = "::mlir::dialect2";
 }
-def TestDialect2Type : TypeDef<Test_Dialect2, "Dialect2Type">;
+def TestDialect2Type : TypeDef<Test_Dialect2, "Dialect2Type"> {
+  let typeName = "test.type";
+}
 
 def NS_ResultWithDialectTypeOp : NS_Op<"op_with_dialect_type", []> {
   let results = (outs TestDialect2Type);

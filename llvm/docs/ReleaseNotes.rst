@@ -50,14 +50,6 @@ Update on required toolchains to build LLVM
 Changes to the LLVM IR
 ----------------------
 
-* The `llvm.stacksave` and `llvm.stackrestore` intrinsics now use
-  an overloaded pointer type to support non-0 address spaces.
-* The constant expression variants of the following instructions have been
-  removed:
-
-  * ``and``
-  * ``or``
-
 Changes to LLVM infrastructure
 ------------------------------
 
@@ -66,6 +58,8 @@ Changes to building LLVM
 
 Changes to TableGen
 -------------------
+
+- We can define type aliases via new keyword ``deftype``.
 
 Changes to Interprocedural Optimizations
 ----------------------------------------
@@ -76,10 +70,7 @@ Changes to the AArch64 Backend
 Changes to the AMDGPU Backend
 -----------------------------
 
-* `llvm.sqrt.f64` is now lowered correctly. Use `llvm.amdgcn.sqrt.f64`
-  for raw instruction access.
-
-* Implemented `llvm.stacksave` and `llvm.stackrestore` intrinsics.
+* Implemented the ``llvm.get.fpenv`` and ``llvm.set.fpenv`` intrinsics.
 
 Changes to the ARM Backend
 --------------------------
@@ -105,7 +96,16 @@ Changes to the PowerPC Backend
 Changes to the RISC-V Backend
 -----------------------------
 
-* Zihintntl extension version was upgraded to 1.0 and is no longer experimental.
+* Added full support for the experimental Zabha (Byte and
+  Halfword Atomic Memory Operations) extension.
+* Added assembler/disassembler support for the experimenatl Zalasr
+  (Load-Acquire and Store-Release) extension.
+* The names of the majority of the S-prefixed (supervisor-level) extension
+  names in the RISC-V profiles specification are now recognised.
+* Codegen support was added for the Zimop (May-Be-Operations) extension.
+* The experimental Ssnpm, Smnpm, Smmpm, Sspm, and Supm 0.8.1 Pointer Masking extensions are supported.
+* The experimental Ssqosid extension is supported.
+* Zacas is no longer experimental.
 
 Changes to the WebAssembly Backend
 ----------------------------------
@@ -122,34 +122,17 @@ Changes to the OCaml bindings
 Changes to the Python bindings
 ------------------------------
 
-* The python bindings have been removed.
-
-
 Changes to the C API
 --------------------
 
-* Added ``LLVMGetTailCallKind`` and ``LLVMSetTailCallKind`` to
-  allow getting and setting ``tail``, ``musttail``, and ``notail``
-  attributes on call instructions.
-* The following functions for creating constant expressions have been removed,
-  because the underlying constant expressions are no longer supported. Instead,
-  an instruction should be created using the ``LLVMBuildXYZ`` APIs, which will
-  constant fold the operands if possible and create an instruction otherwise:
+* Added ``LLVMGetBlockAddressFunction`` and ``LLVMGetBlockAddressBasicBlock``
+  functions for accessing the values in a blockaddress constant.
 
-  * ``LLVMConstAnd``
-  * ``LLVMConstOr``
+* Added ``LLVMConstStringInContext2`` function, which better matches the C++
+  API by using ``size_t`` for string length. Deprecated ``LLVMConstStringInContext``. 
 
 Changes to the CodeGen infrastructure
 -------------------------------------
-
-* ``PrologEpilogInserter`` no longer supports register scavenging
-  during forwards frame index elimination. Targets should use
-  backwards frame index elimination instead.
-
-* ``RegScavenger`` no longer supports forwards register
-  scavenging. Clients should use backwards register scavenging
-  instead, which is preferred because it does not depend on accurate
-  kill flags.
 
 Changes to the Metadata Info
 ---------------------------------
@@ -159,29 +142,31 @@ Changes to the Debug Info
 
 Changes to the LLVM tools
 ---------------------------------
+* llvm-nm and llvm-objdump can now print symbol information from linked
+  WebAssembly binaries, using information from exports or the "name"
+  section for functions, globals and data segments. Symbol addresses and sizes
+  are printed as offsets in the file, allowing for binary size analysis. Wasm
+  files using reference types and GC are also supported (but also only for
+  functions, globals, and data, and only for listing symbols and names).
+
+* llvm-ar now utilizes LLVM_DEFAULT_TARGET_TRIPLE to determine the archive format
+  if it's not specified with the ``--format`` argument and cannot be inferred from
+  input files.
+
+* llvm-objcopy now supports ``--set-symbol-visibility`` and
+  ``--set-symbols-visibility`` options for ELF input to change the
+  visibility of symbols.
 
 Changes to LLDB
 ---------------------------------
 
-* Methods in SBHostOS related to threads have had their implementations
-  removed. These methods will return a value indicating failure.
-
 Changes to Sanitizers
 ---------------------
-* HWASan now defaults to detecting use-after-scope bugs.
 
 Other Changes
 -------------
 
-* The ``Flags`` field of ``llvm::opt::Option`` has been split into ``Flags``
-  and ``Visibility`` to simplify option sharing between various drivers (such
-  as ``clang``, ``clang-cl``, or ``flang``) that rely on Clang's Options.td.
-  Overloads of ``llvm::opt::OptTable`` that use ``FlagsToInclude`` have been
-  deprecated. There is a script and instructions on how to resolve conflicts -
-  see https://reviews.llvm.org/D157150 and https://reviews.llvm.org/D157151 for
-  details.
-
-External Open Source Projects Using LLVM 15
+External Open Source Projects Using LLVM 19
 ===========================================
 
 * A project...

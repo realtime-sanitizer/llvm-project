@@ -222,6 +222,11 @@ OPTIONS
  Show coverage for branch conditions in terms of either count or percentage.
  The supported views are: "count", "percent".
 
+.. option:: -show-mcdc
+
+ Show modified condition/decision coverage (MC/DC) for each applicable boolean
+ expression.
+
 .. option:: -show-line-counts
 
  Show the execution counts for each line. Defaults to true, unless another
@@ -248,6 +253,11 @@ OPTIONS
  Show the execution counts for each line if there is only one region on the
  line, but show the individual regions if there are multiple on the line.
  Defaults to false.
+
+.. option:: -show-directory-coverage
+
+ Generate an index file in each directory that contains at least one source
+ file with a top level index showing aggregates. Defaults to false.
 
 .. option:: -use-color
 
@@ -340,7 +350,11 @@ OPTIONS
 
  Map the paths in the coverage data to local source file paths. This allows you
  to generate the coverage data on one machine, and then use llvm-cov on a
- different machine where you have the same files on a different path.
+ different machine where you have the same files on a different path. Multiple
+ `-path-equivalence` arguments can be passed to specify different mappings. Each
+ argument consists of a source path `<from>` and its corresponding local path `<to>`.
+ The mappings are applied in the order they are specified. If multiple mappings can
+ be applied to a single path, the first mapping encountered is used.
 
 .. option:: -coverage-watermark=<high>,<low>
 
@@ -416,6 +430,10 @@ OPTIONS
 .. option:: -show-branch-summary
 
  Show statistics for all branch conditions. Defaults to true.
+
+.. option:: -show-mcdc-summary
+
+ Show MC/DC statistics. Defaults to false.
 
 .. option:: -show-functions
 
@@ -508,15 +526,15 @@ OPTIONS
 
  Skip source code files with file paths that match the given regular expression.
 
- .. option:: -skip-expansions
+.. option:: -skip-expansions
 
  Skip exporting macro expansion coverage data.
 
- .. option:: -skip-functions
+.. option:: -skip-functions
 
  Skip exporting per-function coverage data.
 
- .. option:: -num-threads=N, -j=N
+.. option:: -num-threads=N, -j=N
 
  Use N threads to export coverage data. When N=0, llvm-cov auto-detects an
  appropriate number of threads to use. This is the default.

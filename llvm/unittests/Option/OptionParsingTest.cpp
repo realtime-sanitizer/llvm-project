@@ -9,6 +9,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Option/OptTable.h"
 #include "llvm/Option/Option.h"
 #include "gtest/gtest.h"
 
@@ -50,6 +51,7 @@ enum OptionFlags {
 
 enum OptionVisibility {
   SubtoolVis = (1 << 2),
+  MultiLineVis = (1 << 3),
 };
 
 static constexpr OptTable::Info InfoTable[] = {
@@ -237,6 +239,33 @@ TYPED_TEST(OptTableTest, IgnoreCase) {
   EXPECT_TRUE(AL.hasArg(OPT_A));
   EXPECT_TRUE(AL.hasArg(OPT_B));
 }
+
+#if defined(__clang__)
+// Disable the warning that triggers on exactly what is being tested.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-move"
+#endif
+
+TYPED_TEST(OptTableTest, InputArgListSelfAssign) {
+  TypeParam T;
+  unsigned MAI, MAC;
+  InputArgList AL = T.ParseArgs(Args, MAI, MAC,
+                                /*FlagsToInclude=*/0,
+                                /*FlagsToExclude=*/OptFlag3);
+  EXPECT_TRUE(AL.hasArg(OPT_A));
+  EXPECT_TRUE(AL.hasArg(OPT_C));
+  EXPECT_FALSE(AL.hasArg(OPT_SLASH_C));
+
+  AL = std::move(AL);
+
+  EXPECT_TRUE(AL.hasArg(OPT_A));
+  EXPECT_TRUE(AL.hasArg(OPT_C));
+  EXPECT_FALSE(AL.hasArg(OPT_SLASH_C));
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 TYPED_TEST(OptTableTest, DoNotIgnoreCase) {
   TypeParam T;
@@ -510,4 +539,24 @@ TYPED_TEST(OptTableTest, UnknownGroupedShortOptions) {
   EXPECT_EQ("-z", Unknown[1]);
   EXPECT_EQ("-u", Unknown[2]);
   EXPECT_EQ("-z", Unknown[3]);
+}
+
+TYPED_TEST(OptTableTest, PrintMultilineHelpText) {
+  TypeParam T;
+  std::string Help;
+  raw_string_ostream RSO(Help);
+  T.printHelp(RSO, "usage", "title", /*ShowHidden=*/false,
+              /*ShowAllAliases=*/false, Visibility(MultiLineVis));
+  EXPECT_STREQ(Help.c_str(), R"(OVERVIEW: title
+
+USAGE: usage
+
+OPTIONS:
+  -multiline-help-with-long-name
+                  This a help text that has
+                  multiple lines in it
+                  and a long name
+  -multiline-help This a help text that has
+                  multiple lines in it
+)");
 }

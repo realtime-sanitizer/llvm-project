@@ -13,11 +13,13 @@
 
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 
+#include "mlir/Config/mlir-config.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -47,26 +49,44 @@ void GpuModuleToBinaryPass::getDependentDialects(
   // Register all GPU related translations.
   registry.insert<gpu::GPUDialect>();
   registry.insert<LLVM::LLVMDialect>();
-#if MLIR_CUDA_CONVERSIONS_ENABLED == 1
+#if MLIR_ENABLE_CUDA_CONVERSIONS
   registry.insert<NVVM::NVVMDialect>();
 #endif
-#if MLIR_ROCM_CONVERSIONS_ENABLED == 1
+#if MLIR_ENABLE_ROCM_CONVERSIONS
   registry.insert<ROCDL::ROCDLDialect>();
 #endif
+  registry.insert<spirv::SPIRVDialect>();
 }
 
 void GpuModuleToBinaryPass::runOnOperation() {
   RewritePatternSet patterns(&getContext());
-  int targetFormat = llvm::StringSwitch<int>(compilationTarget)
-                         .Cases("offloading", "llvm", TargetOptions::offload)
-                         .Cases("assembly", "isa", TargetOptions::assembly)
-                         .Cases("binary", "bin", TargetOptions::binary)
-                         .Default(-1);
-  if (targetFormat == -1)
+  auto targetFormat =
+      llvm::StringSwitch<std::optional<CompilationTarget>>(compilationTarget)
+          .Cases("offloading", "llvm", CompilationTarget::Offload)
+          .Cases("assembly", "isa", CompilationTarget::Assembly)
+          .Cases("binary", "bin", CompilationTarget::Binary)
+          .Cases("fatbinary", "fatbin", CompilationTarget::Fatbin)
+          .Default(std::nullopt);
+  if (!targetFormat)
     getOperation()->emitError() << "Invalid format specified.";
-  TargetOptions targetOptions(
-      toolkitPath, linkFiles, cmdOptions,
-      static_cast<TargetOptions::CompilationTarget>(targetFormat));
+
+  // Lazy symbol table builder callback.
+  std::optional<SymbolTable> parentTable;
+  auto lazyTableBuilder = [&]() -> SymbolTable * {
+    // Build the table if it has not been built.
+    if (!parentTable) {
+      Operation *table = SymbolTable::getNearestSymbolTable(getOperation());
+      // It's up to the target attribute to determine if failing to find a
+      // symbol table is an error.
+      if (!table)
+        return nullptr;
+      parentTable = SymbolTable(table);
+    }
+    return &parentTable.value();
+  };
+
+  TargetOptions targetOptions(toolkitPath, linkFiles, cmdOptions, *targetFormat,
+                              lazyTableBuilder);
   if (failed(transformGpuModulesToBinaries(
           getOperation(),
           offloadingHandler ? dyn_cast<OffloadingLLVMTranslationAttrInterface>(
@@ -82,24 +102,34 @@ LogicalResult moduleSerializer(GPUModuleOp op,
                                const TargetOptions &targetOptions) {
   OpBuilder builder(op->getContext());
   SmallVector<Attribute> objects;
+  // Fail if there are no target attributes
+  if (!op.getTargetsAttr())
+    return op.emitError("the module has no target attributes");
   // Serialize all targets.
   for (auto targetAttr : op.getTargetsAttr()) {
     assert(targetAttr && "Target attribute cannot be null.");
     auto target = dyn_cast<gpu::TargetAttrInterface>(targetAttr);
     assert(target &&
            "Target attribute doesn't implements `TargetAttrInterface`.");
-    std::optional<SmallVector<char, 0>> object =
+    std::optional<SmallVector<char, 0>> serializedModule =
         target.serializeToObject(op, targetOptions);
-
-    if (!object) {
+    if (!serializedModule) {
       op.emitError("An error happened while serializing the module.");
       return failure();
     }
 
-    objects.push_back(builder.getAttr<gpu::ObjectAttr>(
-        target,
-        builder.getStringAttr(StringRef(object->data(), object->size()))));
+    Attribute object = target.createObject(*serializedModule, targetOptions);
+    if (!object) {
+      op.emitError("An error happened while creating the object.");
+      return failure();
+    }
+    objects.push_back(object);
   }
+  if (auto moduleHandler =
+          dyn_cast_or_null<OffloadingLLVMTranslationAttrInterface>(
+              op.getOffloadingHandlerAttr());
+      !handler && moduleHandler)
+    handler = moduleHandler;
   builder.setInsertionPointAfter(op);
   builder.create<gpu::BinaryOp>(op.getLoc(), op.getName(), handler,
                                 builder.getArrayAttr(objects));

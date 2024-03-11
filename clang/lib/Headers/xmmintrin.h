@@ -32,8 +32,12 @@ typedef unsigned int __v4su __attribute__((__vector_size__(16)));
 #endif
 
 /* Define the default attributes for the functions in this file. */
-#define __DEFAULT_FN_ATTRS __attribute__((__always_inline__, __nodebug__, __target__("sse"), __min_vector_width__(128)))
-#define __DEFAULT_FN_ATTRS_MMX __attribute__((__always_inline__, __nodebug__, __target__("mmx,sse"), __min_vector_width__(64)))
+#define __DEFAULT_FN_ATTRS                                                     \
+  __attribute__((__always_inline__, __nodebug__, __target__("sse,no-evex512"), \
+                 __min_vector_width__(128)))
+#define __DEFAULT_FN_ATTRS_MMX                                                 \
+  __attribute__((__always_inline__, __nodebug__,                               \
+                 __target__("mmx,sse,no-evex512"), __min_vector_width__(64)))
 
 /// Adds the 32-bit float values in the low-order bits of the operands.
 ///
@@ -470,7 +474,9 @@ _mm_xor_ps(__m128 __a, __m128 __b)
 }
 
 /// Compares two 32-bit float values in the low-order bits of both
-///    operands for equality and returns the result of the comparison in the
+///    operands for equality.
+///
+///    The comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
 ///    low-order bits of a vector [4 x float].
 ///
 /// \headerfile <x86intrin.h>
@@ -494,6 +500,8 @@ _mm_cmpeq_ss(__m128 __a, __m128 __b)
 /// Compares each of the corresponding 32-bit float values of the
 ///    128-bit vectors of [4 x float] for equality.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPEQPS / CMPEQPS </c> instructions.
@@ -511,8 +519,10 @@ _mm_cmpeq_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is less than the
-///    corresponding value in the second operand and returns the result of the
-///    comparison in the low-order bits of a vector of [4 x float].
+///    corresponding value in the second operand.
+///
+///    The comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -536,6 +546,8 @@ _mm_cmplt_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are less than those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFFFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPLTPS / CMPLTPS </c> instructions.
@@ -553,9 +565,10 @@ _mm_cmplt_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is less than or
-///    equal to the corresponding value in the second operand and returns the
-///    result of the comparison in the low-order bits of a vector of
-///    [4 x float].
+///    equal to the corresponding value in the second operand.
+///
+///    The comparison yields 0x0 for false, 0xFFFFFFFFFFFFFFFF for true, in
+///    the low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -579,6 +592,8 @@ _mm_cmple_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are less than or equal to those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPLEPS / CMPLEPS </c> instructions.
@@ -596,8 +611,10 @@ _mm_cmple_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is greater than
-///    the corresponding value in the second operand and returns the result of
-///    the comparison in the low-order bits of a vector of [4 x float].
+///    the corresponding value in the second operand.
+///
+///    The comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -623,6 +640,8 @@ _mm_cmpgt_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are greater than those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPLTPS / CMPLTPS </c> instructions.
@@ -640,9 +659,10 @@ _mm_cmpgt_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is greater than
-///    or equal to the corresponding value in the second operand and returns
-///    the result of the comparison in the low-order bits of a vector of
-///    [4 x float].
+///    or equal to the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -668,6 +688,8 @@ _mm_cmpge_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are greater than or equal to those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFFFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPLEPS / CMPLEPS </c> instructions.
@@ -683,8 +705,10 @@ _mm_cmpge_ps(__m128 __a, __m128 __b)
   return (__m128)__builtin_ia32_cmpleps((__v4sf)__b, (__v4sf)__a);
 }
 
-/// Compares two 32-bit float values in the low-order bits of both
-///    operands for inequality and returns the result of the comparison in the
+/// Compares two 32-bit float values in the low-order bits of both operands
+///    for inequality.
+///
+///    The comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
 ///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
@@ -709,6 +733,8 @@ _mm_cmpneq_ss(__m128 __a, __m128 __b)
 /// Compares each of the corresponding 32-bit float values of the
 ///    128-bit vectors of [4 x float] for inequality.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPNEQPS / CMPNEQPS </c>
@@ -727,8 +753,10 @@ _mm_cmpneq_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is not less than
-///    the corresponding value in the second operand and returns the result of
-///    the comparison in the low-order bits of a vector of [4 x float].
+///    the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -753,6 +781,8 @@ _mm_cmpnlt_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are not less than those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPNLTPS / CMPNLTPS </c>
@@ -771,9 +801,10 @@ _mm_cmpnlt_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is not less than
-///    or equal to the corresponding value in the second operand and returns
-///    the result of the comparison in the low-order bits of a vector of
-///    [4 x float].
+///    or equal to the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -798,6 +829,8 @@ _mm_cmpnle_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are not less than or equal to those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPNLEPS / CMPNLEPS </c>
@@ -816,9 +849,10 @@ _mm_cmpnle_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is not greater
-///    than the corresponding value in the second operand and returns the
-///    result of the comparison in the low-order bits of a vector of
-///    [4 x float].
+///    than the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -845,6 +879,8 @@ _mm_cmpngt_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are not greater than those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPNLTPS / CMPNLTPS </c>
@@ -863,9 +899,10 @@ _mm_cmpngt_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is not greater
-///    than or equal to the corresponding value in the second operand and
-///    returns the result of the comparison in the low-order bits of a vector
-///    of [4 x float].
+///    than or equal to the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -892,6 +929,8 @@ _mm_cmpnge_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are not greater than or equal to those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPNLEPS / CMPNLEPS </c>
@@ -910,9 +949,10 @@ _mm_cmpnge_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is ordered with
-///    respect to the corresponding value in the second operand and returns the
-///    result of the comparison in the low-order bits of a vector of
-///    [4 x float].
+///    respect to the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -937,6 +977,8 @@ _mm_cmpord_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are ordered with respect to those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPORDPS / CMPORDPS </c>
@@ -955,9 +997,10 @@ _mm_cmpord_ps(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the value in the first operand is unordered
-///    with respect to the corresponding value in the second operand and
-///    returns the result of the comparison in the low-order bits of a vector
-///    of [4 x float].
+///    with respect to the corresponding value in the second operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true, in the
+///    low-order bits of a vector of [4 x float].
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -982,6 +1025,8 @@ _mm_cmpunord_ss(__m128 __a, __m128 __b)
 ///    128-bit vectors of [4 x float] to determine if the values in the first
 ///    operand are unordered with respect to those in the second operand.
 ///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
 /// \headerfile <x86intrin.h>
 ///
 /// This intrinsic corresponds to the <c> VCMPUNORDPS / CMPUNORDPS </c>
@@ -999,9 +1044,10 @@ _mm_cmpunord_ps(__m128 __a, __m128 __b)
 }
 
 /// Compares two 32-bit float values in the low-order bits of both
-///    operands for equality and returns the result of the comparison.
+///    operands for equality.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true. If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1014,8 +1060,7 @@ _mm_cmpunord_ps(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the
-///    two lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_comieq_ss(__m128 __a, __m128 __b)
 {
@@ -1024,9 +1069,10 @@ _mm_comieq_ss(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the first operand is less than the second
-///    operand and returns the result of the comparison.
+///    operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true. If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1039,8 +1085,7 @@ _mm_comieq_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///     lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_comilt_ss(__m128 __a, __m128 __b)
 {
@@ -1049,9 +1094,10 @@ _mm_comilt_ss(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the first operand is less than or equal to the
-///    second operand and returns the result of the comparison.
+///    second operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true. If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1063,8 +1109,7 @@ _mm_comilt_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///     lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_comile_ss(__m128 __a, __m128 __b)
 {
@@ -1073,9 +1118,10 @@ _mm_comile_ss(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the first operand is greater than the second
-///    operand and returns the result of the comparison.
+///    operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true. If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1087,8 +1133,7 @@ _mm_comile_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the
-///     two lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_comigt_ss(__m128 __a, __m128 __b)
 {
@@ -1097,9 +1142,10 @@ _mm_comigt_ss(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the first operand is greater than or equal to
-///    the second operand and returns the result of the comparison.
+///    the second operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true. If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1111,8 +1157,7 @@ _mm_comigt_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///    lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_comige_ss(__m128 __a, __m128 __b)
 {
@@ -1121,9 +1166,10 @@ _mm_comige_ss(__m128 __a, __m128 __b)
 
 /// Compares two 32-bit float values in the low-order bits of both
 ///    operands to determine if the first operand is not equal to the second
-///    operand and returns the result of the comparison.
+///    operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 1 is returned.
+///    The comparison returns 0 for false, 1 for true. If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1135,8 +1181,7 @@ _mm_comige_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the
-///     two lower 32-bit values is NaN, 1 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_comineq_ss(__m128 __a, __m128 __b)
 {
@@ -1144,10 +1189,10 @@ _mm_comineq_ss(__m128 __a, __m128 __b)
 }
 
 /// Performs an unordered comparison of two 32-bit float values using
-///    the low-order bits of both operands to determine equality and returns
-///    the result of the comparison.
+///    the low-order bits of both operands to determine equality.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true.  If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1159,8 +1204,7 @@ _mm_comineq_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///     lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_ucomieq_ss(__m128 __a, __m128 __b)
 {
@@ -1169,9 +1213,10 @@ _mm_ucomieq_ss(__m128 __a, __m128 __b)
 
 /// Performs an unordered comparison of two 32-bit float values using
 ///    the low-order bits of both operands to determine if the first operand is
-///    less than the second operand and returns the result of the comparison.
+///    less than the second operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true.  If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1183,8 +1228,7 @@ _mm_ucomieq_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///    lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_ucomilt_ss(__m128 __a, __m128 __b)
 {
@@ -1193,10 +1237,10 @@ _mm_ucomilt_ss(__m128 __a, __m128 __b)
 
 /// Performs an unordered comparison of two 32-bit float values using
 ///    the low-order bits of both operands to determine if the first operand is
-///    less than or equal to the second operand and returns the result of the
-///    comparison.
+///    less than or equal to the second operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true.  If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1208,8 +1252,7 @@ _mm_ucomilt_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///     lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_ucomile_ss(__m128 __a, __m128 __b)
 {
@@ -1218,10 +1261,10 @@ _mm_ucomile_ss(__m128 __a, __m128 __b)
 
 /// Performs an unordered comparison of two 32-bit float values using
 ///    the low-order bits of both operands to determine if the first operand is
-///    greater than the second operand and returns the result of the
-///    comparison.
+///    greater than the second operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true.  If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1233,8 +1276,7 @@ _mm_ucomile_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///     lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_ucomigt_ss(__m128 __a, __m128 __b)
 {
@@ -1243,10 +1285,10 @@ _mm_ucomigt_ss(__m128 __a, __m128 __b)
 
 /// Performs an unordered comparison of two 32-bit float values using
 ///    the low-order bits of both operands to determine if the first operand is
-///    greater than or equal to the second operand and returns the result of
-///    the comparison.
+///    greater than or equal to the second operand.
 ///
-///    If either of the two lower 32-bit values is NaN, 0 is returned.
+///    The comparison returns 0 for false, 1 for true.  If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1258,8 +1300,7 @@ _mm_ucomigt_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///     lower 32-bit values is NaN, 0 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_ucomige_ss(__m128 __a, __m128 __b)
 {
@@ -1267,10 +1308,10 @@ _mm_ucomige_ss(__m128 __a, __m128 __b)
 }
 
 /// Performs an unordered comparison of two 32-bit float values using
-///    the low-order bits of both operands to determine inequality and returns
-///    the result of the comparison.
+///    the low-order bits of both operands to determine inequality.
 ///
-///    If either of the two lower 32-bit values is NaN, 1 is returned.
+///    The comparison returns 0 for false, 1 for true.  If either of the two
+///    lower floating-point values is NaN, returns 0.
 ///
 /// \headerfile <x86intrin.h>
 ///
@@ -1282,8 +1323,7 @@ _mm_ucomige_ss(__m128 __a, __m128 __b)
 /// \param __b
 ///    A 128-bit vector of [4 x float]. The lower 32 bits of this operand are
 ///    used in the comparison.
-/// \returns An integer containing the comparison results. If either of the two
-///    lower 32-bit values is NaN, 1 is returned.
+/// \returns An integer containing the comparison results.
 static __inline__ int __DEFAULT_FN_ATTRS
 _mm_ucomineq_ss(__m128 __a, __m128 __b)
 {
@@ -2121,9 +2161,9 @@ _mm_storer_ps(float *__p, __m128 __a)
 /// \param __a
 ///    A 64-bit integer containing the value to be stored.
 static __inline__ void __DEFAULT_FN_ATTRS_MMX
-_mm_stream_pi(__m64 *__p, __m64 __a)
+_mm_stream_pi(void *__p, __m64 __a)
 {
-  __builtin_ia32_movntq(__p, __a);
+  __builtin_ia32_movntq((__m64 *)__p, __a);
 }
 
 /// Moves packed float values from a 128-bit vector of [4 x float] to a
@@ -2140,7 +2180,7 @@ _mm_stream_pi(__m64 *__p, __m64 __a)
 /// \param __a
 ///    A 128-bit vector of [4 x float] containing the values to be moved.
 static __inline__ void __DEFAULT_FN_ATTRS
-_mm_stream_ps(float *__p, __m128 __a)
+_mm_stream_ps(void *__p, __m128 __a)
 {
   __builtin_nontemporal_store((__v4sf)__a, (__v4sf*)__p);
 }
@@ -2936,6 +2976,81 @@ _mm_movemask_ps(__m128 __a)
   return __builtin_ia32_movmskps((__v4sf)__a);
 }
 
+/* Compare */
+#define _CMP_EQ_OQ    0x00 /* Equal (ordered, non-signaling)  */
+#define _CMP_LT_OS    0x01 /* Less-than (ordered, signaling)  */
+#define _CMP_LE_OS    0x02 /* Less-than-or-equal (ordered, signaling)  */
+#define _CMP_UNORD_Q  0x03 /* Unordered (non-signaling)  */
+#define _CMP_NEQ_UQ   0x04 /* Not-equal (unordered, non-signaling)  */
+#define _CMP_NLT_US   0x05 /* Not-less-than (unordered, signaling)  */
+#define _CMP_NLE_US   0x06 /* Not-less-than-or-equal (unordered, signaling)  */
+#define _CMP_ORD_Q    0x07 /* Ordered (non-signaling)   */
+
+/// Compares each of the corresponding values of two 128-bit vectors of
+///    [4 x float], using the operation specified by the immediate integer
+///    operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
+/// \headerfile <x86intrin.h>
+///
+/// \code
+/// __m128 _mm_cmp_ps(__m128 a, __m128 b, const int c);
+/// \endcode
+///
+/// This intrinsic corresponds to the <c> (V)CMPPS </c> instruction.
+///
+/// \param a
+///    A 128-bit vector of [4 x float].
+/// \param b
+///    A 128-bit vector of [4 x float].
+/// \param c
+///    An immediate integer operand, with bits [4:0] specifying which comparison
+///    operation to use: \n
+///    0x00: Equal (ordered, non-signaling) \n
+///    0x01: Less-than (ordered, signaling) \n
+///    0x02: Less-than-or-equal (ordered, signaling) \n
+///    0x03: Unordered (non-signaling) \n
+///    0x04: Not-equal (unordered, non-signaling) \n
+///    0x05: Not-less-than (unordered, signaling) \n
+///    0x06: Not-less-than-or-equal (unordered, signaling) \n
+///    0x07: Ordered (non-signaling) \n
+/// \returns A 128-bit vector of [4 x float] containing the comparison results.
+#define _mm_cmp_ps(a, b, c)                                                    \
+  ((__m128)__builtin_ia32_cmpps((__v4sf)(__m128)(a), (__v4sf)(__m128)(b), (c)))
+
+/// Compares each of the corresponding scalar values of two 128-bit
+///    vectors of [4 x float], using the operation specified by the immediate
+///    integer operand.
+///
+///    Each comparison yields 0x0 for false, 0xFFFFFFFF for true.
+///
+/// \headerfile <x86intrin.h>
+///
+/// \code
+/// __m128 _mm_cmp_ss(__m128 a, __m128 b, const int c);
+/// \endcode
+///
+/// This intrinsic corresponds to the <c> (V)CMPSS </c> instruction.
+///
+/// \param a
+///    A 128-bit vector of [4 x float].
+/// \param b
+///    A 128-bit vector of [4 x float].
+/// \param c
+///    An immediate integer operand, with bits [4:0] specifying which comparison
+///    operation to use: \n
+///    0x00: Equal (ordered, non-signaling) \n
+///    0x01: Less-than (ordered, signaling) \n
+///    0x02: Less-than-or-equal (ordered, signaling) \n
+///    0x03: Unordered (non-signaling) \n
+///    0x04: Not-equal (unordered, non-signaling) \n
+///    0x05: Not-less-than (unordered, signaling) \n
+///    0x06: Not-less-than-or-equal (unordered, signaling) \n
+///    0x07: Ordered (non-signaling) \n
+/// \returns A 128-bit vector of [4 x float] containing the comparison results.
+#define _mm_cmp_ss(a, b, c)                                                    \
+  ((__m128)__builtin_ia32_cmpss((__v4sf)(__m128)(a), (__v4sf)(__m128)(b), (c)))
 
 #define _MM_ALIGN16 __attribute__((aligned(16)))
 

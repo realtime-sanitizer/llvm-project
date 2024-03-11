@@ -14,7 +14,6 @@
 #ifndef LLVM_ANALYSIS_FUNCTIONPROPERTIESANALYSIS_H
 #define LLVM_ANALYSIS_FUNCTIONPROPERTIESANALYSIS_H
 
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
@@ -117,6 +116,24 @@ public:
   int64_t InlineAsmOperandCount = 0;
   int64_t ArgumentOperandCount = 0;
   int64_t UnknownOperandCount = 0;
+
+  // Additional CFG Properties
+  int64_t CriticalEdgeCount = 0;
+  int64_t ControlFlowEdgeCount = 0;
+  int64_t UnconditionalBranchCount = 0;
+
+  // Call related instructions
+  int64_t IntrinsicCount = 0;
+  int64_t DirectCallCount = 0;
+  int64_t IndirectCallCount = 0;
+  int64_t CallReturnsIntegerCount = 0;
+  int64_t CallReturnsFloatCount = 0;
+  int64_t CallReturnsPointerCount = 0;
+  int64_t CallReturnsVectorIntCount = 0;
+  int64_t CallReturnsVectorFloatCount = 0;
+  int64_t CallReturnsVectorPointerCount = 0;
+  int64_t CallWithManyArgumentsCount = 0;
+  int64_t CallWithPointerArgumentCount = 0;
 };
 
 // Analysis pass
@@ -140,6 +157,8 @@ public:
   explicit FunctionPropertiesPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
+  static bool isRequired() { return true; }
 };
 
 /// Correctly update FunctionPropertiesInfo post-inlining. A

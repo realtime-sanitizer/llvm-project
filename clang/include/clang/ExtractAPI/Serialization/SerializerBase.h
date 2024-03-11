@@ -23,6 +23,8 @@ namespace extractapi {
 template <typename Derived> class APISetVisitor {
 public:
   void traverseAPISet() {
+    getDerived()->traverseNamespaces();
+
     getDerived()->traverseGlobalVariableRecords();
 
     getDerived()->traverseGlobalFunctionRecords();
@@ -63,7 +65,7 @@ public:
 
     getDerived()->traverseGlobalFunctionTemplateSpecializationRecords();
 
-    getDerived()->traverseStructRecords();
+    getDerived()->traverseRecordRecords();
 
     getDerived()->traverseObjCInterfaces();
 
@@ -74,6 +76,11 @@ public:
     getDerived()->traverseMacroDefinitionRecords();
 
     getDerived()->traverseTypedefRecords();
+  }
+
+  void traverseNamespaces() {
+    for (const auto &Namespace : API.getNamespaces())
+      getDerived()->visitNamespaceRecord(*Namespace.second);
   }
 
   void traverseGlobalFunctionRecords() {
@@ -91,9 +98,9 @@ public:
       getDerived()->visitEnumRecord(*Enum.second);
   }
 
-  void traverseStructRecords() {
-    for (const auto &Struct : API.getStructs())
-      getDerived()->visitStructRecord(*Struct.second);
+  void traverseRecordRecords() {
+    for (const auto &Record : API.getRecords())
+      getDerived()->visitRecordRecord(*Record.second);
   }
 
   void traverseStaticFieldRecords() {
@@ -220,6 +227,8 @@ public:
       getDerived()->visitTypedefRecord(*Typedef.second);
   }
 
+  void visitNamespaceRecord(const NamespaceRecord &Record){};
+
   /// Visit a global function record.
   void visitGlobalFunctionRecord(const GlobalFunctionRecord &Record){};
 
@@ -229,8 +238,8 @@ public:
   /// Visit an enum record.
   void visitEnumRecord(const EnumRecord &Record){};
 
-  /// Visit a struct record.
-  void visitStructRecord(const StructRecord &Record){};
+  /// Visit a record record.
+  void visitRecordRecord(const RecordRecord &Record){};
 
   void visitStaticFieldRecord(const StaticFieldRecord &Record){};
 

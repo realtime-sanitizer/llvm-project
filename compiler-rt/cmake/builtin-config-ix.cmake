@@ -18,6 +18,8 @@ builtin_check_c_compiler_flag(-fno-profile-generate COMPILER_RT_HAS_FNO_PROFILE_
 builtin_check_c_compiler_flag(-fno-profile-instr-generate COMPILER_RT_HAS_FNO_PROFILE_INSTR_GENERATE_FLAG)
 builtin_check_c_compiler_flag(-fno-profile-instr-use COMPILER_RT_HAS_FNO_PROFILE_INSTR_USE_FLAG)
 builtin_check_c_compiler_flag(-Wno-pedantic         COMPILER_RT_HAS_WNO_PEDANTIC)
+builtin_check_c_compiler_flag(-Wbuiltin-declaration-mismatch COMPILER_RT_HAS_WBUILTIN_DECLARATION_MISMATCH_FLAG)
+builtin_check_c_compiler_flag(/Zl COMPILER_RT_HAS_ZL_FLAG)
 
 builtin_check_c_compiler_source(COMPILER_RT_HAS_ATOMIC_KEYWORD
 "
@@ -31,6 +33,14 @@ builtin_check_c_compiler_source(COMPILER_RT_HAS_ASM_LSE
 "
 asm(\".arch armv8-a+lse\");
 asm(\"cas w0, w1, [x2]\");
+")
+
+builtin_check_c_compiler_source(COMPILER_RT_HAS_AARCH64_SME
+"
+void foo(void)  __arm_streaming_compatible {
+  asm(\".arch armv9-a+sme\");
+  asm(\"smstart\");
+}
 ")
 
 if(ANDROID)
@@ -82,6 +92,8 @@ if(APPLE)
   find_darwin_sdk_dir(DARWIN_watchos_SYSROOT watchos)
   find_darwin_sdk_dir(DARWIN_tvossim_SYSROOT appletvsimulator)
   find_darwin_sdk_dir(DARWIN_tvos_SYSROOT appletvos)
+  find_darwin_sdk_dir(DARWIN_xrossim_SYSROOT xrsimulator)
+  find_darwin_sdk_dir(DARWIN_xros_SYSROOT xros)
 
   # Get supported architecture from SDKSettings.
   function(sdk_has_arch_support sdk_path os arch has_support)
@@ -151,6 +163,11 @@ if(APPLE)
     if ("${tvossim_sdk_version}" VERSION_GREATER 14.0 OR "${tvossim_sdk_version}" VERSION_EQUAL 14.0)
       list(APPEND DARWIN_tvossim_BUILTIN_ALL_POSSIBLE_ARCHS arm64)
     endif()
+  endif()
+  if(COMPILER_RT_ENABLE_XROS)
+    list(APPEND DARWIN_EMBEDDED_PLATFORMS xros)
+    set(DARWIN_xros_BUILTIN_ALL_POSSIBLE_ARCHS ${ARM64} ${ARM32})
+    set(DARWIN_xrossim_BUILTIN_ALL_POSSIBLE_ARCHS arm64)
   endif()
 
   set(BUILTIN_SUPPORTED_OS osx)
@@ -225,7 +242,7 @@ else()
     ${ALL_BUILTIN_SUPPORTED_ARCH})
 endif()
 
-if (OS_NAME MATCHES "Linux" AND NOT LLVM_USE_SANITIZER)
+if (OS_NAME MATCHES "Linux|SerenityOS" AND NOT LLVM_USE_SANITIZER)
   set(COMPILER_RT_HAS_CRT TRUE)
 else()
   set(COMPILER_RT_HAS_CRT FALSE)

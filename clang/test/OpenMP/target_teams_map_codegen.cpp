@@ -346,8 +346,8 @@ void mapInt128() {
 // CHECK1-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK1-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2:[0-9]+]], i32 [[TMP5]], i32 2, i64 16, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z16mapWithReductionv_l39.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK1-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK1-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK1-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK1-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK1-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK1-NEXT:    ]
 // CHECK1:       .omp.reduction.case1:
 // CHECK1-NEXT:    [[TMP7:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -804,8 +804,8 @@ void mapInt128() {
 // CHECK1-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK1-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l63.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK1-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK1-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK1-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK1-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK1-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK1-NEXT:    ]
 // CHECK1:       .omp.reduction.case1:
 // CHECK1-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i64 99
@@ -924,8 +924,8 @@ void mapInt128() {
 // CHECK1-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK1-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l65.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK1-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK1-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK1-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK1-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK1-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK1-NEXT:    ]
 // CHECK1:       .omp.reduction.case1:
 // CHECK1-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i64 99
@@ -1161,8 +1161,8 @@ void mapInt128() {
 // CHECK1-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK1-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9mapInt128v_l72.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK1-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK1-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK1-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK1-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK1-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK1-NEXT:    ]
 // CHECK1:       .omp.reduction.case1:
 // CHECK1-NEXT:    [[TMP7:%.*]] = load i128, ptr [[TMP1]], align 16
@@ -1253,8 +1253,8 @@ void mapInt128() {
 // CHECK1-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK1-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9mapInt128v_l74.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK1-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK1-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK1-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK1-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK1-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK1-NEXT:    ]
 // CHECK1:       .omp.reduction.case1:
 // CHECK1-NEXT:    [[TMP7:%.*]] = load i128, ptr [[TMP1]], align 16
@@ -1300,13 +1300,6 @@ void mapInt128() {
 // CHECK1-NEXT:    [[TMP9:%.*]] = load i128, ptr [[TMP5]], align 16
 // CHECK1-NEXT:    [[ADD:%.*]] = add nsw i128 [[TMP8]], [[TMP9]]
 // CHECK1-NEXT:    store i128 [[ADD]], ptr [[TMP7]], align 16
-// CHECK1-NEXT:    ret void
-//
-//
-// CHECK1-LABEL: define {{[^@]+}}@.omp_offloading.requires_reg
-// CHECK1-SAME: () #[[ATTR7:[0-9]+]] {
-// CHECK1-NEXT:  entry:
-// CHECK1-NEXT:    call void @__tgt_register_requires(i64 1)
 // CHECK1-NEXT:    ret void
 //
 //
@@ -1580,8 +1573,8 @@ void mapInt128() {
 // CHECK3-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK3-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2:[0-9]+]], i32 [[TMP5]], i32 2, i32 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z16mapWithReductionv_l39.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK3-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK3-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK3-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK3-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK3-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK3-NEXT:    ]
 // CHECK3:       .omp.reduction.case1:
 // CHECK3-NEXT:    [[TMP7:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -2038,8 +2031,8 @@ void mapInt128() {
 // CHECK3-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK3-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i32 4, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l63.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK3-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK3-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK3-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK3-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK3-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK3-NEXT:    ]
 // CHECK3:       .omp.reduction.case1:
 // CHECK3-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i32 99
@@ -2158,8 +2151,8 @@ void mapInt128() {
 // CHECK3-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK3-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i32 4, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l65.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK3-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK3-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK3-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK3-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK3-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK3-NEXT:    ]
 // CHECK3:       .omp.reduction.case1:
 // CHECK3-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i32 99
@@ -2230,16 +2223,11 @@ void mapInt128() {
 // CHECK3-NEXT:    ret void
 //
 //
-// CHECK3-LABEL: define {{[^@]+}}@.omp_offloading.requires_reg
-// CHECK3-SAME: () #[[ATTR6:[0-9]+]] {
-// CHECK3-NEXT:  entry:
-// CHECK3-NEXT:    call void @__tgt_register_requires(i64 1)
-// CHECK3-NEXT:    ret void
-//
-//
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z14mapWithPrivatev_l27
-// CHECK5-SAME: () #[[ATTR0:[0-9]+]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_teams(ptr @[[GLOB1:[0-9]+]], i32 0, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z14mapWithPrivatev_l27.omp_outlined)
 // CHECK5-NEXT:    ret void
 //
@@ -2257,12 +2245,14 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z19mapWithFirstprivatev_l33
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_CASTED:%.*]] = alloca i64, align 8
 // CHECK5-NEXT:    [[Y_CASTED:%.*]] = alloca i64, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 8
@@ -2292,10 +2282,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z16mapWithReductionv_l39
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 8
@@ -2330,8 +2322,8 @@ void mapInt128() {
 // CHECK5-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK5-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2:[0-9]+]], i32 [[TMP5]], i32 2, i64 16, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z16mapWithReductionv_l39.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK5-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK5-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK5-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK5-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK5-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK5-NEXT:    ]
 // CHECK5:       .omp.reduction.case1:
 // CHECK5-NEXT:    [[TMP7:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -2384,10 +2376,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z7mapFromv_l45
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_CASTED:%.*]] = alloca i64, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -2410,10 +2404,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z5mapTov_l51
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_CASTED:%.*]] = alloca i64, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -2436,10 +2432,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapAllocv_l57
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[X_CASTED:%.*]] = alloca i64, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -2462,10 +2460,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l63
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Z_ADDR:%.*]] = alloca ptr, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Z]], ptr [[Z_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[Y_ADDR]], align 8
@@ -2509,8 +2509,8 @@ void mapInt128() {
 // CHECK5-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK5-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l63.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK5-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK5-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK5-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK5-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK5-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK5-NEXT:    ]
 // CHECK5:       .omp.reduction.case1:
 // CHECK5-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i64 99
@@ -2582,10 +2582,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l65
-// CHECK5-SAME: (ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Z_ADDR:%.*]] = alloca ptr, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Z]], ptr [[Z_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[Y_ADDR]], align 8
@@ -2629,8 +2631,8 @@ void mapInt128() {
 // CHECK5-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK5-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l65.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK5-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK5-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK5-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK5-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK5-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK5-NEXT:    ]
 // CHECK5:       .omp.reduction.case1:
 // CHECK5-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i64 99
@@ -2702,10 +2704,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9mapInt128v_l72
-// CHECK5-SAME: (ptr noundef nonnull align 16 dereferenceable(16) [[Y:%.*]], ptr noundef nonnull align 16 dereferenceable(16) [[Z:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 16 dereferenceable(16) [[Y:%.*]], ptr noundef nonnull align 16 dereferenceable(16) [[Z:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Z_ADDR:%.*]] = alloca ptr, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Z]], ptr [[Z_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[Y_ADDR]], align 8
@@ -2743,8 +2747,8 @@ void mapInt128() {
 // CHECK5-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK5-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9mapInt128v_l72.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK5-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK5-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK5-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK5-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK5-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK5-NEXT:    ]
 // CHECK5:       .omp.reduction.case1:
 // CHECK5-NEXT:    [[TMP7:%.*]] = load i128, ptr [[TMP1]], align 16
@@ -2794,10 +2798,12 @@ void mapInt128() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9mapInt128v_l74
-// CHECK5-SAME: (ptr noundef nonnull align 16 dereferenceable(16) [[Y:%.*]], ptr noundef nonnull align 16 dereferenceable(16) [[Z:%.*]]) #[[ATTR0]] {
+// CHECK5-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 16 dereferenceable(16) [[Y:%.*]], ptr noundef nonnull align 16 dereferenceable(16) [[Z:%.*]]) #[[ATTR0]] {
 // CHECK5-NEXT:  entry:
+// CHECK5-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 8
 // CHECK5-NEXT:    [[Z_ADDR:%.*]] = alloca ptr, align 8
+// CHECK5-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 8
 // CHECK5-NEXT:    store ptr [[Z]], ptr [[Z_ADDR]], align 8
 // CHECK5-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[Y_ADDR]], align 8
@@ -2835,8 +2841,8 @@ void mapInt128() {
 // CHECK5-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK5-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i64 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9mapInt128v_l74.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK5-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK5-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK5-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK5-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK5-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK5-NEXT:    ]
 // CHECK5:       .omp.reduction.case1:
 // CHECK5-NEXT:    [[TMP7:%.*]] = load i128, ptr [[TMP1]], align 16
@@ -2886,8 +2892,10 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z14mapWithPrivatev_l27
-// CHECK7-SAME: () #[[ATTR0:[0-9]+]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_teams(ptr @[[GLOB1:[0-9]+]], i32 0, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z14mapWithPrivatev_l27.omp_outlined)
 // CHECK7-NEXT:    ret void
 //
@@ -2905,12 +2913,14 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z19mapWithFirstprivatev_l33
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_CASTED:%.*]] = alloca i32, align 4
 // CHECK7-NEXT:    [[Y_CASTED:%.*]] = alloca i32, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 4
@@ -2940,10 +2950,12 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z16mapWithReductionv_l39
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[Y:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 4
@@ -2978,8 +2990,8 @@ void mapInt128() {
 // CHECK7-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK7-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2:[0-9]+]], i32 [[TMP5]], i32 2, i32 8, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z16mapWithReductionv_l39.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK7-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK7-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK7-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK7-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK7-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK7-NEXT:    ]
 // CHECK7:       .omp.reduction.case1:
 // CHECK7-NEXT:    [[TMP7:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -3032,10 +3044,12 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z7mapFromv_l45
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_CASTED:%.*]] = alloca i32, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -3058,10 +3072,12 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z5mapTov_l51
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_CASTED:%.*]] = alloca i32, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -3084,10 +3100,12 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapAllocv_l57
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(4) [[X:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[X_CASTED:%.*]] = alloca i32, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[X]], ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[X_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
@@ -3110,10 +3128,12 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l63
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[Z_ADDR:%.*]] = alloca ptr, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[Z]], ptr [[Z_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[Y_ADDR]], align 4
@@ -3157,8 +3177,8 @@ void mapInt128() {
 // CHECK7-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK7-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i32 4, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l63.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK7-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK7-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK7-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK7-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK7-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK7-NEXT:    ]
 // CHECK7:       .omp.reduction.case1:
 // CHECK7-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i32 99
@@ -3230,10 +3250,12 @@ void mapInt128() {
 //
 //
 // CHECK7-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l65
-// CHECK7-SAME: (ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
+// CHECK7-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], ptr noundef nonnull align 4 dereferenceable(352) [[Y:%.*]], ptr noundef nonnull align 4 dereferenceable(396) [[Z:%.*]]) #[[ATTR0]] {
 // CHECK7-NEXT:  entry:
+// CHECK7-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[Y_ADDR:%.*]] = alloca ptr, align 4
 // CHECK7-NEXT:    [[Z_ADDR:%.*]] = alloca ptr, align 4
+// CHECK7-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[Y]], ptr [[Y_ADDR]], align 4
 // CHECK7-NEXT:    store ptr [[Z]], ptr [[Z_ADDR]], align 4
 // CHECK7-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[Y_ADDR]], align 4
@@ -3277,8 +3299,8 @@ void mapInt128() {
 // CHECK7-NEXT:    [[TMP5:%.*]] = load i32, ptr [[TMP4]], align 4
 // CHECK7-NEXT:    [[TMP6:%.*]] = call i32 @__kmpc_reduce(ptr @[[GLOB2]], i32 [[TMP5]], i32 1, i32 4, ptr [[DOTOMP_REDUCTION_RED_LIST]], ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z8mapArrayv_l65.omp_outlined.omp.reduction.reduction_func, ptr @.gomp_critical_user_.reduction.var)
 // CHECK7-NEXT:    switch i32 [[TMP6]], label [[DOTOMP_REDUCTION_DEFAULT:%.*]] [
-// CHECK7-NEXT:    i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
-// CHECK7-NEXT:    i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
+// CHECK7-NEXT:      i32 1, label [[DOTOMP_REDUCTION_CASE1:%.*]]
+// CHECK7-NEXT:      i32 2, label [[DOTOMP_REDUCTION_CASE2:%.*]]
 // CHECK7-NEXT:    ]
 // CHECK7:       .omp.reduction.case1:
 // CHECK7-NEXT:    [[TMP7:%.*]] = getelementptr i32, ptr [[TMP1]], i32 99

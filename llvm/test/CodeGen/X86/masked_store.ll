@@ -4758,9 +4758,9 @@ define void @mstore_constmask_allones_split(<16 x i64> %trigger, ptr %addr, <16 
 ;
 ; AVX2-LABEL: mstore_constmask_allones_split:
 ; AVX2:       ## %bb.0:
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm0 = [18446744073709551615,0,18446744073709551615,18446744073709551615]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm0 = [18446744073709551615,0,18446744073709551615,18446744073709551615]
 ; AVX2-NEXT:    vpmaskmovq %ymm5, %ymm0, 32(%rdi)
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm0 = [18446744073709551615,18446744073709551615,0,18446744073709551615]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm0 = [18446744073709551615,18446744073709551615,0,18446744073709551615]
 ; AVX2-NEXT:    vpmaskmovq %ymm4, %ymm0, (%rdi)
 ; AVX2-NEXT:    vmovups %ymm7, 96(%rdi)
 ; AVX2-NEXT:    vmovups %ymm6, 64(%rdi)
@@ -4969,9 +4969,9 @@ define void @one_mask_bit_set6(ptr %addr, <16 x i64> %val) {
 ;
 ; AVX2-LABEL: one_mask_bit_set6:
 ; AVX2:       ## %bb.0:
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm0 = [0,0,0,18446744073709551615]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm0 = [0,0,0,18446744073709551615]
 ; AVX2-NEXT:    vpmaskmovq %ymm2, %ymm0, 64(%rdi)
-; AVX2-NEXT:    vmovdqa {{.*#+}} ymm0 = [0,0,18446744073709551615,0]
+; AVX2-NEXT:    vpmovsxbq {{.*#+}} ymm0 = [0,0,18446744073709551615,0]
 ; AVX2-NEXT:    vpmaskmovq %ymm1, %ymm0, 32(%rdi)
 ; AVX2-NEXT:    vzeroupper
 ; AVX2-NEXT:    retq
@@ -6268,26 +6268,15 @@ define void @store_v24i32_v24i32_stride6_vf4_only_even_numbered_elts(ptr %trigge
 ; From https://reviews.llvm.org/rGf8d9097168b7#1165311
 define void @undefshuffle(<8 x i1> %i0, ptr %src, ptr %dst) #0 {
 ; SSE2-LABEL: undefshuffle:
-; SSE2:       ## %bb.0:
+; SSE2:       ## %bb.0: ## %else
 ; SSE2-NEXT:    movaps %xmm0, -{{[0-9]+}}(%rsp)
-; SSE2-NEXT:    movb $1, %al
-; SSE2-NEXT:    testb %al, %al
-; SSE2-NEXT:    testb %al, %al
-; SSE2-NEXT:    testb %al, %al
-; SSE2-NEXT:    movzbl -{{[0-9]+}}(%rsp), %ecx
-; SSE2-NEXT:    testb %al, %al
-; SSE2-NEXT:    movd %ecx, %xmm0
-; SSE2-NEXT:    movzbl -{{[0-9]+}}(%rsp), %ecx
-; SSE2-NEXT:    testb %al, %al
-; SSE2-NEXT:    pinsrw $1, %ecx, %xmm0
-; SSE2-NEXT:    movl -{{[0-9]+}}(%rsp), %ecx
-; SSE2-NEXT:    testb %al, %al
-; SSE2-NEXT:    pinsrw $2, %ecx, %xmm0
 ; SSE2-NEXT:    movzbl -{{[0-9]+}}(%rsp), %eax
-; SSE2-NEXT:    movb $1, %cl
-; SSE2-NEXT:    testb %cl, %cl
+; SSE2-NEXT:    movd %eax, %xmm0
+; SSE2-NEXT:    movzbl -{{[0-9]+}}(%rsp), %eax
+; SSE2-NEXT:    pinsrw $1, %eax, %xmm0
+; SSE2-NEXT:    pinsrw $2, -{{[0-9]+}}(%rsp), %xmm0
+; SSE2-NEXT:    movzbl -{{[0-9]+}}(%rsp), %eax
 ; SSE2-NEXT:    pinsrw $3, %eax, %xmm0
-; SSE2-NEXT:    testb %cl, %cl
 ; SSE2-NEXT:    psllw $15, %xmm0
 ; SSE2-NEXT:    packsswb %xmm0, %xmm0
 ; SSE2-NEXT:    pmovmskb %xmm0, %eax
@@ -6349,18 +6338,9 @@ define void @undefshuffle(<8 x i1> %i0, ptr %src, ptr %dst) #0 {
 ; SSE2-NEXT:    retq
 ;
 ; SSE4-LABEL: undefshuffle:
-; SSE4:       ## %bb.0:
-; SSE4-NEXT:    movb $1, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    testb %al, %al
-; SSE4-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
-; SSE4-NEXT:    testb %al, %al
+; SSE4:       ## %bb.0: ## %else
 ; SSE4-NEXT:    psllw $15, %xmm0
+; SSE4-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; SSE4-NEXT:    packsswb %xmm0, %xmm0
 ; SSE4-NEXT:    pmovmskb %xmm0, %eax
 ; SSE4-NEXT:    testb $1, %al

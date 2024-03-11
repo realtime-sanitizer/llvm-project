@@ -9,8 +9,9 @@
 #ifndef LLVM_LIBC_UTILS_GPU_LOADER_LOADER_H
 #define LLVM_LIBC_UTILS_GPU_LOADER_LOADER_H
 
-#include "utils/gpu/server/rpc_server.h"
+#include "utils/gpu/server/llvmlibc_rpc_server.h"
 
+#include "llvm-libc-types/rpc_opcodes_t.h"
 #include "include/llvm-libc-types/test_rpc_opcodes_t.h"
 
 #include <cstddef>
@@ -34,7 +35,6 @@ struct begin_args_t {
   int argc;
   void *argv;
   void *envp;
-  void *rpc_shared_buffer;
 };
 
 /// The arguments to the '_start' kernel.
@@ -86,7 +86,7 @@ void *copy_argument_vector(int argc, char **argv, Allocator alloc) {
   // Ensure the vector is null terminated.
   reinterpret_cast<void **>(dev_argv)[argv_size] = nullptr;
   return dev_argv;
-};
+}
 
 /// Copy the system's environment to GPU memory allocated using \p alloc.
 template <typename Allocator>
@@ -96,7 +96,7 @@ void *copy_environment(char **envp, Allocator alloc) {
     ++envc;
 
   return copy_argument_vector(envc, envp, alloc);
-};
+}
 
 inline void handle_error(const char *msg) {
   fprintf(stderr, "%s\n", msg);
@@ -107,7 +107,9 @@ inline void handle_error(rpc_status_t) {
   handle_error("Failure in the RPC server\n");
 }
 
+template <uint32_t lane_size>
 inline void register_rpc_callbacks(uint32_t device_id) {
+  static_assert(lane_size == 32 || lane_size == 64, "Invalid Lane size");
   // Register the ping test for the `libc` tests.
   rpc_register_callback(
       device_id, static_cast<rpc_opcode_t>(RPC_TEST_INCREMENT),
@@ -207,14 +209,14 @@ inline void register_rpc_callbacks(uint32_t device_id) {
   rpc_register_callback(
       device_id, static_cast<rpc_opcode_t>(RPC_TEST_STREAM),
       [](rpc_port_t port, void *data) {
-        uint64_t sizes[RPC_MAXIMUM_LANE_SIZE] = {0};
-        void *dst[RPC_MAXIMUM_LANE_SIZE] = {nullptr};
+        uint64_t sizes[lane_size] = {0};
+        void *dst[lane_size] = {nullptr};
         rpc_recv_n(
             port, dst, sizes,
             [](uint64_t size, void *) -> void * { return new char[size]; },
             nullptr);
         rpc_send_n(port, dst, sizes);
-        for (uint64_t i = 0; i < RPC_MAXIMUM_LANE_SIZE; ++i) {
+        for (uint64_t i = 0; i < lane_size; ++i) {
           if (dst[i])
             delete[] reinterpret_cast<uint8_t *>(dst[i]);
         }

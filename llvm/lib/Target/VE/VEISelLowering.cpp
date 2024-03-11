@@ -648,12 +648,11 @@ SDValue VETargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // PC-relative references to external symbols should go through $stub.
   // If so, we need to prepare GlobalBaseReg first.
   const TargetMachine &TM = DAG.getTarget();
-  const Module *Mod = DAG.getMachineFunction().getFunction().getParent();
   const GlobalValue *GV = nullptr;
   auto *CalleeG = dyn_cast<GlobalAddressSDNode>(Callee);
   if (CalleeG)
     GV = CalleeG->getGlobal();
-  bool Local = TM.shouldAssumeDSOLocal(*Mod, GV);
+  bool Local = TM.shouldAssumeDSOLocal(GV);
   bool UsePlt = !Local;
   MachineFunction &MF = DAG.getMachineFunction();
 
@@ -1101,10 +1100,10 @@ Instruction *VETargetLowering::emitTrailingFence(IRBuilderBase &Builder,
 SDValue VETargetLowering::lowerATOMIC_FENCE(SDValue Op,
                                             SelectionDAG &DAG) const {
   SDLoc DL(Op);
-  AtomicOrdering FenceOrdering = static_cast<AtomicOrdering>(
-      cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue());
-  SyncScope::ID FenceSSID = static_cast<SyncScope::ID>(
-      cast<ConstantSDNode>(Op.getOperand(2))->getZExtValue());
+  AtomicOrdering FenceOrdering =
+      static_cast<AtomicOrdering>(Op.getConstantOperandVal(1));
+  SyncScope::ID FenceSSID =
+      static_cast<SyncScope::ID>(Op.getConstantOperandVal(2));
 
   // VE uses Release consistency, so need a fence instruction if it is a
   // cross-thread fence.
@@ -1130,7 +1129,7 @@ SDValue VETargetLowering::lowerATOMIC_FENCE(SDValue Op,
     case AtomicOrdering::AcquireRelease:
     case AtomicOrdering::SequentiallyConsistent:
       // Generate "fencem 3" as acq_rel and seq_cst fence.
-      // FIXME: "fencem 3" doesn't wait for for PCIe deveices accesses,
+      // FIXME: "fencem 3" doesn't wait for PCIe deveices accesses,
       //        so  seq_cst may require more instruction for them.
       return SDValue(DAG.getMachineNode(VE::FENCEM, DL, MVT::Other,
                                         DAG.getTargetConstant(3, DL, MVT::i32),
@@ -1766,7 +1765,7 @@ static SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG,
 SDValue VETargetLowering::lowerINTRINSIC_WO_CHAIN(SDValue Op,
                                                   SelectionDAG &DAG) const {
   SDLoc DL(Op);
-  unsigned IntNo = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  unsigned IntNo = Op.getConstantOperandVal(0);
   switch (IntNo) {
   default: // Don't custom lower most intrinsics.
     return SDValue();
@@ -2937,8 +2936,8 @@ static bool isI32Insn(const SDNode *User, const SDNode *N) {
     if (User->getOperand(1).getNode() != N &&
         User->getOperand(2).getNode() != N &&
         isa<ConstantSDNode>(User->getOperand(3))) {
-      VECC::CondCode VECCVal = static_cast<VECC::CondCode>(
-          cast<ConstantSDNode>(User->getOperand(3))->getZExtValue());
+      VECC::CondCode VECCVal =
+          static_cast<VECC::CondCode>(User->getConstantOperandVal(3));
       return isIntVECondCode(VECCVal);
     }
     [[fallthrough]];
