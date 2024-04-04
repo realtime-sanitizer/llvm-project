@@ -45,6 +45,7 @@ for var in [
     "MSAN_OPTIONS",
     "TSAN_OPTIONS",
     "UBSAN_OPTIONS",
+    "RADSAN_OPTIONS",
 ]:
     if var in os.environ:
         config.environment[var] = os.environ[var]
