@@ -13,6 +13,7 @@
 #include <sanitizer_common/sanitizer_allocator_internal.h>
 #include <sanitizer_common/sanitizer_stacktrace.h>
 
+#include <new>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,10 +30,7 @@ void internalFree(void *ptr) { InternalFree(ptr); }
 
 namespace radsan {
 
-Context::Context() : Context(createErrorActionGetter()) {}
-
-Context::Context(std::function<OnErrorAction()> get_error_action)
-    : get_error_action_(get_error_action) {}
+Context::Context() = default;
 
 void Context::realtimePush() { realtime_depth_++; }
 
@@ -46,9 +44,7 @@ void Context::expectNotRealtime(const char *intercepted_function_name) {
   if (inRealtimeContext() && !isBypassed()) {
     bypassPush();
     printDiagnostics(intercepted_function_name);
-    if (get_error_action_() == OnErrorAction::ExitWithFailure) {
-      exit(EXIT_FAILURE);
-    }
+    exit(EXIT_FAILURE);
     bypassPop();
   }
 }
