@@ -1586,6 +1586,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       insertCallAtFunctionEntryPoint(Fn, "radsan_off");
     }
 
+    // TODO: This attribute no longer exists
+    //       how do we move it to look at "nonblocking"
     if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
       insertCallAtFunctionEntryPoint(Fn, "radsan_realtime_enter");
     }
