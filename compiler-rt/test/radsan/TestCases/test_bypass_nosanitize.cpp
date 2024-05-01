@@ -21,7 +21,7 @@ void violationLock(pthread_mutex_t& Mutex) {
   pthread_mutex_lock(&Mutex);
 }
 
-[[clang::realtime]] void process(pthread_mutex_t& Mutex) {
+[[clang::nonblocking]] void process(pthread_mutex_t& Mutex) {
   bypassedLock(Mutex);
   bypassedUnlock(Mutex);
 

@@ -3,7 +3,7 @@
 // UNSUPPORTED: ios
 
 // Intent: Ensure that a no_sanitize attribute has no impact 
-//         if not in a [[clang::realtime]] function
+//         if not in a [[clang::nonblocking]] function
 
 #include <stdio.h>
 #include <stdlib.h>

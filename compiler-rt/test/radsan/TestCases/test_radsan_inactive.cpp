@@ -2,14 +2,14 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-// Intent: Ensure [[clang::realtime]] has no impact if -fsanitize=realtime is not used
+// Intent: Ensure [[clang::nonblocking]] has no impact if -fsanitize=realtime is not used
 
 #include <stdio.h>
 #include <stdlib.h>
 
 // In this test, we don't use the -fsanitize=realtime flag, so nothing
 // should happen here
-[[clang::realtime]] void violation() {
+[[clang::nonblocking]] void violation() {
     void* Ptr = malloc(2);
 }
 

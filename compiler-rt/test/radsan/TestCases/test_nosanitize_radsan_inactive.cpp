@@ -2,7 +2,7 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: ios
 
-// Intent: Ensure that no_sanitize and [[clang::realtime]]
+// Intent: Ensure that no_sanitize and [[clang::nonblocking]]
 //         have no impact if -fsanitize=realtime is not used
 
 #include <stdio.h>
@@ -13,7 +13,7 @@ void noSanitizeFree(void* Ptr) {
     free(Ptr);
 }
 
-[[clang::realtime]] void violation() {
+[[clang::nonblocking]] void violation() {
     void* Ptr = malloc(2);
     noSanitizeFree(Ptr);
 }

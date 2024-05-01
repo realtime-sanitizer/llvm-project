@@ -2139,7 +2139,7 @@ example:
     for this function.
 ``nosanitize_realtime``
     This attribute indicates that SanitizerRealtime is disabled for this 
-    function. If called from a function marked ``clang::realtime``, no
+    function. If called from a function marked ``clang::nonblocking``, no
     errors that would normally be reported by SanitizerRealtime will be
     reported.
 ``null_pointer_is_valid``
