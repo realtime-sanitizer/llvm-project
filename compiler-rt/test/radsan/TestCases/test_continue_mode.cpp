@@ -19,7 +19,7 @@ void freeViolation(void* Ptr) {
   free(Ptr);
 }
 
-[[clang::nonblocking]] void process() {
+void process() [[clang::nonblocking]] {
   void* Ptr = mallocViolation();
   freeViolation(Ptr);
 }

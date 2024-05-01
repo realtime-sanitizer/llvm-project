@@ -7,7 +7,7 @@
 
 #include <stdlib.h>
 
-[[clang::nonblocking]] void violation() {
+void violation() [[clang::nonblocking]]{
     void* Ptr = malloc(2);
 }
 

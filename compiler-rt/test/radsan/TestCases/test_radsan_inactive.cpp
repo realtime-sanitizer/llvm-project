@@ -9,7 +9,7 @@
 
 // In this test, we don't use the -fsanitize=realtime flag, so nothing
 // should happen here
-[[clang::nonblocking]] void violation() {
+void violation() [[clang::nonblocking]] {
     void* Ptr = malloc(2);
 }
 
