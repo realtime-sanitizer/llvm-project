@@ -228,7 +228,8 @@ what to add to your calendar invite.
      - `Meeting details/agenda <https://docs.google.com/document/d/1Ry8O4-Tm5BFj9AMjr8qTQFU80z-ptiNQ62687NaIvLs/edit?usp=sharing>`__
    * - Floating Point Working Group
      - Every 3rd Wednesday of the month
-     - `gcal <https://calendar.google.com/calendar/u/0?cid=MDI1ODI1MDdiYWM3OWQxODY5MDA3MTI1NjZlYzNmYzY5YjMzYWMyNGQ3ZGUwYThjNzZjN2IxOTk3NmYxOTBjMEBncm91cC5jYWxlbmRhci5nb29nbGUuY29t>`__
+     - `ics <https://calendar.google.com/calendar/ical/02582507bac79d186900712566ec3fc69b33ac24d7de0a8c76c7b19976f190c0%40group.calendar.google.com/private-6e35506dbfe13812e92e9aa8cd5d761d/basic.ics>`__
+       `gcal <https://calendar.google.com/calendar/u/0?cid=MDI1ODI1MDdiYWM3OWQxODY5MDA3MTI1NjZlYzNmYzY5YjMzYWMyNGQ3ZGUwYThjNzZjN2IxOTk3NmYxOTBjMEBncm91cC5jYWxlbmRhci5nb29nbGUuY29t>`__
      - `Meeting details/agenda: <https://docs.google.com/document/d/1QcmUlWftPlBi-Wz6b6PipqJfvjpJ-OuRMRnN9Dm2t0c>`__
 
 .. _office-hours:
@@ -322,6 +323,11 @@ The :doc:`CodeOfConduct` applies to all office hours.
     - GlobalISel questions.
     - Monthly, 4th Wednesday of the month at 9:30am PT, for 30 minutes.
     - `Google meet <https://meet.google.com/pdd-dibg-cwv>`__
+    - English
+  * - Maksim Levental and Jeremy Kun
+    - MLIR newcomers and general discussion (`livestreamed <https://www.youtube.com/playlist?list=PLhxO86S3jsX2k7kOhZaV-qKWm8tNsUdAE>`__)
+    - Every two weeks, Fridays at 3:00pm US Pacific, for 90 minutes.
+    - Livestream chat or `Google meet <https://meet.google.com/wit-tvzc-dwc>`__
     - English
   * - Rotating hosts
     - Getting Started, beginner questions, new contributors.

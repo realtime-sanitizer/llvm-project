@@ -50,6 +50,7 @@
 #include <thread>
 #include <vector>
 
+#include "lldb/API/SBStream.h"
 #include "lldb/Host/Config.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -420,8 +421,8 @@ void SendStdOutStdErr(lldb::SBProcess &process) {
 
 void ProgressEventThreadFunction() {
   lldb::SBListener listener("lldb-dap.progress.listener");
-  g_dap.debugger.GetBroadcaster().AddListener(
-      listener, lldb::SBDebugger::eBroadcastBitProgress);
+  g_dap.debugger.GetBroadcaster().AddListener(listener,
+                                              lldb::eBroadcastBitProgress);
   g_dap.broadcaster.AddListener(listener, eBroadcastBitStopProgressThread);
   lldb::SBEvent event;
   bool done = false;
@@ -503,6 +504,10 @@ void EventThreadFunction() {
             SendContinuedEvent();
             break;
           case lldb::eStateExited:
+            lldb::SBStream stream;
+            process.GetStatus(stream);
+            g_dap.SendOutput(OutputType::Console, stream.GetData());
+
             // When restarting, we can get an "exited" event for the process we
             // just killed with the old PID, or even with no PID. In that case
             // we don't have to terminate the session.

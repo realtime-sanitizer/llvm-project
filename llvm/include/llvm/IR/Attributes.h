@@ -747,6 +747,11 @@ public:
   addDereferenceableOrNullParamAttr(LLVMContext &C, unsigned ArgNo,
                                     uint64_t Bytes) const;
 
+  /// Add the range attribute to the attribute set at the return value index.
+  /// Returns a new list because attribute lists are immutable.
+  [[nodiscard]] AttributeList addRangeRetAttr(LLVMContext &C,
+                                              const ConstantRange &CR) const;
+
   /// Add the allocsize attribute to the attribute set at the given arg index.
   /// Returns a new list because attribute lists are immutable.
   [[nodiscard]] AttributeList
@@ -846,6 +851,11 @@ public:
   /// Return the attribute object that exists for the function.
   Attribute getFnAttr(StringRef Kind) const {
     return getAttributeAtIndex(FunctionIndex, Kind);
+  }
+
+  /// Return the attribute for the given attribute kind for the return value.
+  Attribute getRetAttr(Attribute::AttrKind Kind) const {
+    return getAttributeAtIndex(ReturnIndex, Kind);
   }
 
   /// Return the alignment of the return value.

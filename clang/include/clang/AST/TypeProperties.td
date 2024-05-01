@@ -25,6 +25,25 @@ let Class = PointerType in {
   def : Creator<[{ return ctx.getPointerType(pointeeType); }]>;
 }
 
+let Class = CountAttributedType in {
+  def : Property<"WrappedTy", QualType> {
+    let Read = [{ node->desugar() }];
+  }
+  def : Property<"CountExpr", ExprRef> {
+    let Read = [{ node->getCountExpr() }];
+  }
+  def : Property<"CountInBytes", Bool> {
+    let Read = [{ node->isCountInBytes() }];
+  }
+  def : Property<"OrNull", Bool> {
+    let Read = [{ node->isOrNull() }];
+  }
+  def : Property<"CoupledDecls", Array<TypeCoupledDeclRefInfo>> {
+    let Read = [{ node->getCoupledDecls() }];
+  }
+  def : Creator<[{ return ctx.getCountAttributedType(WrappedTy, CountExpr, CountInBytes, OrNull, CoupledDecls); }]>;
+}
+
 let Class = AdjustedType in {
   def : Property<"originalType", QualType> {
     let Read = [{ node->getOriginalType() }];
@@ -115,6 +134,13 @@ let Class = ConstantArrayType in {
                                     sizeModifier,
                                     indexQualifiers.getCVRQualifiers());
   }]>;
+}
+
+let Class = ArrayParameterType in {
+  def : Creator<[{ return ctx.getAdjustedParameterType(
+                              ctx.getConstantArrayType(elementType,sizeValue,
+                                    size,sizeModifier,
+                                    indexQualifiers.getCVRQualifiers())); }]>;
 }
 
 let Class = IncompleteArrayType in {
@@ -326,6 +352,12 @@ let Class = FunctionProtoType in {
   def : Property<"AArch64SMEAttributes", UInt32> {
     let Read = [{ node->getAArch64SMEAttributes() }];
   }
+  def : Property<"functionEffects", Array<FunctionEffect>> {
+    let Read = [{ node->getFunctionEffectsOnly() }];
+  }
+  def : Property<"functionEffectConds", Array<FunctionEffectCondition>> {
+    let Read = [{ node->getFunctionEffectConditions() }];
+  }
 
   def : Creator<[{
     auto extInfo = FunctionType::ExtInfo(noReturn, hasRegParm, regParm,
@@ -342,6 +374,7 @@ let Class = FunctionProtoType in {
     epi.ExtParameterInfos =
       extParameterInfo.empty() ? nullptr : extParameterInfo.data();
     epi.AArch64SMEAttributes = AArch64SMEAttributes;
+    epi.FunctionEffects = FunctionEffectsRef(functionEffects, functionEffectConds);
     return ctx.getFunctionType(returnType, parameters, epi);
   }]>;
 }

@@ -42,7 +42,8 @@ public:
     eBroadcastBitModulesLoaded = (1 << 1),
     eBroadcastBitModulesUnloaded = (1 << 2),
     eBroadcastBitWatchpointChanged = (1 << 3),
-    eBroadcastBitSymbolsLoaded = (1 << 4)
+    eBroadcastBitSymbolsLoaded = (1 << 4),
+    eBroadcastBitSymbolsChanged = (1 << 5),
   };
 
   // Constructors
@@ -953,6 +954,7 @@ protected:
   friend class SBSection;
   friend class SBSourceManager;
   friend class SBSymbol;
+  friend class SBTypeStaticField;
   friend class SBValue;
   friend class SBVariablesOptions;
 
