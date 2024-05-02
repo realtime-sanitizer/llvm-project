@@ -80,7 +80,6 @@ add_clang_library(clangSema
   LINK_LIBS
   clangAPINotes
   clangAST
-  clangASTMatchers
   clangAnalysis
   clangBasic
   clangEdit
