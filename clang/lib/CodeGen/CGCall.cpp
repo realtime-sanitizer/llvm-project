@@ -2405,7 +2405,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
 
-      auto FunctionEffects = Fn->getFunctionEffects();
+      const FunctionEffectsRef FunctionEffects = Fn->getFunctionEffects();
       for(size_t i = 0; i < FunctionEffects.size(); i++)
       {
         // TODO: Handle the case where "Blocking" is the effect with condition "False"
