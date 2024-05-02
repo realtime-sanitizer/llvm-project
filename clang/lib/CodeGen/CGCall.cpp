@@ -2403,6 +2403,8 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       auto FunctionEffects = Fn->getFunctionEffects();
       for(size_t i = 0; i < FunctionEffects.size(); i++)
       {
+        // TODO: Handle the case where "Blocking" is the effect with condition "False"
+        // How do conditions/expressions work ??? 
         if(FunctionEffects.effects()[i].kind() == FunctionEffect::Kind::NonBlocking)
         {
           FuncAttrs.addAttribute(llvm::Attribute::NonBlocking);
