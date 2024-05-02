@@ -1615,7 +1615,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       insertCallAtFunctionEntryPoint(Fn, "radsan_off");
     }
 
-    if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
+    if (Fn->hasFnAttribute(llvm::Attribute::NonBlocking)) {
       insertCallAtFunctionEntryPoint(Fn, "radsan_realtime_enter");
     }
   }
@@ -1628,7 +1628,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
       insertCallAtAllFunctionExitPoints(Fn, "radsan_on");
     }
 
-    if (Fn->hasFnAttribute(llvm::Attribute::Realtime)) {
+    if (Fn->hasFnAttribute(llvm::Attribute::NonBlocking)) {
       insertCallAtAllFunctionExitPoints(Fn, "radsan_realtime_exit");
     }
   }

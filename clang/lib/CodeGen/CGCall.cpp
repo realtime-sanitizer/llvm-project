@@ -2405,6 +2405,15 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
+
+      auto FunctionEffects = Fn->getFunctionEffects();
+      for(size_t i = 0; i < FunctionEffects.size(); i++)
+      {
+        if(FunctionEffects.effects()[i].kind() == FunctionEffect::Kind::NonBlocking)
+        {
+          FuncAttrs.addAttribute(llvm::Attribute::NonBlocking);
+        }
+      }
     }
 
     if (isa<FunctionDecl>(TargetDecl) || isa<VarDecl>(TargetDecl)) {

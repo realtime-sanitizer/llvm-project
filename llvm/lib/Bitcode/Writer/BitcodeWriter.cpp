@@ -793,6 +793,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_OPTIMIZE_FOR_SIZE;
   case Attribute::OptimizeNone:
     return bitc::ATTR_KIND_OPTIMIZE_NONE;
+  case Attribute::NonBlocking:
+    return bitc::ATTR_KIND_NONBLOCKING;
   case Attribute::NoSanitizeRealtime:
     return bitc::ATTR_KIND_NO_SANITIZE_REALTIME;
   case Attribute::ReadNone:
