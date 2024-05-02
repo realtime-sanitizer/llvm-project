@@ -2380,11 +2380,6 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     if (TargetDecl->hasAttr<ConvergentAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::Convergent);
 
-    // TODO: These are gone now, how do we move to nonblocking??
-    //       What does this file even do?
-    //if (TargetDecl->hasAttr<RealtimeAttr>())
-    //  FuncAttrs.addAttribute(llvm::Attribute::Realtime);
-
     if (const FunctionDecl *Fn = dyn_cast<FunctionDecl>(TargetDecl)) {
       AddAttributesFromFunctionProtoType(
           getContext(), FuncAttrs, Fn->getType()->getAs<FunctionProtoType>());
@@ -2403,6 +2398,15 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
         if (Fn->isNoReturn())
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
+      }
+
+      auto FunctionEffects = Fn->getFunctionEffects();
+      for(size_t i = 0; i < FunctionEffects.size(); i++)
+      {
+        if(FunctionEffects.effects()[i].kind() == FunctionEffect::Kind::NonBlocking)
+        {
+          FuncAttrs.addAttribute(llvm::Attribute::NonBlocking);
+        }
       }
     }
 
