@@ -2406,7 +2406,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
 
-      auto FunctionEffects = Fn->getFunctionEffects();
+      const FunctionEffectsRef FunctionEffects = Fn->getFunctionEffects();
       for(size_t i = 0; i < FunctionEffects.size(); i++)
       {
         if(FunctionEffects.effects()[i].kind() == FunctionEffect::Kind::NonBlocking)
