@@ -9,19 +9,91 @@
 #pragma once
 
 #include "gmock/gmock.h"
+
+#include <functional>
 #include <string>
 
 namespace radsan_testing {
 
+namespace detail {
+/*
+    Should inject radsan_realtime_enter?
+
+    [[clang::nonblocking]]                 YES
+    [[clang::nonblocking(true)]]           YES
+    [[clang::blocking(false)]]             YES
+
+    [[clang::nonblocking(false)]]          NO
+    [[clang::blocking]]                    NO
+    [[clang::blocking(true)]]              NO
+*/
+
 template <typename Function>
-void realtimeInvoke(Function &&func) [[clang::nonblocking]]
-{
-  std::forward<Function>(func)();
+void nonblockingInvoke(Function &&func) [[clang::nonblocking]] {
+  func();
 }
 
 template <typename Function>
-void expectRealtimeDeath(Function &&func,
-                         const char *intercepted_method_name = nullptr) {
+void nonblockingTrueInvoke(Function &&func) [[clang::nonblocking(true)]] {
+  func();
+}
+
+template <typename Function>
+void nonblockingFalseInvoke(Function &&func) [[clang::nonblocking(false)]] {
+  func();
+}
+
+template <typename Function>
+void blockingInvoke(Function &&func) [[clang::blocking]] {
+  func();
+}
+
+template <typename Function>
+void blockingTrueInvoke(Function &&func) [[clang::blocking(true)]] {
+  func();
+}
+
+template <typename Function>
+void blockingFalseInvoke(Function &&func) [[clang::blocking(false)]] {
+  func();
+}
+
+template <typename Function>
+void invokeWithAllNonBlockingAttributes(Function &&func) {
+  nonblockingInvoke(func);
+  nonblockingTrueInvoke(func);
+  blockingFalseInvoke(func);
+}
+
+template <typename Function>
+void invokeWithAllBlockingAttributes(Function &&func,
+                                     std::function<void()> reset) {
+  blockingInvoke(func);
+  reset();
+
+  blockingTrueInvoke(func);
+  reset();
+
+  nonblockingFalseInvoke(func);
+  reset();
+
+  func();
+  reset();
+}
+
+template <typename Function> void invokeWithNoAttributes(Function &&func) {
+  func();
+}
+} // namespace detail
+
+template <typename Function>
+void expectSurvivalInNonBlockingContext(Function &&func) {
+  detail::invokeWithAllNonBlockingAttributes(std::forward<Function>(func));
+}
+
+template <typename Function>
+void expectDeathInNonBlockingContext(
+    Function &&func, const char *intercepted_method_name = nullptr) {
 
   using namespace testing;
 
@@ -33,12 +105,19 @@ void expectRealtimeDeath(Function &&func,
                : "";
   };
 
-  EXPECT_EXIT(realtimeInvoke(std::forward<Function>(func)),
-              ExitedWithCode(EXIT_FAILURE), expected_error_substr());
+  EXPECT_EXIT(detail::nonblockingInvoke(func), ExitedWithCode(EXIT_FAILURE),
+              expected_error_substr());
+  EXPECT_EXIT(detail::nonblockingTrueInvoke(func), ExitedWithCode(EXIT_FAILURE),
+              expected_error_substr());
+  EXPECT_EXIT(detail::blockingFalseInvoke(func), ExitedWithCode(EXIT_FAILURE),
+              expected_error_substr());
 }
 
-template <typename Function> void expectNonrealtimeSurvival(Function &&func) {
-  std::forward<Function>(func)();
+template <typename Function>
+void expectSurvivalInBlockableContext(
+    Function &&func, std::function<void()> reset = []() {}) {
+  detail::invokeWithAllBlockingAttributes(func, reset);
+  detail::invokeWithNoAttributes(func);
 }
 
 } // namespace radsan_testing

@@ -60,37 +60,37 @@ constexpr const char *temporary_file_path() {
 
 TEST(TestRadsanInterceptors, mallocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(nullptr, malloc(1)); };
-  expectRealtimeDeath(func, "malloc");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "malloc");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, reallocDiesWhenRealtime) {
   auto *ptr_1 = malloc(1);
   auto func = [ptr_1]() { EXPECT_NE(nullptr, realloc(ptr_1, 8)); };
-  expectRealtimeDeath(func, "realloc");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "realloc");
+  expectSurvivalInBlockableContext(func);
 }
 
 #if SANITIZER_APPLE
 TEST(TestRadsanInterceptors, reallocfDiesWhenRealtime) {
   auto *ptr_1 = malloc(1);
   auto func = [ptr_1]() { EXPECT_NE(nullptr, reallocf(ptr_1, 8)); };
-  expectRealtimeDeath(func, "reallocf");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "reallocf");
+  expectSurvivalInBlockableContext(func);
 }
 #endif
 
 TEST(TestRadsanInterceptors, vallocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(nullptr, valloc(4)); };
-  expectRealtimeDeath(func, "valloc");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "valloc");
+  expectSurvivalInBlockableContext(func);
 }
 
 #if SANITIZER_INTERCEPT_ALIGNED_ALLOC
 TEST(TestRadsanInterceptors, alignedAllocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(nullptr, aligned_alloc(16, 32)); };
-  expectRealtimeDeath(func, "aligned_alloc");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "aligned_alloc");
+  expectSurvivalInBlockableContext(func);
 }
 #endif
 
@@ -98,8 +98,9 @@ TEST(TestRadsanInterceptors, alignedAllocDiesWhenRealtime) {
 TEST(TestRadsanInterceptors, freeDiesWhenRealtime) {
   auto *ptr_1 = malloc(1);
   auto *ptr_2 = malloc(1);
-  expectRealtimeDeath([ptr_1]() { free(ptr_1); }, "free");
-  expectNonrealtimeSurvival([ptr_2]() { free(ptr_2); });
+  expectDeathInNonBlockingContext([&ptr_1]() { free(ptr_1); }, "free");
+  auto reset = [&]() { ptr_2 = malloc(1); };
+  expectSurvivalInBlockableContext([&ptr_2]() { free(ptr_2); }, reset);
 
   // Prevent malloc/free pair being optimised out
   ASSERT_NE(nullptr, ptr_1);
@@ -107,8 +108,8 @@ TEST(TestRadsanInterceptors, freeDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, freeSurvivesWhenRealtimeIfArgumentIsNull) {
-  realtimeInvoke([]() { free(NULL); });
-  expectNonrealtimeSurvival([]() { free(NULL); });
+  expectSurvivalInNonBlockingContext([]() { free(NULL); });
+  expectSurvivalInBlockableContext([]() { free(NULL); });
 }
 
 TEST(TestRadsanInterceptors, posixMemalignDiesWhenRealtime) {
@@ -116,23 +117,23 @@ TEST(TestRadsanInterceptors, posixMemalignDiesWhenRealtime) {
     void *mem;
     posix_memalign(&mem, 4, 4);
   };
-  expectRealtimeDeath(func, "posix_memalign");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "posix_memalign");
+  expectSurvivalInBlockableContext(func);
 }
 
 #if SANITIZER_INTERCEPT_MEMALIGN
 TEST(TestRadsanInterceptors, memalignDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(memalign(2, 2048), nullptr); };
-  expectRealtimeDeath(func, "memalign");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "memalign");
+  expectSurvivalInBlockableContext(func);
 }
 #endif
 
 #if SANITIZER_INTERCEPT_PVALLOC
 TEST(TestRadsanInterceptors, pvallocDiesWhenRealtime) {
   auto func = []() { EXPECT_NE(pvalloc(2048), nullptr); };
-  expectRealtimeDeath(func, "pvalloc");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pvalloc");
+  expectSurvivalInBlockableContext(func);
 }
 #endif
 
@@ -142,14 +143,14 @@ TEST(TestRadsanInterceptors, pvallocDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, sleepDiesWhenRealtime) {
   auto func = []() { sleep(0u); };
-  expectRealtimeDeath(func, "sleep");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "sleep");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, usleepDiesWhenRealtime) {
   auto func = []() { usleep(1u); };
-  expectRealtimeDeath(func, "usleep");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "usleep");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, nanosleepDiesWhenRealtime) {
@@ -157,8 +158,8 @@ TEST(TestRadsanInterceptors, nanosleepDiesWhenRealtime) {
     auto t = timespec{};
     nanosleep(&t, &t);
   };
-  expectRealtimeDeath(func, "nanosleep");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "nanosleep");
+  expectSurvivalInBlockableContext(func);
 }
 
 /*
@@ -167,35 +168,35 @@ TEST(TestRadsanInterceptors, nanosleepDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, openDiesWhenRealtime) {
   auto func = []() { open(temporary_file_path(), O_RDONLY); };
-  expectRealtimeDeath(func, "open");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "open");
+  expectSurvivalInBlockableContext(func);
   std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, openatDiesWhenRealtime) {
   auto func = []() { openat(0, temporary_file_path(), O_RDONLY); };
-  expectRealtimeDeath(func, "openat");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "openat");
+  expectSurvivalInBlockableContext(func);
   std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, creatDiesWhenRealtime) {
   auto func = []() { creat(temporary_file_path(), S_IWOTH | S_IROTH); };
-  expectRealtimeDeath(func, "creat");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "creat");
+  expectSurvivalInBlockableContext(func);
   std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
   auto func = []() { fcntl(0, F_GETFL); };
-  expectRealtimeDeath(func, "fcntl");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "fcntl");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
   auto func = []() { close(0); };
-  expectRealtimeDeath(func, "close");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "close");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
@@ -203,8 +204,8 @@ TEST(TestRadsanInterceptors, fopenDiesWhenRealtime) {
     auto fd = fopen(temporary_file_path(), "w");
     EXPECT_THAT(fd, Ne(nullptr));
   };
-  expectRealtimeDeath(func, "fopen");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "fopen");
+  expectSurvivalInBlockableContext(func);
   std::remove(temporary_file_path());
 }
 
@@ -214,8 +215,8 @@ TEST(TestRadsanInterceptors, freadDiesWhenRealtime) {
     char c{};
     fread(&c, 1, 1, fd);
   };
-  expectRealtimeDeath(func, "fread");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "fread");
+  expectSurvivalInBlockableContext(func);
   if (fd != nullptr)
     fclose(fd);
   std::remove(temporary_file_path());
@@ -226,8 +227,8 @@ TEST(TestRadsanInterceptors, fwriteDiesWhenRealtime) {
   ASSERT_NE(nullptr, fd);
   auto message = "Hello, world!";
   auto func = [&]() { fwrite(&message, 1, 4, fd); };
-  expectRealtimeDeath(func, "fwrite");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "fwrite");
+  expectSurvivalInBlockableContext(func);
   std::remove(temporary_file_path());
 }
 
@@ -235,23 +236,23 @@ TEST(TestRadsanInterceptors, fcloseDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
   EXPECT_THAT(fd, Ne(nullptr));
   auto func = [fd]() { fclose(fd); };
-  expectRealtimeDeath(func, "fclose");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "fclose");
+  expectSurvivalInBlockableContext(func);
   std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, putsDiesWhenRealtime) {
   auto func = []() { puts("Hello, world!\n"); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, fputsDiesWhenRealtime) {
   auto fd = fopen(temporary_file_path(), "w");
   ASSERT_THAT(fd, Ne(nullptr)) << errno;
   auto func = [fd]() { fputs("Hello, world!\n", fd); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
   if (fd != nullptr)
     fclose(fd);
   std::remove(temporary_file_path());
@@ -268,8 +269,8 @@ TEST(TestRadsanInterceptors, pthreadCreateDiesWhenRealtime) {
     struct thread_info *tinfo;
     pthread_create(&thread, &attr, &fake_thread_entry_point, tinfo);
   };
-  expectRealtimeDeath(func, "pthread_create");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_create");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadMutexLockDiesWhenRealtime) {
@@ -278,8 +279,8 @@ TEST(TestRadsanInterceptors, pthreadMutexLockDiesWhenRealtime) {
     pthread_mutex_lock(&mutex);
   };
 
-  expectRealtimeDeath(func, "pthread_mutex_lock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_mutex_lock");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadMutexUnlockDiesWhenRealtime) {
@@ -288,8 +289,8 @@ TEST(TestRadsanInterceptors, pthreadMutexUnlockDiesWhenRealtime) {
     pthread_mutex_unlock(&mutex);
   };
 
-  expectRealtimeDeath(func, "pthread_mutex_unlock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_mutex_unlock");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadMutexJoinDiesWhenRealtime) {
@@ -298,8 +299,8 @@ TEST(TestRadsanInterceptors, pthreadMutexJoinDiesWhenRealtime) {
     pthread_join(thread, nullptr);
   };
 
-  expectRealtimeDeath(func, "pthread_join");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_join");
+  expectSurvivalInBlockableContext(func);
 }
 
 #if SANITIZER_APPLE
@@ -312,8 +313,8 @@ TEST(TestRadsanInterceptors, osSpinLockLockDiesWhenRealtime) {
     auto spin_lock = OSSpinLock{};
     OSSpinLockLock(&spin_lock);
   };
-  expectRealtimeDeath(func, "OSSpinLockLock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "OSSpinLockLock");
+  expectSurvivalInBlockableContext(func);
 }
 #pragma clang diagnostic pop
 
@@ -322,8 +323,8 @@ TEST(TestRadsanInterceptors, osUnfairLockLockDiesWhenRealtime) {
     auto unfair_lock = os_unfair_lock_s{};
     os_unfair_lock_lock(&unfair_lock);
   };
-  expectRealtimeDeath(func, "os_unfair_lock_lock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "os_unfair_lock_lock");
+  expectSurvivalInBlockableContext(func);
 }
 #endif
 
@@ -332,8 +333,8 @@ TEST(TestRadsanInterceptors, spinLockLockDiesWhenRealtime) {
   auto spinlock = pthread_spinlock_t{};
   pthread_spin_init(&spinlock, PTHREAD_PROCESS_SHARED);
   auto func = [&]() { pthread_spin_lock(&spinlock); };
-  expectRealtimeDeath(func, "pthread_spin_lock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_spin_lock");
+  expectSurvivalInBlockableContext(func);
 }
 #endif
 
@@ -342,8 +343,8 @@ TEST(TestRadsanInterceptors, pthreadCondSignalDiesWhenRealtime) {
     auto cond = pthread_cond_t{};
     pthread_cond_signal(&cond);
   };
-  expectRealtimeDeath(func, "pthread_cond_signal");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_cond_signal");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadCondBroadcastDiesWhenRealtime) {
@@ -351,8 +352,8 @@ TEST(TestRadsanInterceptors, pthreadCondBroadcastDiesWhenRealtime) {
     auto cond = pthread_cond_t{};
     pthread_cond_broadcast(&cond);
   };
-  expectRealtimeDeath(func, "pthread_cond_broadcast");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_cond_broadcast");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
@@ -361,7 +362,7 @@ TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
   ASSERT_EQ(0, pthread_cond_init(&cond, nullptr));
   ASSERT_EQ(0, pthread_mutex_init(&mutex, nullptr));
   auto func = [&]() { pthread_cond_wait(&cond, &mutex); };
-  expectRealtimeDeath(func, "pthread_cond_wait");
+  expectDeathInNonBlockingContext(func, "pthread_cond_wait");
   // It's very difficult to test the success case here without doing some
   // sleeping, which is at the mercy of the scheduler. What's really important
   // here is the interception - so we're only testing that for now.
@@ -372,8 +373,8 @@ TEST(TestRadsanInterceptors, pthreadRwlockRdlockDiesWhenRealtime) {
     auto rwlock = pthread_rwlock_t{};
     pthread_rwlock_rdlock(&rwlock);
   };
-  expectRealtimeDeath(func, "pthread_rwlock_rdlock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_rwlock_rdlock");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadRwlockUnlockDiesWhenRealtime) {
@@ -381,8 +382,8 @@ TEST(TestRadsanInterceptors, pthreadRwlockUnlockDiesWhenRealtime) {
     auto rwlock = pthread_rwlock_t{};
     pthread_rwlock_unlock(&rwlock);
   };
-  expectRealtimeDeath(func, "pthread_rwlock_unlock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_rwlock_unlock");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, pthreadRwlockWrlockDiesWhenRealtime) {
@@ -390,8 +391,8 @@ TEST(TestRadsanInterceptors, pthreadRwlockWrlockDiesWhenRealtime) {
     auto rwlock = pthread_rwlock_t{};
     pthread_rwlock_wrlock(&rwlock);
   };
-  expectRealtimeDeath(func, "pthread_rwlock_wrlock");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "pthread_rwlock_wrlock");
+  expectSurvivalInBlockableContext(func);
 }
 
 /*
@@ -399,54 +400,54 @@ TEST(TestRadsanInterceptors, pthreadRwlockWrlockDiesWhenRealtime) {
 */
 TEST(TestRadsanInterceptors, openingASocketDiesWhenRealtime) {
   auto func = []() { socket(PF_INET, SOCK_STREAM, 0); };
-  expectRealtimeDeath(func, "socket");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "socket");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, sendToASocketDiesWhenRealtime) {
   auto func = []() { send(0, nullptr, 0, 0); };
-  expectRealtimeDeath(func, "send");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "send");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, sendmsgToASocketDiesWhenRealtime) {
   auto const msg = msghdr{};
   auto func = [&]() { sendmsg(0, &msg, 0); };
-  expectRealtimeDeath(func, "sendmsg");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "sendmsg");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, sendtoToASocketDiesWhenRealtime) {
   auto const addr = sockaddr{};
   auto const len = socklen_t{};
   auto func = [&]() { sendto(0, nullptr, 0, 0, &addr, len); };
-  expectRealtimeDeath(func, "sendto");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "sendto");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, recvFromASocketDiesWhenRealtime) {
   auto func = []() { recv(0, nullptr, 0, 0); };
-  expectRealtimeDeath(func, "recv");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "recv");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, recvfromOnASocketDiesWhenRealtime) {
   auto addr = sockaddr{};
   auto len = socklen_t{};
   auto func = [&]() { recvfrom(0, nullptr, 0, 0, &addr, &len); };
-  expectRealtimeDeath(func, "recvfrom");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "recvfrom");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, recvmsgOnASocketDiesWhenRealtime) {
   auto msg = msghdr{};
   auto func = [&]() { recvmsg(0, &msg, 0); };
-  expectRealtimeDeath(func, "recvmsg");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "recvmsg");
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsanInterceptors, shutdownOnASocketDiesWhenRealtime) {
   auto func = [&]() { shutdown(0, 0); };
-  expectRealtimeDeath(func, "shutdown");
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func, "shutdown");
+  expectSurvivalInBlockableContext(func);
 }

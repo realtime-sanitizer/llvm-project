@@ -6,7 +6,7 @@
     Subject to GNU General Public License (GPL) v3.0
 */
 
-#include "gtest/gtest.h"
+#include "gmock/gmock.h"
 
 #include "radsan_test_utilities.h"
 #include <radsan.h>
@@ -41,54 +41,55 @@ void invokeStdFunction(std::function<void()> &&function) { function(); }
 TEST(TestRadsan, vectorPushBackAllocationDiesWhenRealtime) {
   auto vec = std::vector<float>{};
   auto func = [&vec]() { vec.push_back(0.4f); };
-  expectRealtimeDeath(func);
+  expectDeathInNonBlockingContext(func);
   ASSERT_EQ(0u, vec.size());
-  expectNonrealtimeSurvival(func);
-  ASSERT_EQ(1u, vec.size());
+  expectSurvivalInBlockableContext(func);
+  ASSERT_THAT(vec.size(), Gt(0u));
 }
 
 TEST(TestRadsan, destructionOfObjectOnHeapDiesWhenRealtime) {
   auto obj = std::make_unique<std::array<float, 256>>();
   auto func = [&obj]() { obj.reset(); };
-  expectRealtimeDeath(func);
+  expectDeathInNonBlockingContext(func);
   ASSERT_NE(nullptr, obj.get());
-  expectNonrealtimeSurvival(func);
+  expectSurvivalInBlockableContext(func);
   ASSERT_EQ(nullptr, obj.get());
 }
 
 TEST(TestRadsan, sleepingAThreadDiesWhenRealtime) {
   auto func = []() { std::this_thread::sleep_for(1us); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, ifstreamCreationDiesWhenRealtime) {
   auto func = []() { auto ifs = std::ifstream("./file.txt"); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
   std::remove("./file.txt");
 }
 
 TEST(TestRadsan, ofstreamCreationDiesWhenRealtime) {
   auto func = []() { auto ofs = std::ofstream("./file.txt"); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
   std::remove("./file.txt");
 }
 
 TEST(TestRadsan, lockingAMutexDiesWhenRealtime) {
   auto mutex = std::mutex{};
   auto func = [&]() { mutex.lock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  auto reset = [&]() { mutex.unlock(); };
+  expectSurvivalInBlockableContext(func, reset);
 }
 
 TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
   auto mutex = std::mutex{};
   mutex.lock();
   auto func = [&]() { mutex.unlock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 #if RADSAN_TEST_SHARED_MUTEX
@@ -96,31 +97,32 @@ TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
 TEST(TestRadsan, lockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   auto func = [&]() { mutex.lock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  auto reset = [&]() { mutex.unlock(); };
+  expectSurvivalInBlockableContext(func, reset);
 }
 
 TEST(TestRadsan, unlockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   mutex.lock();
   auto func = [&]() { mutex.unlock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, sharedLockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   auto func = [&]() { mutex.lock_shared(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, sharedUnlockingASharedMutexDiesWhenRealtime) {
   auto mutex = std::shared_mutex();
   mutex.lock_shared();
   auto func = [&]() { mutex.unlock_shared(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 #endif // RADSAN_TEST_SHARED_MUTEX
@@ -130,8 +132,8 @@ TEST(TestRadsan, launchingAThreadDiesWhenRealtime) {
     auto t = std::thread([]() {});
     t.join();
   };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, copyingALambdaWithLargeCaptureDiesWhenRealtime) {
@@ -143,39 +145,39 @@ TEST(TestRadsan, copyingALambdaWithLargeCaptureDiesWhenRealtime) {
     EXPECT_EQ(0.25f, lots_of_data[3]);
   };
   auto func = [&]() { invokeStdFunction(lambda); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, accessingALargeAtomicVariableDiesWhenRealtime) {
   auto small_atomic = std::atomic<float>{0.0f};
   ASSERT_TRUE(small_atomic.is_lock_free());
-  realtimeInvoke([&small_atomic]() { auto x = small_atomic.load(); });
+  expectSurvivalInNonBlockingContext([&small_atomic]() { auto x = small_atomic.load(); });
 
   auto large_atomic = std::atomic<std::array<float, 2048>>{{}};
   ASSERT_FALSE(large_atomic.is_lock_free());
   auto func = [&]() { auto x = large_atomic.load(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, firstCoutDiesWhenRealtime) {
   auto func = []() { std::cout << "Hello, world!" << std::endl; };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, secondCoutDiesWhenRealtime) {
   std::cout << "Hello, world";
   auto func = []() { std::cout << "Hello, again!" << std::endl; };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, printfDiesWhenRealtime) {
   auto func = []() { printf("Hello, world!\n"); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
@@ -185,8 +187,8 @@ TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
     } catch (std::exception &) {
     }
   };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  expectDeathInNonBlockingContext(func);
+  expectSurvivalInBlockableContext(func);
 }
 
 TEST(TestRadsan, doesNotDieIfTurnedOff) {
@@ -197,5 +199,5 @@ TEST(TestRadsan, doesNotDieIfTurnedOff) {
     mutex.unlock();
     radsan_on();
   };
-  realtimeInvoke(realtime_unsafe_func);
+  expectSurvivalInNonBlockingContext(realtime_unsafe_func);
 }
