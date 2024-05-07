@@ -19,7 +19,7 @@ template <typename Function>
 }
 
 template <typename Function>
-void expectRealtimeDeath(Function &&func,
+void ExpectRealtimeDeath(Function &&func,
                          const char *intercepted_method_name = nullptr) {
 
   using namespace testing;
@@ -36,7 +36,7 @@ void expectRealtimeDeath(Function &&func,
               ExitedWithCode(EXIT_FAILURE), expected_error_substr());
 }
 
-template <typename Function> void expectNonrealtimeSurvival(Function &&func) {
+template <typename Function> void ExpectNonRealtimeSurvival(Function &&func) {
   std::forward<Function>(func)();
 }
 
