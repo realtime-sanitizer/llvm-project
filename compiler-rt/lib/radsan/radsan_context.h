@@ -31,6 +31,6 @@ private:
   int BypassDepth{0};
 };
 
-Context &getContextForThisThread();
+Context &GetContextForThisThread();
 
 } // namespace radsan
