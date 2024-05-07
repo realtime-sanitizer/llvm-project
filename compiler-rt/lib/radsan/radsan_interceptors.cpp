@@ -39,7 +39,7 @@ using namespace __sanitizer;
 
 namespace radsan {
 void ExpectNotRealtime(const char *InterceptedFunctionName) {
-  getContextForThisThread().ExpectNotRealtime(InterceptedFunctionName);
+  GetContextForThisThread().ExpectNotRealtime(InterceptedFunctionName);
 }
 } // namespace radsan
 
@@ -347,7 +347,7 @@ INTERCEPTOR(int, shutdown, int socket, int how) {
 */
 
 namespace radsan {
-void initialiseInterceptors() {
+void InitializeInterceptors() {
   INTERCEPT_FUNCTION(calloc);
   INTERCEPT_FUNCTION(free);
   INTERCEPT_FUNCTION(malloc);
