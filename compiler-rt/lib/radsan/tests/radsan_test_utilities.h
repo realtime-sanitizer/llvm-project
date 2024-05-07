@@ -14,17 +14,17 @@
 namespace radsan_testing {
 
 template <typename Function>
-[[clang::realtime]] void realtimeInvoke(Function &&func) {
-  std::forward<Function>(func)();
+[[clang::realtime]] void RealtimeInvoke(Function &&Func) {
+  std::forward<Function>(Func)();
 }
 
 template <typename Function>
-void expectRealtimeDeath(Function &&func,
+void expectRealtimeDeath(Function &&Func,
                          const char *intercepted_method_name = nullptr) {
 
   using namespace testing;
 
-  auto expected_error_substr = [&]() -> std::string {
+  auto ExpectedErrorSubstring = [&]() -> std::string {
     return intercepted_method_name != nullptr
                ? "Real-time violation: intercepted call to real-time unsafe "
                  "function `" +
@@ -32,12 +32,12 @@ void expectRealtimeDeath(Function &&func,
                : "";
   };
 
-  EXPECT_EXIT(realtimeInvoke(std::forward<Function>(func)),
-              ExitedWithCode(EXIT_FAILURE), expected_error_substr());
+  EXPECT_EXIT(RealtimeInvoke(std::forward<Function>(Func)),
+              ExitedWithCode(EXIT_FAILURE), ExpectedErrorSubstring());
 }
 
-template <typename Function> void expectNonrealtimeSurvival(Function &&func) {
-  std::forward<Function>(func)();
+template <typename Function> void expectNonrealtimeSurvival(Function &&Func) {
+  std::forward<Function>(Func)();
 }
 
 } // namespace radsan_testing
