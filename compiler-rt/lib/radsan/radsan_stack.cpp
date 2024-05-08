@@ -1,10 +1,12 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
-
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+//===--- radsan_stack.cpp - Realtime Sanitizer --------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
 #include <sanitizer_common/sanitizer_flags.h>
 #include <sanitizer_common/sanitizer_stacktrace.h>
@@ -26,7 +28,7 @@ void BufferedStackTrace::UnwindImpl(uptr pc, uptr bp, void *context,
 } // namespace __sanitizer
 
 namespace {
-void setGlobalStackTraceFormat() {
+void SetGlobalStackTraceFormat() {
   SetCommonFlagsDefaults();
   CommonFlags cf;
   cf.CopyFrom(*common_flags());
@@ -37,14 +39,14 @@ void setGlobalStackTraceFormat() {
 } // namespace
 
 namespace radsan {
-void printStackTrace() {
+void PrintStackTrace() {
 
-  auto stack = BufferedStackTrace{};
+  BufferedStackTrace Stack{};
 
   GET_CURRENT_PC_BP;
-  stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal);
+  Stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal);
 
-  setGlobalStackTraceFormat();
-  stack.Print();
+  SetGlobalStackTraceFormat();
+  Stack.Print();
 }
 } // namespace radsan

@@ -1,14 +1,16 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
-
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+//===--- radsan.h - Realtime Sanitizer --------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
-#define RADSAN_EXPORT __attribute__((visibility("default")))
+#include "sanitizer_common/sanitizer_internal_defs.h"
 
 extern "C" {
 
@@ -18,7 +20,7 @@ extern "C" {
 
     @warning Do not call this method as a user.
 */
-RADSAN_EXPORT void radsan_init();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
 
 /** Enter real-time context.
 
@@ -28,7 +30,7 @@ RADSAN_EXPORT void radsan_init();
 
     @warning Do not call this method as a user
 */
-RADSAN_EXPORT void radsan_realtime_enter();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_enter();
 
 /** Exit the real-time context.
 
@@ -37,7 +39,7 @@ RADSAN_EXPORT void radsan_realtime_enter();
 
     @warning Do not call this method as a user
 */
-RADSAN_EXPORT void radsan_realtime_exit();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_exit();
 
 /** Disable all RADSan error reporting.
 
@@ -52,7 +54,7 @@ RADSAN_EXPORT void radsan_realtime_exit();
 
     Example:
 
-        [[clang::realtime]] float process (float x)
+        float process (float x) [[clang::nonblocking]] 
         {
             auto const y = 2.0f * x;
 
@@ -62,12 +64,13 @@ RADSAN_EXPORT void radsan_realtime_exit();
         }
 
 */
-RADSAN_EXPORT void radsan_off();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_off();
 
 /** Re-enable all RADSan error reporting.
 
     The counterpart to `radsan_off`. See the description for `radsan_off` for
     details about how to use this method.
 */
-RADSAN_EXPORT void radsan_on();
-}
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_on();
+
+} // extern "C"

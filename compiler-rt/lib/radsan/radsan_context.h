@@ -1,10 +1,12 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
-
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+//===--- radsan_context.h - Realtime Sanitizer --------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
@@ -14,23 +16,23 @@ class Context {
 public:
   Context();
 
-  void realtimePush();
-  void realtimePop();
+  void RealtimePush();
+  void RealtimePop();
 
-  void bypassPush();
-  void bypassPop();
+  void BypassPush();
+  void BypassPop();
 
-  void expectNotRealtime(const char *interpreted_function_name);
+  void ExpectNotRealtime(const char *InterceptedFunctionName);
 
 private:
-  bool inRealtimeContext() const;
-  bool isBypassed() const;
-  void printDiagnostics(const char *intercepted_function_name);
+  bool InRealtimeContext() const;
+  bool IsBypassed() const;
+  void PrintDiagnostics(const char *InterceptedFunctionName);
 
-  int realtime_depth_{0};
-  int bypass_depth_{0};
+  int RealtimeDepth{0};
+  int BypassDepth{0};
 };
 
-Context &getContextForThisThread();
+Context &GetContextForThisThread();
 
 } // namespace radsan
