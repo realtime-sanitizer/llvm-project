@@ -1,10 +1,12 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
-
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+//===--- radsan.h - Realtime Sanitizer --------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
 #pragma once
 
@@ -52,7 +54,7 @@ SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_exit();
 
     Example:
 
-        [[clang::realtime]] float process (float x)
+        float process (float x) [[clang::nonblocking]] 
         {
             auto const y = 2.0f * x;
 
