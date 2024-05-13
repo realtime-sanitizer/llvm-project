@@ -1,10 +1,16 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
-
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+//===--- radsan_test.cpp - Realtime Sanitizer --------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// Introduces basic functional tests for the realtime sanitizer.
+// Not meant to be exhaustive, testing all interceptors, please see
+// test_radsan_interceptors.cpp for those tests.
+//
+//===----------------------------------------------------------------------===//
 
 #include "gtest/gtest.h"
 
