@@ -9,7 +9,6 @@
 #include <radsan/radsan.h>
 #include <radsan/radsan_context.h>
 #include <radsan/radsan_interceptors.h>
-#include <unistd.h>
 
 extern "C" {
 
