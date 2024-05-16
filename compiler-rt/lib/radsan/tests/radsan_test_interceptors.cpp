@@ -1,10 +1,13 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
-
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+//===--- radsan_test_interceptors.cpp - Realtime Sanitizer --------------*- C++
+//-*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
 #include "gtest/gtest.h"
 
@@ -222,7 +225,7 @@ TEST(TestRadsanInterceptors, CloseDiesWhenRealtime) {
 
 TEST(TestRadsanInterceptors, FopenDiesWhenRealtime) {
   auto Func = []() {
-    FILE* Fd = fopen(TemporaryFilePath(), "w");
+    FILE *Fd = fopen(TemporaryFilePath(), "w");
     EXPECT_THAT(Fd, Ne(nullptr));
   };
   ExpectRealtimeDeath(Func, "fopen");
@@ -231,7 +234,7 @@ TEST(TestRadsanInterceptors, FopenDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, FreadDiesWhenRealtime) {
-  FILE* Fd = fopen(TemporaryFilePath(), "w");
+  FILE *Fd = fopen(TemporaryFilePath(), "w");
   auto Func = [Fd]() {
     char c{};
     fread(&c, 1, 1, Fd);
@@ -244,9 +247,9 @@ TEST(TestRadsanInterceptors, FreadDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, FwriteDiesWhenRealtime) {
-  FILE* Fd = fopen(TemporaryFilePath(), "w");
+  FILE *Fd = fopen(TemporaryFilePath(), "w");
   ASSERT_NE(nullptr, Fd);
-  const char* Message = "Hello, world!";
+  const char *Message = "Hello, world!";
   auto Func = [&]() { fwrite(&Message, 1, 4, Fd); };
   ExpectRealtimeDeath(Func, "fwrite");
   ExpectNonRealtimeSurvival(Func);
@@ -254,7 +257,7 @@ TEST(TestRadsanInterceptors, FwriteDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, FcloseDiesWhenRealtime) {
-  FILE* Fd = fopen(TemporaryFilePath(), "w");
+  FILE *Fd = fopen(TemporaryFilePath(), "w");
   EXPECT_THAT(Fd, Ne(nullptr));
   auto Func = [Fd]() { fclose(Fd); };
   ExpectRealtimeDeath(Func, "fclose");
@@ -269,7 +272,7 @@ TEST(TestRadsanInterceptors, PutsDiesWhenRealtime) {
 }
 
 TEST(TestRadsanInterceptors, FputsDiesWhenRealtime) {
-  FILE* Fd = fopen(TemporaryFilePath(), "w");
+  FILE *Fd = fopen(TemporaryFilePath(), "w");
   ASSERT_THAT(Fd, Ne(nullptr)) << errno;
   auto Func = [Fd]() { fputs("Hello, world!\n", Fd); };
   ExpectRealtimeDeath(Func);
