@@ -10,4 +10,4 @@
 
 namespace __radsan {
 void PrintStackTrace();
-}
+} // namespace __radsan
