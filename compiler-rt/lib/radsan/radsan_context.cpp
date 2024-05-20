@@ -26,7 +26,7 @@ static pthread_key_t Key;
 static pthread_once_t KeyOnce = PTHREAD_ONCE_INIT;
 void internalFree(void *Ptr) { __sanitizer::InternalFree(Ptr); }
 
-using radsan::Context;
+using __radsan::Context;
 
 Context &GetContextForThisThreadImpl() {
   auto MakeTlsKey = []() {
@@ -64,7 +64,7 @@ void InvokeViolationDetectedAction() { exit(EXIT_FAILURE); }
 
 } // namespace detail
 
-namespace radsan {
+namespace __radsan {
 
 Context::Context() = default;
 
@@ -94,11 +94,11 @@ void Context::PrintDiagnostics(const char *InterceptedFunctionName) {
           "Real-time violation: intercepted call to real-time unsafe function "
           "`%s` in real-time context! Stack trace:\n",
           InterceptedFunctionName);
-  radsan::PrintStackTrace();
+  __radsan::PrintStackTrace();
 }
 
 Context &GetContextForThisThread() {
   return detail::GetContextForThisThreadImpl();
 }
 
-} // namespace radsan
+} // namespace __radsan
