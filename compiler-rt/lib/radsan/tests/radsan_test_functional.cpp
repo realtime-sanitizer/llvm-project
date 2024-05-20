@@ -40,26 +40,22 @@ using namespace testing;
 using namespace radsan_testing;
 using namespace std::chrono_literals;
 
-namespace {
-void invokeStdFunction(std::function<void()> &&function) { function(); }
-} // namespace
-
-TEST(TestRadsan, vectorPushBackAllocationDiesWhenRealtime) {
-  auto vec = std::vector<float>{};
-  auto func = [&vec]() { vec.push_back(0.4f); };
-  expectRealtimeDeath(func);
+TEST(TestRadsan, VectorPushBackAllocationDiesWhenRealtime) {
+  std::vector<float> vec{};
+  auto Func = [&vec]() { vec.push_back(0.4f); };
+  ExpectRealtimeDeath(Func);
   ASSERT_EQ(0u, vec.size());
-  expectNonrealtimeSurvival(func);
+  ExpectNonRealtimeSurvival(Func);
   ASSERT_EQ(1u, vec.size());
 }
 
-TEST(TestRadsan, destructionOfObjectOnHeapDiesWhenRealtime) {
-  auto obj = std::make_unique<std::array<float, 256>>();
-  auto func = [&obj]() { obj.reset(); };
-  expectRealtimeDeath(func);
-  ASSERT_NE(nullptr, obj.get());
-  expectNonrealtimeSurvival(func);
-  ASSERT_EQ(nullptr, obj.get());
+TEST(TestRadsan, DestructionOfObjectOnHeapDiesWhenRealtime) {
+  auto allocated_ptr = std::make_unique<std::array<float, 256>>();
+  auto Func = [&allocated_ptr]() { allocated_ptr.reset(); };
+  ExpectRealtimeDeath(Func);
+  ASSERT_NE(nullptr, allocated_ptr.get());
+  ExpectNonRealtimeSurvival(Func);
+  ASSERT_EQ(nullptr, allocated_ptr.get());
 }
 
 TEST(TestRadsan, sleepingAThreadDiesWhenRealtime) {
@@ -82,51 +78,51 @@ TEST(TestRadsan, ofstreamCreationDiesWhenRealtime) {
   std::remove("./file.txt");
 }
 
-TEST(TestRadsan, lockingAMutexDiesWhenRealtime) {
-  auto mutex = std::mutex{};
-  auto func = [&]() { mutex.lock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+TEST(TestRadsan, LockingAMutexDiesWhenRealtime) {
+  std::mutex mutex{};
+  auto Func = [&]() { mutex.lock(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
-TEST(TestRadsan, unlockingAMutexDiesWhenRealtime) {
-  auto mutex = std::mutex{};
+TEST(TestRadsan, UnlockingAMutexDiesWhenRealtime) {
+  std::mutex mutex{};
   mutex.lock();
-  auto func = [&]() { mutex.unlock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  auto Func = [&]() { mutex.unlock(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
 #if RADSAN_TEST_SHARED_MUTEX
 
-TEST(TestRadsan, lockingASharedMutexDiesWhenRealtime) {
-  auto mutex = std::shared_mutex();
-  auto func = [&]() { mutex.lock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+TEST(TestRadsan, LockingASharedMutexDiesWhenRealtime) {
+  std::shared_mutex mutex{};
+  auto Func = [&]() { mutex.lock(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
-TEST(TestRadsan, unlockingASharedMutexDiesWhenRealtime) {
-  auto mutex = std::shared_mutex();
+TEST(TestRadsan, UnlockingASharedMutexDiesWhenRealtime) {
+  std::shared_mutex mutex{};
   mutex.lock();
-  auto func = [&]() { mutex.unlock(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  auto Func = [&]() { mutex.unlock(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
-TEST(TestRadsan, sharedLockingASharedMutexDiesWhenRealtime) {
-  auto mutex = std::shared_mutex();
-  auto func = [&]() { mutex.lock_shared(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+TEST(TestRadsan, SharedLockingASharedMutexDiesWhenRealtime) {
+  std::shared_mutex mutex{};
+  auto Func = [&]() { mutex.lock_shared(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
-TEST(TestRadsan, sharedUnlockingASharedMutexDiesWhenRealtime) {
-  auto mutex = std::shared_mutex();
+TEST(TestRadsan, SharedUnlockingASharedMutexDiesWhenRealtime) {
+  std::shared_mutex mutex{};
   mutex.lock_shared();
-  auto func = [&]() { mutex.unlock_shared(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  auto Func = [&]() { mutex.unlock_shared(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
 #endif // RADSAN_TEST_SHARED_MUTEX
@@ -140,8 +136,12 @@ TEST(TestRadsan, launchingAThreadDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsan, copyingALambdaWithLargeCaptureDiesWhenRealtime) {
-  auto lots_of_data = std::array<float, 16>{};
+namespace {
+void InvokeStdFunction(std::function<void()> &&function) { function(); }
+} // namespace
+
+TEST(TestRadsan, CopyingALambdaWithLargeCaptureDiesWhenRealtime) {
+  std::array<float, 16> lots_of_data{};
   auto lambda = [lots_of_data]() mutable {
     // Stop everything getting optimised out
     lots_of_data[3] = 0.25f;
@@ -153,16 +153,16 @@ TEST(TestRadsan, copyingALambdaWithLargeCaptureDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsan, accessingALargeAtomicVariableDiesWhenRealtime) {
-  auto small_atomic = std::atomic<float>{0.0f};
+TEST(TestRadsan, AccessingALargeAtomicVariableDiesWhenRealtime) {
+  std::atomic<float> small_atomic{0.0f};
   ASSERT_TRUE(small_atomic.is_lock_free());
-  RealtimeInvoke([&small_atomic]() { auto x = small_atomic.load(); });
+  RealtimeInvoke([&small_atomic]() { float x = small_atomic.load(); });
 
-  auto large_atomic = std::atomic<std::array<float, 2048>>{{}};
+  std::atomic<std::array<float, 2048>> large_atomic{};
   ASSERT_FALSE(large_atomic.is_lock_free());
-  auto func = [&]() { auto x = large_atomic.load(); };
-  expectRealtimeDeath(func);
-  expectNonrealtimeSurvival(func);
+  auto Func = [&]() { auto x = large_atomic.load(); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
 
 TEST(TestRadsan, firstCoutDiesWhenRealtime) {
@@ -195,9 +195,9 @@ TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
-TEST(TestRadsan, doesNotDieIfTurnedOff) {
-  auto mutex = std::mutex{};
-  auto realtime_unsafe_func = [&]() {
+TEST(TestRadsan, DoesNotDieIfTurnedOff) {
+  std::mutex mutex{};
+  auto RealtimeUnsafeFunc = [&]() {
     __radsan_off();
     mutex.lock();
     mutex.unlock();
