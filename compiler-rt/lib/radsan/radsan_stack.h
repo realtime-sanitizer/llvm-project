@@ -8,6 +8,6 @@
 
 #pragma once
 
-namespace radsan {
+namespace __radsan {
 void PrintStackTrace();
 }
