@@ -198,10 +198,10 @@ TEST(TestRadsan, throwingAnExceptionDiesWhenRealtime) {
 TEST(TestRadsan, doesNotDieIfTurnedOff) {
   auto mutex = std::mutex{};
   auto realtime_unsafe_func = [&]() {
-    radsan_off();
+    __radsan_off();
     mutex.lock();
     mutex.unlock();
-    radsan_on();
+    __radsan_on();
   };
   RealtimeInvoke(realtime_unsafe_func);
 }

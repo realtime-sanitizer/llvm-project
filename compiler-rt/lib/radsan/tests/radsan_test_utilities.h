@@ -17,8 +17,10 @@
 
 namespace radsan_testing {
 
-template <typename Function> [[clang::realtime]] void RealtimeInvoke(Function &&Func) {
+template <typename Function> void RealtimeInvoke(Function &&Func) {
+  __radsan_realtime_enter();
   std::forward<Function>(Func)();
+  __radsan_realtime_exit();
 }
 
 template <typename Function>
