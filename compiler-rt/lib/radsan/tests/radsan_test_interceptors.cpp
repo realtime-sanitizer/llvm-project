@@ -179,6 +179,23 @@ TEST(TestRadsanInterceptors, openatDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
+TEST(TestRadsanInterceptors, openCreatesFileWithProperMode) {
+  const int mode = S_IRGRP | S_IROTH | S_IRUSR | S_IWUSR;
+  ASSERT_THAT(mode, Eq(0644));
+
+  const int fd = open(temporary_file_path(), O_CREAT | O_WRONLY, mode);
+  ASSERT_THAT(fd, Ne(-1));
+  close(fd);
+
+  struct stat st;
+  ASSERT_THAT(stat(temporary_file_path(), &st), Eq(0));
+
+  // Mask st_mode with 07777 to get permission bits only
+  ASSERT_THAT(st.st_mode & 0777, Eq(mode));
+
+  std::remove(temporary_file_path());
+}
+
 TEST(TestRadsanInterceptors, creatDiesWhenRealtime) {
   auto func = []() { creat(temporary_file_path(), S_IWOTH | S_IROTH); };
   expectRealtimeDeath(func, "creat");
