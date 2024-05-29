@@ -208,6 +208,28 @@ TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
   expectNonrealtimeSurvival(func);
 }
 
+TEST(TestRadsanInterceptors, fcntlFlockDiesWhenRealtime) {
+  int fd = creat(temporary_file_path(), S_IRUSR | S_IWUSR);
+  ASSERT_THAT(fd, Ne(-1));
+
+  auto func = [fd]() {
+    struct flock lock{};
+    lock.l_type = F_RDLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0; 
+    lock.l_pid = ::getpid();
+
+    ASSERT_THAT(fcntl(fd, F_GETLK, &lock), Eq(0));
+    ASSERT_THAT(lock.l_type, F_UNLCK);
+  };
+  expectRealtimeDeath(func, "fcntl");
+  expectNonrealtimeSurvival(func);
+
+  close(fd);
+  std::remove(temporary_file_path());
+}
+
 TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
   auto func = []() { close(0); };
   expectRealtimeDeath(func, "close");

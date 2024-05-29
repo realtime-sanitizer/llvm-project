@@ -85,11 +85,13 @@ INTERCEPTOR(int, creat, const char *path, mode_t mode) {
 
 INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
   radsan::expectNotRealtime("fcntl");
+
   va_list args;
   va_start(args, cmd);
-  auto result = REAL(fcntl)(filedes, cmd, args);
+  void *arg = va_arg(args, void *);
   va_end(args);
-  return result;
+
+  return fcntl(filedes, cmd, arg);
 }
 
 INTERCEPTOR(int, close, int filedes) {
