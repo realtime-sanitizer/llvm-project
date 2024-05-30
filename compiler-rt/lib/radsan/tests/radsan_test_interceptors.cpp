@@ -217,7 +217,7 @@ TEST(TestRadsanInterceptors, fcntlFlockDiesWhenRealtime) {
     lock.l_type = F_RDLCK;
     lock.l_whence = SEEK_SET;
     lock.l_start = 0;
-    lock.l_len = 0; 
+    lock.l_len = 0;
     lock.l_pid = ::getpid();
 
     ASSERT_THAT(fcntl(fd, F_GETLK, &lock), Eq(0));
@@ -376,21 +376,25 @@ TEST(TestRadsanInterceptors, spinLockLockDiesWhenRealtime) {
 #endif
 
 TEST(TestRadsanInterceptors, pthreadCondSignalDiesWhenRealtime) {
-  auto func = []() {
-    auto cond = pthread_cond_t{};
-    pthread_cond_signal(&cond);
-  };
+  pthread_cond_t cond{};
+  pthread_cond_init(&cond, NULL);
+
+  auto func = [&cond]() { pthread_cond_signal(&cond); };
   expectRealtimeDeath(func, "pthread_cond_signal");
   expectNonrealtimeSurvival(func);
+
+  pthread_cond_destroy(&cond);
 }
 
 TEST(TestRadsanInterceptors, pthreadCondBroadcastDiesWhenRealtime) {
-  auto func = []() {
-    auto cond = pthread_cond_t{};
-    pthread_cond_broadcast(&cond);
-  };
+  pthread_cond_t cond{};
+  pthread_cond_init(&cond, NULL);
+
+  auto func = [&cond]() { pthread_cond_broadcast(&cond); };
   expectRealtimeDeath(func, "pthread_cond_broadcast");
   expectNonrealtimeSurvival(func);
+
+  pthread_cond_destroy(&cond);
 }
 
 TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
@@ -398,11 +402,16 @@ TEST(TestRadsanInterceptors, pthreadCondWaitDiesWhenRealtime) {
   auto mutex = pthread_mutex_t{};
   ASSERT_EQ(0, pthread_cond_init(&cond, nullptr));
   ASSERT_EQ(0, pthread_mutex_init(&mutex, nullptr));
+
   auto func = [&]() { pthread_cond_wait(&cond, &mutex); };
   expectRealtimeDeath(func, "pthread_cond_wait");
+
   // It's very difficult to test the success case here without doing some
   // sleeping, which is at the mercy of the scheduler. What's really important
   // here is the interception - so we're only testing that for now.
+
+  pthread_cond_destroy(&cond);
+  pthread_mutex_destroy(&mutex);
 }
 
 TEST(TestRadsanInterceptors, pthreadRwlockRdlockDiesWhenRealtime) {
