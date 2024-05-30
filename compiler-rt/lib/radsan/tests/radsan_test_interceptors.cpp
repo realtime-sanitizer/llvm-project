@@ -363,17 +363,20 @@ TEST(TestRadsanInterceptors, SpinLockLockDiesWhenRealtime) {
 #endif
 
 TEST(TestRadsanInterceptors, PthreadCondSignalDiesWhenRealtime) {
-  auto Func = []() {
-    pthread_cond_t cond{};
-    pthread_cond_signal(&cond);
-  };
+  pthread_cond_t cond{};
+  pthread_cond_init(&cond, NULL);
+
+  auto Func = [&cond]() { pthread_cond_signal(&cond); };
   expectRealtimeDeath(Func, "pthread_cond_signal");
   expectNonrealtimeSurvival(Func);
+
+  pthread_cond_destroy(&cond);
 }
 
 TEST(TestRadsanInterceptors, PthreadCondBroadcastDiesWhenRealtime) {
   pthread_cond_t cond{};
   pthread_cond_init(&cond, NULL);
+
   auto Func = [&cond]() { pthread_cond_broadcast(&cond); };
   expectRealtimeDeath(Func, "pthread_cond_broadcast");
   expectNonrealtimeSurvival(Func);
@@ -386,11 +389,15 @@ TEST(TestRadsanInterceptors, PthreadCondWaitDiesWhenRealtime) {
   pthread_mutex_t mutex;
   ASSERT_EQ(0, pthread_cond_init(&cond, nullptr));
   ASSERT_EQ(0, pthread_mutex_init(&mutex, nullptr));
+
   auto Func = [&]() { pthread_cond_wait(&cond, &mutex); };
   expectRealtimeDeath(Func, "pthread_cond_wait");
   // It's very difficult to test the success case here without doing some
   // sleeping, which is at the mercy of the scheduler. What's really important
   // here is the interception - so we're only testing that for now.
+
+  pthread_cond_destroy(&cond);
+  pthread_mutex_destroy(&mutex);
 }
 
 TEST(TestRadsanInterceptors, PthreadRwlockRdlockDiesWhenRealtime) {
