@@ -179,6 +179,22 @@ TEST(TestRadsanInterceptors, openatDiesWhenRealtime) {
   std::remove(temporary_file_path());
 }
 
+TEST(TestRadsanInterceptors, openCreatesFileWithProperMode) {
+  const int mode = S_IRGRP | S_IROTH | S_IRUSR | S_IWUSR;
+
+  const int fd = open(temporary_file_path(), O_CREAT | O_WRONLY, mode);
+  ASSERT_THAT(fd, Ne(-1));
+  close(fd);
+
+  struct stat st;
+  ASSERT_THAT(stat(temporary_file_path(), &st), Eq(0));
+
+  // Mask st_mode to get permission bits only
+  ASSERT_THAT(st.st_mode & 0777, Eq(mode));
+
+  std::remove(temporary_file_path());
+}
+
 TEST(TestRadsanInterceptors, creatDiesWhenRealtime) {
   auto func = []() { creat(temporary_file_path(), S_IWOTH | S_IROTH); };
   expectRealtimeDeath(func, "creat");
@@ -190,6 +206,28 @@ TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
   auto func = []() { fcntl(0, F_GETFL); };
   expectRealtimeDeath(func, "fcntl");
   expectNonrealtimeSurvival(func);
+}
+
+TEST(TestRadsanInterceptors, fcntlFlockDiesWhenRealtime) {
+  int fd = creat(temporary_file_path(), S_IRUSR | S_IWUSR);
+  ASSERT_THAT(fd, Ne(-1));
+
+  auto func = [fd]() {
+    struct flock lock{};
+    lock.l_type = F_RDLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0; 
+    lock.l_pid = ::getpid();
+
+    ASSERT_THAT(fcntl(fd, F_GETLK, &lock), Eq(0));
+    ASSERT_THAT(lock.l_type, F_UNLCK);
+  };
+  expectRealtimeDeath(func, "fcntl");
+  expectNonrealtimeSurvival(func);
+
+  close(fd);
+  std::remove(temporary_file_path());
 }
 
 TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
