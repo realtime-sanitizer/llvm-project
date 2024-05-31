@@ -89,9 +89,13 @@ INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
   va_list args;
   va_start(args, cmd);
 
-  // bit of a hack here, we need to throw the argument into a variable that will
-  // hold the largest of the possible argument types. It is then assumed that
-  // fcntl will cast it properly.
+  // Following precedent here. The linux source (fcntl.c, do_fcntl) accepts the
+  // final argument in a variable that will hold the largest of the possible
+  // argument types (pointers and ints are typical in fcntl) It is then assumed
+  // that the implementation of fcntl will cast it properly depending on cmd.
+  //
+  // This is also similar to what is done in
+  // sanitizer_common/sanitizer_common_syscalls.inc
   const unsigned long arg = va_arg(args, unsigned long);
   int result = REAL(fcntl)(filedes, cmd, arg);
 
