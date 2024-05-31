@@ -213,7 +213,7 @@ TEST(TestRadsanInterceptors, fcntlFlockDiesWhenRealtime) {
   ASSERT_THAT(fd, Ne(-1));
 
   auto func = [fd]() {
-    struct flock lock{};
+    struct flock lock {};
     lock.l_type = F_RDLCK;
     lock.l_whence = SEEK_SET;
     lock.l_start = 0;
@@ -228,6 +228,28 @@ TEST(TestRadsanInterceptors, fcntlFlockDiesWhenRealtime) {
 
   close(fd);
   std::remove(temporary_file_path());
+}
+
+TEST(TestRadsanInterceptors, fcntlSetFdDiesWhenRealtime) {
+  int fd = creat(temporary_file_path(), S_IRUSR | S_IWUSR);
+  ASSERT_THAT(fd, Ne(-1));
+
+  auto func = [fd]() {
+    int old_flags = fcntl(fd, F_GETFD);
+    ASSERT_THAT(fcntl(fd, F_SETFD, FD_CLOEXEC), Eq(0));
+
+    int flags = fcntl(fd, F_GETFD);
+    ASSERT_THAT(flags, Ne(-1));
+    ASSERT_THAT(flags & FD_CLOEXEC, Eq(FD_CLOEXEC));
+
+    ASSERT_THAT(fcntl(fd, F_SETFD, old_flags), Eq(0));
+    ASSERT_THAT(fcntl(fd, F_GETFD), Eq(old_flags));
+  };
+
+  expectRealtimeDeath(func, "fcntl");
+  expectNonrealtimeSurvival(func);
+
+  close(fd);
 }
 
 TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
