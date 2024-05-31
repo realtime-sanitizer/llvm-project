@@ -88,10 +88,16 @@ INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
 
   va_list args;
   va_start(args, cmd);
-  void *arg = va_arg(args, void *);
+
+  // bit of a hack here, we need to throw the argument into a variable that will
+  // hold the largest of the possible argument types. It is then assumed that
+  // fcntl will cast it properly.
+  const unsigned long arg = va_arg(args, unsigned long);
+  int result = REAL(fcntl)(filedes, cmd, arg);
+
   va_end(args);
 
-  return fcntl(filedes, cmd, arg);
+  return result;
 }
 
 INTERCEPTOR(int, close, int filedes) {
