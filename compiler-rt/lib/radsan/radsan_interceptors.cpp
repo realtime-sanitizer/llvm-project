@@ -52,6 +52,7 @@ INTERCEPTOR(int, open, const char *path, int oflag, ...) {
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
   __radsan::ExpectNotRealtime("open");
+
   va_list args;
   va_start(args, oflag);
   const mode_t mode = va_arg(args, int);
@@ -65,6 +66,7 @@ INTERCEPTOR(int, openat, int fd, const char *path, int oflag, ...) {
   // TODO Establish whether we should intercept here if the flag contains
   // O_NONBLOCK
   __radsan::ExpectNotRealtime("openat");
+
   va_list args;
   va_start(args, oflag);
   mode_t mode = va_arg(args, int);
@@ -84,22 +86,13 @@ INTERCEPTOR(int, creat, const char *path, mode_t mode) {
 
 INTERCEPTOR(int, fcntl, int filedes, int cmd, ...) {
   __radsan::ExpectNotRealtime("fcntl");
+
   va_list args;
   va_start(args, cmd);
-
-  // Following precedent here. The linux source (fcntl.c, do_fcntl) accepts the
-  // final argument in a variable that will hold the largest of the possible
-  // argument types (pointers and ints are typical in fcntl) It is then assumed
-  // that the implementation of fcntl will cast it properly depending on cmd.
-  //
-  // This is also similar to what is done in
-  // sanitizer_common/sanitizer_common_syscalls.inc
-  const unsigned long arg = va_arg(args, unsigned long);
-  int result = REAL(fcntl)(filedes, cmd, arg);
-
+  void *arg = va_arg(args, void *);
   va_end(args);
 
-  return result;
+  return fcntl(filedes, cmd, arg);
 }
 
 INTERCEPTOR(int, close, int filedes) {
