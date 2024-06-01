@@ -51,9 +51,9 @@ protected:
 
   // Gets a file path with the test's name in in
   // This file will be removed if it exists at the end of the test
-  const char *temporary_file_path() const { return file_path.c_str(); }
+  const char *GetTemporaryFilePath() const { return file_path.c_str(); }
 
-  void TearDown() override { std::remove(temporary_file_path()); }
+  void TearDown() override { std::remove(GetTemporaryFilePath()); }
 
 private:
   std::string file_path;
@@ -171,13 +171,13 @@ TEST(TestRadsanInterceptors, nanosleepDiesWhenRealtime) {
 */
 
 TEST_F(RadsanFileTest, openDiesWhenRealtime) {
-  auto func = [this]() { open(temporary_file_path(), O_RDONLY); };
+  auto func = [this]() { open(GetTemporaryFilePath(), O_RDONLY); };
   expectRealtimeDeath(func, "open");
   expectNonrealtimeSurvival(func);
 }
 
 TEST_F(RadsanFileTest, openatDiesWhenRealtime) {
-  auto func = [this]() { openat(0, temporary_file_path(), O_RDONLY); };
+  auto func = [this]() { openat(0, GetTemporaryFilePath(), O_RDONLY); };
   expectRealtimeDeath(func, "openat");
   expectNonrealtimeSurvival(func);
 }
@@ -185,19 +185,19 @@ TEST_F(RadsanFileTest, openatDiesWhenRealtime) {
 TEST_F(RadsanFileTest, openCreatesFileWithProperMode) {
   const int mode = S_IRGRP | S_IROTH | S_IRUSR | S_IWUSR;
 
-  const int fd = open(temporary_file_path(), O_CREAT | O_WRONLY, mode);
+  const int fd = open(GetTemporaryFilePath(), O_CREAT | O_WRONLY, mode);
   ASSERT_THAT(fd, Ne(-1));
   close(fd);
 
   struct stat st;
-  ASSERT_THAT(stat(temporary_file_path(), &st), Eq(0));
+  ASSERT_THAT(stat(GetTemporaryFilePath(), &st), Eq(0));
 
   // Mask st_mode to get permission bits only
   ASSERT_THAT(st.st_mode & 0777, Eq(mode));
 }
 
 TEST_F(RadsanFileTest, creatDiesWhenRealtime) {
-  auto func = [this]() { creat(temporary_file_path(), S_IWOTH | S_IROTH); };
+  auto func = [this]() { creat(GetTemporaryFilePath(), S_IWOTH | S_IROTH); };
   expectRealtimeDeath(func, "creat");
   expectNonrealtimeSurvival(func);
 }
@@ -209,7 +209,7 @@ TEST(TestRadsanInterceptors, fcntlDiesWhenRealtime) {
 }
 
 TEST_F(RadsanFileTest, fcntlFlockDiesWhenRealtime) {
-  int fd = creat(temporary_file_path(), S_IRUSR | S_IWUSR);
+  int fd = creat(GetTemporaryFilePath(), S_IRUSR | S_IWUSR);
   ASSERT_THAT(fd, Ne(-1));
 
   auto func = [fd]() {
@@ -230,7 +230,7 @@ TEST_F(RadsanFileTest, fcntlFlockDiesWhenRealtime) {
 }
 
 TEST_F(RadsanFileTest, fcntlSetFdDiesWhenRealtime) {
-  int fd = creat(temporary_file_path(), S_IRUSR | S_IWUSR);
+  int fd = creat(GetTemporaryFilePath(), S_IRUSR | S_IWUSR);
   ASSERT_THAT(fd, Ne(-1));
 
   auto func = [fd]() {
@@ -259,7 +259,7 @@ TEST(TestRadsanInterceptors, closeDiesWhenRealtime) {
 
 TEST_F(RadsanFileTest, fopenDiesWhenRealtime) {
   auto func = [this]() {
-    auto fd = fopen(temporary_file_path(), "w");
+    auto fd = fopen(GetTemporaryFilePath(), "w");
     EXPECT_THAT(fd, Ne(nullptr));
   };
   expectRealtimeDeath(func, "fopen");
@@ -267,7 +267,7 @@ TEST_F(RadsanFileTest, fopenDiesWhenRealtime) {
 }
 
 TEST_F(RadsanFileTest, freadDiesWhenRealtime) {
-  auto fd = fopen(temporary_file_path(), "w");
+  auto fd = fopen(GetTemporaryFilePath(), "w");
   auto func = [fd]() {
     char c{};
     fread(&c, 1, 1, fd);
@@ -279,7 +279,7 @@ TEST_F(RadsanFileTest, freadDiesWhenRealtime) {
 }
 
 TEST_F(RadsanFileTest, fwriteDiesWhenRealtime) {
-  auto fd = fopen(temporary_file_path(), "w");
+  auto fd = fopen(GetTemporaryFilePath(), "w");
   ASSERT_NE(nullptr, fd);
   auto message = "Hello, world!";
   auto func = [&]() { fwrite(&message, 1, 4, fd); };
@@ -288,7 +288,7 @@ TEST_F(RadsanFileTest, fwriteDiesWhenRealtime) {
 }
 
 TEST_F(RadsanFileTest, fcloseDiesWhenRealtime) {
-  auto fd = fopen(temporary_file_path(), "w");
+  auto fd = fopen(GetTemporaryFilePath(), "w");
   EXPECT_THAT(fd, Ne(nullptr));
   auto func = [fd]() { fclose(fd); };
   expectRealtimeDeath(func, "fclose");
@@ -302,7 +302,7 @@ TEST(TestRadsanInterceptors, putsDiesWhenRealtime) {
 }
 
 TEST_F(RadsanFileTest, fputsDiesWhenRealtime) {
-  auto fd = fopen(temporary_file_path(), "w");
+  auto fd = fopen(GetTemporaryFilePath(), "w");
   ASSERT_THAT(fd, Ne(nullptr)) << errno;
   auto func = [fd]() { fputs("Hello, world!\n", fd); };
   expectRealtimeDeath(func);
