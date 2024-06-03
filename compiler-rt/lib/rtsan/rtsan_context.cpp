@@ -1,14 +1,16 @@
-/**
-    This file is part of the RealtimeSanitizer (RADSan) project.
-    https://github.com/realtime-sanitizer/radsan
+//===--- rtsan_context.cpp - Realtime Sanitizer -----------------*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//===----------------------------------------------------------------------===//
 
-    Copyright 2023 David Trevelyan & Alistair Barker
-    Subject to GNU General Public License (GPL) v3.0
-*/
+#include <rtsan/rtsan_context.h>
 
-#include <radsan/radsan_context.h>
-
-#include <radsan/radsan_stack.h>
+#include <rtsan/rtsan_stack.h>
 
 #include <sanitizer_common/sanitizer_allocator_internal.h>
 #include <sanitizer_common/sanitizer_stacktrace.h>
@@ -23,18 +25,18 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 
 static void internalFree(void *ptr) { __sanitizer::InternalFree(ptr); }
 
-static __radsan::Context &GetContextForThisThreadImpl() {
+static __rtsan::Context &GetContextForThisThreadImpl() {
   auto make_thread_local_context_key = []() {
     CHECK_EQ(pthread_key_create(&context_key, internalFree), 0);
   };
 
   pthread_once(&key_once, make_thread_local_context_key);
-  __radsan::Context *current_thread_context =
-      static_cast<__radsan::Context *>(pthread_getspecific(context_key));
+  __rtsan::Context *current_thread_context =
+      static_cast<__rtsan::Context *>(pthread_getspecific(context_key));
   if (current_thread_context == nullptr) {
-    current_thread_context = static_cast<__radsan::Context *>(
-        __sanitizer::InternalAlloc(sizeof(__radsan::Context)));
-    new (current_thread_context) __radsan::Context();
+    current_thread_context = static_cast<__rtsan::Context *>(
+        __sanitizer::InternalAlloc(sizeof(__rtsan::Context)));
+    new (current_thread_context) __rtsan::Context();
     pthread_setspecific(context_key, current_thread_context);
   }
 
@@ -43,9 +45,9 @@ static __radsan::Context &GetContextForThisThreadImpl() {
 
 /*
     This is a placeholder stub for a future feature that will allow
-    a user to configure RADSan's behaviour when a real-time safety
-    violation is detected. The RADSan developers intend for the
-    following choices to be made available, via a RADSAN_OPTIONS
+    a user to configure RTSan's behaviour when a real-time safety
+    violation is detected. The RTSan developers intend for the
+    following choices to be made available, via a RTSAN_OPTIONS
     environment variable, in a future PR:
 
         i) exit,
@@ -57,7 +59,7 @@ static __radsan::Context &GetContextForThisThreadImpl() {
 */
 static void InvokeViolationDetectedAction() { exit(EXIT_FAILURE); }
 
-namespace __radsan {
+namespace __rtsan {
 
 Context::Context() = default;
 
@@ -87,9 +89,9 @@ void Context::PrintDiagnostics(const char *intercepted_function_name) {
           "Real-time violation: intercepted call to real-time unsafe function "
           "`%s` in real-time context! Stack trace:\n",
           intercepted_function_name);
-  __radsan::PrintStackTrace();
+  __rtsan::PrintStackTrace();
 }
 
 Context &GetContextForThisThread() { return GetContextForThisThreadImpl(); }
 
-} // namespace __radsan
+} // namespace __rtsan
