@@ -327,7 +327,7 @@ TEST_F(RtsanOpenedFileTest, FputsDiesWhenRealtime) {
   ExpectNonRealtimeSurvival(Func);
 }
 
-TEST_F(RtsanOpenedFileTest, readDiesWhenRealtime) {
+TEST_F(RtsanOpenedFileTest, ReadDiesWhenRealtime) {
   auto Func = [this]() {
     char c{};
     read(fd_, &c, 1);
@@ -336,7 +336,7 @@ TEST_F(RtsanOpenedFileTest, readDiesWhenRealtime) {
   ExpectNonRealtimeSurvival(Func);
 }
 
-TEST_F(RtsanOpenedFileTest, writeDiesWhenRealtime) {
+TEST_F(RtsanOpenedFileTest, WriteDiesWhenRealtime) {
   auto Func = [this]() {
     char c{};
     write(fd_, &c, 1);
@@ -346,7 +346,7 @@ TEST_F(RtsanOpenedFileTest, writeDiesWhenRealtime) {
 }
 
 #if SANITIZER_APPLE
-TEST_F(RtsanOpenedFileTest, preadDiesWhenRealtime) {
+TEST_F(RtsanOpenedFileTest, PreadDiesWhenRealtime) {
   auto Func = [this]() {
     char c{};
     pread(fd_, &c, 1, 0);
@@ -355,7 +355,7 @@ TEST_F(RtsanOpenedFileTest, preadDiesWhenRealtime) {
   ExpectNonRealtimeSurvival(Func);
 }
 
-TEST_F(RtsanOpenedFileTest, readvDiesWhenRealtime) {
+TEST_F(RtsanOpenedFileTest, ReadvDiesWhenRealtime) {
   auto Func = [this]() {
     char c{};
     iovec iov{&c, 1};
@@ -365,7 +365,7 @@ TEST_F(RtsanOpenedFileTest, readvDiesWhenRealtime) {
   ExpectNonRealtimeSurvival(Func);
 }
 
-TEST_F(RtsanOpenedFileTest, pwriteDiesWhenRealtime) {
+TEST_F(RtsanOpenedFileTest, PwriteDiesWhenRealtime) {
   auto Func = [this]() {
     char c{};
     pwrite(fd_, &c, 1, 0);
@@ -374,7 +374,7 @@ TEST_F(RtsanOpenedFileTest, pwriteDiesWhenRealtime) {
   ExpectNonRealtimeSurvival(Func);
 }
 
-TEST_F(RtsanOpenedFileTest, writevDiesWhenRealtime) {
+TEST_F(RtsanOpenedFileTest, WritevDiesWhenRealtime) {
   auto Func = [this]() {
     char c{};
     iovec iov{&c, 1};
