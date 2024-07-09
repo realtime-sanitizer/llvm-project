@@ -7652,13 +7652,6 @@ its underlying representation to be a WebAssembly ``funcref``.
   }];
 }
 
-def RealtimeDocs : Documentation {
-  let Category = DocCatFunction;
-  let Heading = "Realtime Attribute";
-  let Content = [{
-  }];
-}
-
 def PreferredTypeDocumentation : Documentation {
   let Category = DocCatField;
   let Content = [{
