@@ -199,17 +199,17 @@
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32imC -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-LOWER %s
 // RV32-LOWER: error: invalid arch name 'rv32imC',
-// RV32-LOWER: string must be lowercase
+// RV32-LOWER: string may only contain [a-z0-9_]
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=unknown -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-STR %s
 // RV32-STR: error: invalid arch name 'unknown',
-// RV32-STR: string must begin with rv32{i,e,g} or rv64{i,e,g}
+// RV32-STR: string must begin with rv32{i,e,g}, rv64{i,e,g}, or a supported profile name
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32q -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-LETTER %s
 // RV32-LETTER: error: invalid arch name 'rv32q',
-// RV32-LETTER: first letter should be 'e', 'i' or 'g'
+// RV32-LETTER: first letter after 'rv32' should be 'e', 'i' or 'g'
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32imcq -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ORDER %s
@@ -231,20 +231,15 @@
 // RV32-STD: error: invalid arch name 'rv32imqc',
 // RV32-STD: unsupported standard user-level extension 'q'
 
-// RUN: not %clang --target=riscv32-unknown-elf -march=rv32ib -### %s \
-// RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-B %s
-// RV32-B: error: invalid arch name 'rv32ib',
-// RV32-B: unsupported standard user-level extension 'b'
-
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32xabc -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32X %s
 // RV32X: error: invalid arch name 'rv32xabc',
-// RV32X: first letter should be 'e', 'i' or 'g'
+// RV32X: first letter after 'rv32' should be 'e', 'i' or 'g'
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32sabc -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32S %s
 // RV32S: error: invalid arch name 'rv32sabc',
-// RV32S: first letter should be 'e', 'i' or 'g'
+// RV32S: first letter after 'rv32' should be 'e', 'i' or 'g'
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32ix -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32X-NAME %s
@@ -311,7 +306,7 @@
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32ixabc_ -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-XSEP %s
 // RV32-XSEP: error: invalid arch name 'rv32ixabc_',
-// RV32-XSEP: extension name missing after separator '_'
+// RV32-XSEP: unsupported non-standard user-level extension 'xabc'
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32ixabc_a -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-PREFIX %s
@@ -323,10 +318,10 @@
 // RV32-X-ORDER: error: invalid arch name 'rv32ixdef_sabc',
 // RV32-X-ORDER  unsupported non-standard user-level extension 'xdef'
 
-// RUN: not %clang --target=riscv32-unknown-elf -march=rv32ixabc_xabc -### %s \
+// RUN: not %clang --target=riscv32-unknown-elf -march=rv32im_m -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-XDUP %s
-// RV32-XDUP: error: invalid arch name 'rv32ixabc_xabc',
-// RV32-XDUP: duplicated non-standard user-level extension 'xabc'
+// RV32-XDUP: error: invalid arch name 'rv32im_m',
+// RV32-XDUP: duplicated standard user-level extension 'm'
 
 // RUN: not %clang --target=riscv32-unknown-elf -march=rv32ixabc_xdef -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-X-X-INVAL %s

@@ -30,6 +30,7 @@
 namespace llvm {
 namespace orc {
 class LLJIT;
+class LLJITBuilder;
 class ThreadSafeContext;
 } // namespace orc
 } // namespace llvm
@@ -96,7 +97,6 @@ class Interpreter {
   // An optional parser for CUDA offloading
   std::unique_ptr<IncrementalParser> DeviceParser;
 
-  llvm::Error CreateExecutor();
   unsigned InitPTUSize = 0;
 
   // This member holds the last result of the value printing. It's a class
@@ -110,9 +110,17 @@ class Interpreter {
   RuntimeInterfaceBuilder::TransformExprFunction *AddPrintValueCall = nullptr;
 
 protected:
-  // Derived classes can make use an extended interface of the Interpreter.
-  // That's useful for testing and out-of-tree clients.
-  Interpreter(std::unique_ptr<CompilerInstance> CI, llvm::Error &Err);
+  // Derived classes can use an extended interface of the Interpreter.
+  Interpreter(std::unique_ptr<CompilerInstance> CI, llvm::Error &Err,
+              std::unique_ptr<llvm::orc::LLJITBuilder> JITBuilder = nullptr);
+
+  // Create the internal IncrementalExecutor, or re-create it after calling
+  // ResetExecutor().
+  llvm::Error CreateExecutor();
+
+  // Delete the internal IncrementalExecutor. This causes a hard shutdown of the
+  // JIT engine. In particular, it doesn't run cleanup or destructors.
+  void ResetExecutor();
 
   // Lazily construct the RuntimeInterfaceBuilder. The provided instance will be
   // used for the entire lifetime of the interpreter. The default implementation
@@ -174,6 +182,8 @@ private:
   llvm::DenseMap<CXXRecordDecl *, llvm::orc::ExecutorAddr> Dtors;
 
   llvm::SmallVector<Expr *, 4> ValuePrintingInfo;
+
+  std::unique_ptr<llvm::orc::LLJITBuilder> JITBuilder;
 };
 } // namespace clang
 
