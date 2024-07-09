@@ -52,7 +52,7 @@ RADSAN_EXPORT void radsan_realtime_exit();
 
     Example:
 
-        [[clang::realtime]] float process (float x)
+        [[clang::nonblocking]] float process (float x)
         {
             auto const y = 2.0f * x;
 

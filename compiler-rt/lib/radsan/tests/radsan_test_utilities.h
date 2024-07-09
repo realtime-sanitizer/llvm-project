@@ -14,7 +14,7 @@
 namespace radsan_testing {
 
 template <typename Function>
-[[clang::realtime]] void realtimeInvoke(Function &&func) {
+void realtimeInvoke(Function &&func) [[clang::nonblocking]] {
   std::forward<Function>(func)();
 }
 
