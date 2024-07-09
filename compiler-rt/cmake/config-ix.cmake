@@ -462,7 +462,7 @@ if(APPLE)
       set(MIN_OSX_VERSION ${DEFAULT_SANITIZER_MIN_OSX_VERSION})
     endif()
 
-# Note: In order to target x86_64h on OS X the minimum deployment target must
+    # Note: In order to target x86_64h on OS X the minimum deployment target must
     # be 10.8 or higher.
     if(MIN_OSX_VERSION VERSION_LESS "10.7")
       message(FATAL_ERROR "macOS deployment target '${SANITIZER_MIN_OSX_VERSION}' is too old.")
