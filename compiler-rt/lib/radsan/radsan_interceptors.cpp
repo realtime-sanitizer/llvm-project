@@ -13,6 +13,7 @@
 
 #include "interception/interception.h"
 #include "radsan/radsan_context.h"
+#include "radsan/radsan.h"
 
 #if !SANITIZER_LINUX && !SANITIZER_APPLE
 #error Sorry, radsan does not yet support this platform
@@ -39,6 +40,8 @@ using namespace __sanitizer;
 
 namespace radsan {
 void expectNotRealtime(const char *intercepted_function_name) {
+  radsan_ensure_initialized();
+
   getContextForThisThread().expectNotRealtime(intercepted_function_name);
 }
 } // namespace radsan

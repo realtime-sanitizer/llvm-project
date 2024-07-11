@@ -7,26 +7,127 @@
 */
 
 #include <radsan/radsan.h>
+
 #include <radsan/radsan_context.h>
+#include <radsan/radsan_flags.h>
 #include <radsan/radsan_interceptors.h>
-#include <unistd.h>
+
+#include "sanitizer_common/sanitizer_atomic.h"
+#include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_flag_parser.h"
+#include "sanitizer_common/sanitizer_flags.h"
+
+using namespace __sanitizer;
+
+namespace radsan {
+static __sanitizer::atomic_uint8_t radsan_inited{};
+static Mutex radsan_init_mutex{};
+static Flags radsan_flags{};
+
+Flags *flags() { return &radsan_flags; }
+
+
+SANITIZER_INTERFACE_WEAK_DEF(const char *, __radsan_default_options, void) {
+  return "";
+}
+
+
+static void RegisterRadsanFlags(FlagParser *parser, Flags *f) {
+#define RADSAN_FLAG(Type, Name, DefaultValue, Description) \
+  RegisterFlag(parser, #Name, Description, &f->Name);
+#include "radsan_flags.inc"
+#undef RADSAN_FLAG
+}
+
+void Flags::SetDefaults() {
+#define RADSAN_FLAG(Type, Name, DefaultValue, Description) Name = DefaultValue;
+#include "radsan_flags.inc"
+#undef RADSAN_FLAG
+}
+
+
+static void initializeFlags() {
+  SetCommonFlagsDefaults();
+  {
+    CommonFlags cf;
+    cf.CopyFrom(*common_flags());
+    cf.stack_trace_format = "DEFAULT";
+    cf.external_symbolizer_path = GetEnv("RADSAN_SYMBOLIZER_PATH");
+    OverrideCommonFlags(cf);
+  }
+
+  Flags *f = flags();
+  f->SetDefaults();
+
+  FlagParser parser;
+  RegisterRadsanFlags(&parser, f);
+  RegisterCommonFlags(&parser);
+
+  // Override from user-specified string.
+  parser.ParseString(__radsan_default_options());
+
+  parser.ParseStringFromEnv("RADSAN_OPTIONS");
+
+  InitializeCommonFlags();
+
+  if (Verbosity()) ReportUnrecognizedFlags();
+
+  if (common_flags()->help) 
+  {
+    parser.PrintFlagDescriptions();
+  }
+}
+
+} // namespace radsan
 
 extern "C" {
-RADSAN_EXPORT void radsan_init() { radsan::initialiseInterceptors(); }
 
-RADSAN_EXPORT void radsan_realtime_enter() {
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_ensure_initialized() {
+  // Double-checked locking.
+  // Ensure that radsan_init() is called only once by the first thread
+  // that gets here.
+
+  if (radsan_is_initialized()) 
+    return;
+
+  Lock lock(&radsan::radsan_init_mutex);
+
+  if (radsan_is_initialized()) 
+    return;
+
+  radsan_init();
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE bool radsan_is_initialized() {
+  return __sanitizer::atomic_load(&radsan::radsan_inited, memory_order_acquire) == 1; 
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_init() {
+  using namespace radsan;
+
+  if (radsan_is_initialized()) return;
+
+  SanitizerToolName = "RealtimeSanitizer";
+
+  initializeFlags();
+  initialiseInterceptors(); 
+
+  __sanitizer::atomic_store(&radsan_inited, 1, memory_order_release);
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_enter() {
   radsan::getContextForThisThread().realtimePush();
 }
 
-RADSAN_EXPORT void radsan_realtime_exit() {
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_exit() {
   radsan::getContextForThisThread().realtimePop();
 }
 
-RADSAN_EXPORT void radsan_off() {
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_off() {
   radsan::getContextForThisThread().bypassPush();
 }
 
-RADSAN_EXPORT void radsan_on() {
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_on() {
   radsan::getContextForThisThread().bypassPop();
 }
 }

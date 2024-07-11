@@ -13,6 +13,8 @@ set(RADSAN_PREINIT_SOURCES
 set(RADSAN_HEADERS
   radsan.h
   radsan_context.h
+  radsan_flags.h
+  radsdan_flags.inc
   radsan_stack.h)
 
 set(RADSAN_DEPS)

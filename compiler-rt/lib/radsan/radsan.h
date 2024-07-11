@@ -8,17 +8,31 @@
 
 #pragma once
 
-#define RADSAN_EXPORT __attribute__((visibility("default")))
+#include "sanitizer_common/sanitizer_internal_defs.h"
 
 extern "C" {
 
-/**
-    Initialise radsan interceptors. A call to this method is added to the
-    preinit array on Linux systems.
+/** Ensure RADSan is initialized.
 
-    @warning Do not call this method as a user.
+    This method ensures the first thread to call it will initialize RADSan.
+    Any subsequent calls will be no-ops.
 */
-RADSAN_EXPORT void radsan_init();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_ensure_initialized();
+
+/** Check if RADSan is initialized.
+
+    @return true if RADSan is initialized, false otherwise.
+*/
+SANITIZER_INTERFACE_ATTRIBUTE bool radsan_is_initialized();
+
+/**
+    Initialise radsan interceptors and other flags. A call to this method is added to the
+    preinit array on Linux systems. On non-linux systems this must be called explicitly 
+    before other radsan methods.
+
+    @warning Do not call this method as a user. See radsan_ensure_initialized() instead.
+*/
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_init();
 
 /** Enter real-time context.
 
@@ -28,7 +42,7 @@ RADSAN_EXPORT void radsan_init();
 
     @warning Do not call this method as a user
 */
-RADSAN_EXPORT void radsan_realtime_enter();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_enter();
 
 /** Exit the real-time context.
 
@@ -37,7 +51,7 @@ RADSAN_EXPORT void radsan_realtime_enter();
 
     @warning Do not call this method as a user
 */
-RADSAN_EXPORT void radsan_realtime_exit();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_realtime_exit();
 
 /** Disable all RADSan error reporting.
 
@@ -62,12 +76,13 @@ RADSAN_EXPORT void radsan_realtime_exit();
         }
 
 */
-RADSAN_EXPORT void radsan_off();
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_off();
 
 /** Re-enable all RADSan error reporting.
 
     The counterpart to `radsan_off`. See the description for `radsan_off` for
     details about how to use this method.
 */
-RADSAN_EXPORT void radsan_on();
-}
+SANITIZER_INTERFACE_ATTRIBUTE void radsan_on();
+
+} // extern "C"

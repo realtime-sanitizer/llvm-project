@@ -25,17 +25,6 @@ void BufferedStackTrace::UnwindImpl(uptr pc, uptr bp, void *context,
 }
 } // namespace __sanitizer
 
-namespace {
-void setGlobalStackTraceFormat() {
-  SetCommonFlagsDefaults();
-  CommonFlags cf;
-  cf.CopyFrom(*common_flags());
-  cf.stack_trace_format = "DEFAULT";
-  cf.external_symbolizer_path = GetEnv("RADSAN_SYMBOLIZER_PATH");
-  OverrideCommonFlags(cf);
-}
-} // namespace
-
 namespace radsan {
 void printStackTrace() {
 
@@ -44,7 +33,6 @@ void printStackTrace() {
   GET_CURRENT_PC_BP;
   stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal);
 
-  setGlobalStackTraceFormat();
   stack.Print();
 }
 } // namespace radsan

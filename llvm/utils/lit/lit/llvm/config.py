@@ -67,6 +67,7 @@ class LLVMConfig(object):
                 "MSAN_OPTIONS",
                 "TSAN_OPTIONS",
                 "UBSAN_OPTIONS",
+                "RADSAN_OPTIONS",
             ]
         )
 

@@ -7,6 +7,7 @@
 */
 
 #include <radsan/radsan.h>
+#include <radsan/radsan_flags.h>
 #include <radsan/radsan_user_interface.h>
 
 #include <sanitizer_common/sanitizer_common.h>
@@ -32,22 +33,20 @@ std::function<OnErrorAction()> createErrorActionGetter() {
       return OnErrorAction::Continue;
   };
 
-  auto user_mode = __sanitizer::GetEnv("RADSAN_ERROR_MODE");
-  if (user_mode == nullptr) {
-    return exit_getter;
-  }
+  CHECK(radsan_is_initialized());
+  const char* user_mode = radsan::flags()->error_mode;
 
   if (std::strcmp(user_mode, "interactive") == 0) {
     return interactive_getter;
   }
-
-  if (std::strcmp(user_mode, "continue") == 0) {
+  else if (std::strcmp(user_mode, "continue") == 0) {
     return continue_getter;
   }
-
-  if (std::strcmp(user_mode, "exit") == 0) {
+  else if (std::strcmp(user_mode, "exit") == 0) {
     return exit_getter;
   }
+
+  __sanitizer::Printf("WARNING Invalid error mode: %s. Assuming 'exit'\n", user_mode);
 
   return exit_getter;
 }

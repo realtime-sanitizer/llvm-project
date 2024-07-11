@@ -9,10 +9,13 @@
 #pragma once
 
 #include <radsan/radsan_user_interface.h>
+#include "sanitizer_common/sanitizer_common.h"
 
 #include <functional>
 
 namespace radsan {
+
+__sanitizer::u64 GetReportCount();
 
 class Context {
 public:
