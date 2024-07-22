@@ -18,6 +18,9 @@
 #if SANITIZER_APPLE
 #include <libkern/OSAtomic.h>
 #include <os/lock.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
 #endif
 
 #if SANITIZER_INTERCEPT_MEMALIGN || SANITIZER_INTERCEPT_PVALLOC
@@ -261,38 +264,53 @@ TEST(TestRtsanInterceptors, CloseDiesWhenRealtime) {
 
 TEST_F(RtsanFileTest, FopenDiesWhenRealtime) {
   auto func = [this]() {
-    auto fd = fopen(GetTemporaryFilePath(), "w");
-    EXPECT_THAT(fd, Ne(nullptr));
+    FILE *f = fopen(GetTemporaryFilePath(), "w");
+    EXPECT_THAT(f, Ne(nullptr));
   };
   ExpectRealtimeDeath(func, "fopen");
   ExpectNonRealtimeSurvival(func);
 }
 
-TEST_F(RtsanFileTest, FreadDiesWhenRealtime) {
-  auto fd = fopen(GetTemporaryFilePath(), "w");
-  auto func = [fd]() {
+class RtsanOpenedFileTest : public RtsanFileTest {
+protected:
+  void SetUp() override {
+    RtsanFileTest::SetUp();
+    file_ = fopen(GetTemporaryFilePath(), "w");
+    ASSERT_THAT(file_, Ne(nullptr));
+    fd_ = fileno(file_);
+    ASSERT_THAT(fd_, Ne(-1));
+  }
+
+  void TearDown() override {
+    if (file_ != nullptr)
+      fclose(file_);
+    RtsanFileTest::TearDown();
+  }
+
+  FILE *file_ = nullptr;
+  int fd_ = -1;
+};
+
+TEST_F(RtsanOpenedFileTest, FreadDiesWhenRealtime) {
+  auto Func = [this]() {
     char c{};
-    fread(&c, 1, 1, fd);
+    fread(&c, 1, 1, file_);
   };
   ExpectRealtimeDeath(func, "fread");
   ExpectNonRealtimeSurvival(func);
-  if (fd != nullptr)
-    fclose(fd);
 }
 
-TEST_F(RtsanFileTest, FwriteDiesWhenRealtime) {
-  auto fd = fopen(GetTemporaryFilePath(), "w");
-  ASSERT_NE(nullptr, fd);
-  auto message = "Hello, world!";
-  auto func = [&]() { fwrite(&message, 1, 4, fd); };
+TEST_F(RtsanOpenedFileTest, FwriteDiesWhenRealtime) {
+  const char *message = "Hello, world!";
+  auto func = [&]() { fwrite(&message, 1, 4, file_); };
   ExpectRealtimeDeath(func, "fwrite");
   ExpectNonRealtimeSurvival(func);
 }
 
 TEST_F(RtsanFileTest, FcloseDiesWhenRealtime) {
-  auto fd = fopen(GetTemporaryFilePath(), "w");
-  EXPECT_THAT(fd, Ne(nullptr));
-  auto func = [fd]() { fclose(fd); };
+  FILE *file = fopen(GetTemporaryFilePath(), "w");
+  ASSERT_THAT(file, Ne(nullptr));
+  auto func = [file]() { fclose(file); };
   ExpectRealtimeDeath(func, "fclose");
   ExpectNonRealtimeSurvival(func);
 }
@@ -303,15 +321,70 @@ TEST(TestRtsanInterceptors, PutsDiesWhenRealtime) {
   ExpectNonRealtimeSurvival(func);
 }
 
-TEST_F(RtsanFileTest, FputsDiesWhenRealtime) {
-  auto fd = fopen(GetTemporaryFilePath(), "w");
-  ASSERT_THAT(fd, Ne(nullptr)) << errno;
-  auto func = [fd]() { fputs("Hello, world!\n", fd); };
-  ExpectRealtimeDeath(func);
-  ExpectNonRealtimeSurvival(func);
-  if (fd != nullptr)
-    fclose(fd);
+TEST_F(RtsanOpenedFileTest, FputsDiesWhenRealtime) {
+  auto Func = [this]() { fputs("Hello, world!\n", file_); };
+  ExpectRealtimeDeath(Func);
+  ExpectNonRealtimeSurvival(Func);
 }
+
+TEST_F(RtsanOpenedFileTest, ReadDiesWhenRealtime) {
+  auto Func = [this]() {
+    char c{};
+    read(fd_, &c, 1);
+  };
+  ExpectRealtimeDeath(Func, "read");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+TEST_F(RtsanOpenedFileTest, WriteDiesWhenRealtime) {
+  auto Func = [this]() {
+    char c{};
+    write(fd_, &c, 1);
+  };
+  ExpectRealtimeDeath(Func, "write");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+#if SANITIZER_APPLE
+TEST_F(RtsanOpenedFileTest, PreadDiesWhenRealtime) {
+  auto Func = [this]() {
+    char c{};
+    pread(fd_, &c, 1, 0);
+  };
+  ExpectRealtimeDeath(Func, "pread");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+TEST_F(RtsanOpenedFileTest, ReadvDiesWhenRealtime) {
+  auto Func = [this]() {
+    char c{};
+    iovec iov{&c, 1};
+    readv(fd_, &iov, 1);
+  };
+  ExpectRealtimeDeath(Func, "readv");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+TEST_F(RtsanOpenedFileTest, PwriteDiesWhenRealtime) {
+  auto Func = [this]() {
+    char c{};
+    pwrite(fd_, &c, 1, 0);
+  };
+  ExpectRealtimeDeath(Func, "pwrite");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+TEST_F(RtsanOpenedFileTest, WritevDiesWhenRealtime) {
+  auto Func = [this]() {
+    char c{};
+    iovec iov{&c, 1};
+    writev(fd_, &iov, 1);
+  };
+  ExpectRealtimeDeath(Func, "writev");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+#endif // SANITIZER_APPLE
 
 /*
     Concurrency
