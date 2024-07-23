@@ -1612,16 +1612,24 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   }
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::NonBlocking))
-      InsertCallAtFunctionEntryPoint(Fn, "__rtsan_realtime_enter");
+    for (const FunctionEffectWithCondition &Fe : FD->getFunctionEffects()) {
+      if (Fe.Effect.kind() == FunctionEffect::Kind::NonBlocking) {
+        InsertCallAtFunctionEntryPoint(Fn, "__rtsan_realtime_enter");
+        break;
+      }
+    }
   }
 
   // Emit the standard function epilogue.
   FinishFunction(BodyRange.getEnd());
 
   if (SanOpts.has(SanitizerKind::Realtime)) {
-    if (Fn->hasFnAttribute(llvm::Attribute::NonBlocking))
-      InsertCallAtAllFunctionExitPoints(Fn, "__rtsan_realtime_exit");
+    for (const FunctionEffectWithCondition &Fe : FD->getFunctionEffects()) {
+      if (Fe.Effect.kind() == FunctionEffect::Kind::NonBlocking) {
+        InsertCallAtAllFunctionExitPoints(Fn, "__rtsan_realtime_exit");
+        break;
+      }
+    }
   }
 
   // If we haven't marked the function nothrow through other means, do

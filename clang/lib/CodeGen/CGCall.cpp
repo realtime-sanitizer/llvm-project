@@ -2408,12 +2408,6 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
-
-      for (const FunctionEffectWithCondition &Fe : Fn->getFunctionEffects()) {
-        if (Fe.Effect.kind() == FunctionEffect::Kind::NonBlocking) {
-          FuncAttrs.addAttribute(llvm::Attribute::NonBlocking);
-        }
-      }
     }
 
     if (isa<FunctionDecl>(TargetDecl) || isa<VarDecl>(TargetDecl)) {
