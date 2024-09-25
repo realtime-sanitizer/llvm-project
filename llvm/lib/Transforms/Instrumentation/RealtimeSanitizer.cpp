@@ -17,6 +17,8 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
+#include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Utils/MemoryTaggingSupport.h"
 
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Transforms/Instrumentation/RealtimeSanitizer.h"
@@ -70,9 +72,10 @@ static PreservedAnalyses runSanitizeRealtime(Function &Fn) {
 }
 
 static PreservedAnalyses runSanitizeRealtimeUnsafe(Function &Fn) {
-  IRBuilder<> Builder(&Fn.front().front());
-  Value *Name = Builder.CreateGlobalString(demangle(Fn.getName()));
-  insertCallAtFunctionEntryPoint(Fn, "__rtsan_notify_blocking_call", {Name});
+  IRBuilder<> Builder{&Fn.front().front()};
+  const Triple TargetTriple{Fn.getParent()->getTargetTriple()};
+  Value *PC = memtag::getPC(TargetTriple, Builder);
+  insertCallAtFunctionEntryPoint(Fn, "__rtsan_notify_blocking_call", {PC});
   return rtsanPreservedCFGAnalyses();
 }
 
