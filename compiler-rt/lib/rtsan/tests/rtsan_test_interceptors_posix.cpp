@@ -134,7 +134,7 @@ TEST(TestRtsanInterceptors, VallocDiesWhenRealtime) {
 }
 
 #if __has_builtin(__builtin_available) && SANITIZER_APPLE
-#define ALIGNED_ALLOC_AVAILABLE() (__builtin_available(macOS 10.15, *))
+#define ALIGNED_ALLOC_AVAILABLE() (__builtin_available(macos 10.15, *))
 #else
 // We are going to assume this is true until we hit systems where it isn't
 #define ALIGNED_ALLOC_AVAILABLE() (true)
@@ -411,7 +411,7 @@ TEST_F(RtsanFileTest, FcntlFlockDiesWhenRealtime) {
   ASSERT_THAT(fd, Ne(-1));
 
   auto Func = [fd]() {
-    struct flock lock{};
+    struct flock lock {};
     lock.l_type = F_RDLCK;
     lock.l_whence = SEEK_SET;
     lock.l_start = 0;
@@ -751,7 +751,7 @@ TEST(TestRtsanInterceptors, IoctlBehavesWithOutputPointer) {
     GTEST_SKIP();
   }
 
-  struct ifreq ifr{};
+  struct ifreq ifr {};
   strncpy(ifr.ifr_name, ifaddr->ifa_name, IFNAMSIZ - 1);
 
   int retval = ioctl(sock, SIOCGIFADDR, &ifr);
@@ -1143,6 +1143,7 @@ void OSSpinLockLock(volatile OSSpinLock *__lock);
 typedef volatile OSSpinLock *_os_nospin_lock_t;
 void _os_nospin_lock_lock(_os_nospin_lock_t lock);
 }
+#pragma clang diagnostic pop //"-Wdeprecated-declarations"
 
 TEST(TestRtsanInterceptors, OsSpinLockLockDiesWhenRealtime) {
   auto Func = []() {
@@ -1159,7 +1160,6 @@ TEST(TestRtsanInterceptors, OsNoSpinLockLockDiesWhenRealtime) {
   ExpectRealtimeDeath(Func, "_os_nospin_lock_lock");
   ExpectNonRealtimeSurvival(Func);
 }
-#pragma clang diagnostic pop //"-Wdeprecated-declarations"
 
 TEST(TestRtsanInterceptors, OsUnfairLockLockDiesWhenRealtime) {
   auto Func = []() {
@@ -1169,7 +1169,21 @@ TEST(TestRtsanInterceptors, OsUnfairLockLockDiesWhenRealtime) {
   ExpectRealtimeDeath(Func, "os_unfair_lock_lock");
   ExpectNonRealtimeSurvival(Func);
 }
-#endif // SANITIZER_APPLE
+
+TEST(TestRtsanInterceptors, OsUnfairLockUnlockDiesWhenRealtime) {
+  auto Func = []() {
+    os_unfair_lock_s unfair_lock{};
+    {
+      __rtsan_disable();
+      os_unfair_lock_lock(&unfair_lock);
+      __rtsan_enable();
+    }
+    os_unfair_lock_unlock(&unfair_lock);
+  };
+  ExpectRealtimeDeath(Func, "os_unfair_lock_lock");
+  ExpectNonRealtimeSurvival(Func);
+}
+#endif
 
 #if SANITIZER_LINUX
 TEST(TestRtsanInterceptors, SpinLockLockDiesWhenRealtime) {

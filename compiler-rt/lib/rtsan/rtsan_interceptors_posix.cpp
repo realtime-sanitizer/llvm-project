@@ -728,6 +728,10 @@ INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
   return REAL(os_unfair_lock_lock)(lock);
 }
 
+//INTERCEPTOR(void, os_unfair_lock_unlock, os_unfair_lock_t lock) {
+//  __rtsan_notify_intercepted_call("os_unfair_lock_unlock");
+//  return REAL(os_unfair_lock_unlock)(lock);
+//}
 #define RTSAN_MAYBE_INTERCEPT_OS_UNFAIR_LOCK_LOCK                              \
   INTERCEPT_FUNCTION(os_unfair_lock_lock)
 #else
