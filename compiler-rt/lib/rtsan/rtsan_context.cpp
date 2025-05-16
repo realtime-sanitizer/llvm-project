@@ -9,9 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "rtsan/rtsan_context.h"
-#include "rtsan/rtsan.h"
 
 #include "sanitizer_common/sanitizer_allocator_internal.h"
+#include "sanitizer_common/sanitizer_dense_map.h"
 
 #include <new>
 #include <pthread.h>
@@ -19,32 +19,28 @@
 using namespace __sanitizer;
 using namespace __rtsan;
 
-static pthread_key_t context_key;
-static pthread_once_t key_once = PTHREAD_ONCE_INIT;
+using ContextStorage = DenseMap<pthread_t, Context>;
+static ContextStorage *context_storage = nullptr;
 
-// InternalFree cannot be passed directly to pthread_key_create
-// because it expects a signature with only one arg
-static void InternalFreeWrapper(void *ptr) { __sanitizer::InternalFree(ptr); }
-
-static __rtsan::Context &GetContextForThisThreadImpl() {
-  auto MakeThreadLocalContextKey = []() {
-    CHECK_EQ(pthread_key_create(&context_key, InternalFreeWrapper), 0);
-  };
-
-  pthread_once(&key_once, MakeThreadLocalContextKey);
-  Context *current_thread_context =
-      static_cast<Context *>(pthread_getspecific(context_key));
-  if (current_thread_context == nullptr) {
-    current_thread_context =
-        static_cast<Context *>(InternalAlloc(sizeof(Context)));
-    new (current_thread_context) Context();
-    pthread_setspecific(context_key, current_thread_context);
-  }
-
-  return *current_thread_context;
+static void InitializeContextStorage() {
+  static constexpr size_t max_supported_num_threads = 4096;
+  context_storage =
+      static_cast<ContextStorage *>(InternalAlloc(sizeof(ContextStorage)));
+  new (context_storage) ContextStorage(max_supported_num_threads);
 }
 
-__rtsan::Context::Context() = default;
+static __rtsan::Context &GetContextForThisThreadImpl() {
+  if (context_storage == nullptr)
+    InitializeContextStorage();
+
+  pthread_t const thread_id = pthread_self();
+  if (context_storage->contains(thread_id))
+    return context_storage->find(thread_id)->getSecond();
+
+  auto const [bucket_ptr, was_inserted] =
+      context_storage->try_emplace(pthread_self(), Context{});
+  return bucket_ptr->getSecond();
+}
 
 void __rtsan::Context::RealtimePush() { realtime_depth_++; }
 

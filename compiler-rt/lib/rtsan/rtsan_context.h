@@ -14,8 +14,6 @@ namespace __rtsan {
 
 class Context {
 public:
-  Context();
-
   void RealtimePush();
   void RealtimePop();
 
@@ -24,11 +22,6 @@ public:
 
   bool InRealtimeContext() const;
   bool IsBypassed() const;
-
-  Context(const Context &) = delete;
-  Context(Context &&) = delete;
-  Context &operator=(const Context &) = delete;
-  Context &operator=(Context &&) = delete;
 
 private:
   int realtime_depth_{0};
