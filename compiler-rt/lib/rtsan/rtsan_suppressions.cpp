@@ -19,7 +19,7 @@
 #include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
 
-#include <new>
+#include <stddef.h>
 
 using namespace __sanitizer;
 using namespace __rtsan;
@@ -51,6 +51,8 @@ static const char *ConvertTypeToFlagName(ErrorType Type) {
   }
   UNREACHABLE("unknown ErrorType!");
 }
+
+inline void *operator new(size_t, void *ptr) noexcept { return ptr; }
 
 void __rtsan::InitializeSuppressions() {
   CHECK_EQ(nullptr, suppression_ctx);

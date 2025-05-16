@@ -13,7 +13,7 @@
 #include "sanitizer_common/sanitizer_allocator_internal.h"
 #include "sanitizer_common/sanitizer_dense_map.h"
 
-#include <new>
+#include <stddef.h>
 #include <pthread.h>
 
 using namespace __sanitizer;
@@ -21,6 +21,7 @@ using namespace __rtsan;
 
 using ContextStorage = DenseMap<pthread_t, Context>;
 static ContextStorage *context_storage = nullptr;
+inline void *operator new(size_t, void *ptr) noexcept { return ptr; }
 
 static void InitializeContextStorage() {
   static constexpr size_t max_supported_num_threads = 4096;
