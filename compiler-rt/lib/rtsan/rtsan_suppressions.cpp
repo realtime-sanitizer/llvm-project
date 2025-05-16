@@ -20,6 +20,8 @@
 #include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
 
+#include <stddef.h>
+
 using namespace __sanitizer;
 using namespace __rtsan;
 

@@ -15,12 +15,14 @@
 #include "sanitizer_common/sanitizer_placement_new.h"
 
 #include <pthread.h>
+#include <stddef.h>
 
 using namespace __sanitizer;
 using namespace __rtsan;
 
 using ContextStorage = DenseMap<pthread_t, Context>;
 static ContextStorage *context_storage = nullptr;
+inline void *operator new(size_t, void *ptr) noexcept { return ptr; }
 
 static void InitializeContextStorage() {
   static constexpr size_t max_supported_num_threads = 4096;
