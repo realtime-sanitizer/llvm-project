@@ -1180,7 +1180,7 @@ TEST(TestRtsanInterceptors, OsUnfairLockUnlockDiesWhenRealtime) {
     }
     os_unfair_lock_unlock(&unfair_lock);
   };
-  ExpectRealtimeDeath(Func, "os_unfair_lock_lock");
+  ExpectRealtimeDeath(Func, "os_unfair_lock_unlock");
   ExpectNonRealtimeSurvival(Func);
 }
 #endif
