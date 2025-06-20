@@ -10,6 +10,10 @@
 
 #pragma once
 
+#include "sanitizer_common/sanitizer_dense_map.h"
+#include "sanitizer_common/sanitizer_mutex.h"
+#include <pthread.h>
+
 namespace __rtsan {
 
 class Context {
@@ -23,9 +27,17 @@ public:
   bool InRealtimeContext() const;
   bool IsBypassed() const;
 
+  static Context &get();
+
 private:
-  int realtime_depth_{0};
-  int bypass_depth_{0};
+  static constexpr int max_concurrent_threads_{4096};
+  struct Depth {
+    int realtime{0};
+    int bypass{0};
+  };
+
+  __sanitizer::DenseMap<pthread_t, Depth> depths_{max_concurrent_threads_};
+  mutable __sanitizer::SpinMutex spin_mutex_;
 };
 
 class ScopedBypass {
@@ -45,5 +57,5 @@ private:
   Context &context_;
 };
 
-Context &GetContextForThisThread();
+Context &GetContext();
 } // namespace __rtsan

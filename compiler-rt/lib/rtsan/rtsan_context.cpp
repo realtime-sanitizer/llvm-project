@@ -13,48 +13,55 @@
 #include "sanitizer_common/sanitizer_allocator_internal.h"
 #include "sanitizer_common/sanitizer_dense_map.h"
 
-#include <stddef.h>
 #include <pthread.h>
+#include <stddef.h>
+#include <stdio.h>
 
 using namespace __sanitizer;
 using namespace __rtsan;
-
-using ContextStorage = DenseMap<pthread_t, Context>;
-static ContextStorage *context_storage = nullptr;
 inline void *operator new(size_t, void *ptr) noexcept { return ptr; }
 
-static void InitializeContextStorage() {
-  static constexpr size_t max_supported_num_threads = 4096;
-  context_storage =
-      static_cast<ContextStorage *>(InternalAlloc(sizeof(ContextStorage)));
-  new (context_storage) ContextStorage(max_supported_num_threads);
+static Context *context = nullptr;
+
+static void InitializeContext() {
+  context = static_cast<Context *>(InternalAlloc(sizeof(Context)));
+  new (context) Context();
 }
 
-static __rtsan::Context &GetContextForThisThreadImpl() {
-  if (context_storage == nullptr)
-    InitializeContextStorage();
-
-  pthread_t const thread_id = pthread_self();
-  if (context_storage->contains(thread_id))
-    return context_storage->find(thread_id)->getSecond();
-
-  auto const [bucket_ptr, was_inserted] =
-      context_storage->try_emplace(pthread_self(), Context{});
-  return bucket_ptr->getSecond();
+static __rtsan::Context &GetContextImpl() {
+  if (context == nullptr)
+    InitializeContext();
+  return *context;
 }
 
-void __rtsan::Context::RealtimePush() { realtime_depth_++; }
-
-void __rtsan::Context::RealtimePop() { realtime_depth_--; }
-
-void __rtsan::Context::BypassPush() { bypass_depth_++; }
-
-void __rtsan::Context::BypassPop() { bypass_depth_--; }
-
-bool __rtsan::Context::InRealtimeContext() const { return realtime_depth_ > 0; }
-
-bool __rtsan::Context::IsBypassed() const { return bypass_depth_ > 0; }
-
-Context &__rtsan::GetContextForThisThread() {
-  return GetContextForThisThreadImpl();
+void __rtsan::Context::RealtimePush() {
+  __sanitizer::SpinMutexLock lock{&spin_mutex_};
+  depths_[pthread_self()].realtime++;
 }
+
+void __rtsan::Context::RealtimePop() {
+  __sanitizer::SpinMutexLock lock{&spin_mutex_};
+  depths_[pthread_self()].realtime--;
+}
+
+void __rtsan::Context::BypassPush() {
+  __sanitizer::SpinMutexLock lock{&spin_mutex_};
+  depths_[pthread_self()].bypass++;
+}
+
+void __rtsan::Context::BypassPop() {
+  __sanitizer::SpinMutexLock lock{&spin_mutex_};
+  depths_[pthread_self()].bypass--;
+}
+
+bool __rtsan::Context::InRealtimeContext() const {
+  __sanitizer::SpinMutexLock lock{&spin_mutex_};
+  return depths_.lookup(pthread_self()).realtime > 0;
+}
+
+bool __rtsan::Context::IsBypassed() const {
+  __sanitizer::SpinMutexLock lock{&spin_mutex_};
+  return depths_.lookup(pthread_self()).bypass > 0;
+}
+
+Context &__rtsan::GetContext() { return GetContextImpl(); }

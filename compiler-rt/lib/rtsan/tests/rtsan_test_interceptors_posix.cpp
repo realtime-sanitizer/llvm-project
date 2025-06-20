@@ -1142,6 +1142,7 @@ void OSSpinLockLock(volatile OSSpinLock *__lock);
 // _os_nospin_lock_lock may replace OSSpinLockLock due to deprecation macro.
 typedef volatile OSSpinLock *_os_nospin_lock_t;
 void _os_nospin_lock_lock(_os_nospin_lock_t lock);
+void _os_nospin_lock_unlock(_os_nospin_lock_t lock);
 }
 #pragma clang diagnostic pop //"-Wdeprecated-declarations"
 
@@ -1158,6 +1159,20 @@ TEST(TestRtsanInterceptors, OsNoSpinLockLockDiesWhenRealtime) {
   OSSpinLock lock{};
   auto Func = [&]() { _os_nospin_lock_lock(&lock); };
   ExpectRealtimeDeath(Func, "_os_nospin_lock_lock");
+  ExpectNonRealtimeSurvival(Func);
+}
+
+TEST(TestRtsanInterceptors, OsNoSpinLockUnlockDiesWhenRealtime) {
+  auto Func = [&]() {
+    OSSpinLock lock{};
+    {
+      __rtsan_disable();
+      _os_nospin_lock_lock(&lock);
+      __rtsan_enable();
+    }
+    _os_nospin_lock_unlock(&lock);
+  };
+  ExpectRealtimeDeath(Func, "_os_nospin_lock_unlock");
   ExpectNonRealtimeSurvival(Func);
 }
 

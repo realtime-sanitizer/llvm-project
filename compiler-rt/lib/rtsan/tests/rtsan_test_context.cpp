@@ -13,7 +13,10 @@
 #include "rtsan/rtsan.h"
 #include "rtsan/rtsan_context.h"
 
+#include <atomic>
+#include <chrono>
 #include <gtest/gtest.h>
+#include <thread>
 
 using namespace __rtsan;
 using namespace ::testing;
@@ -95,4 +98,64 @@ TEST_F(TestRtsanContext, BypassedStateIsStatefullyTracked) {
   ExpectBypassed(false);
   context.BypassPush(); // depth 1
   ExpectBypassed(true);
+}
+
+TEST_F(TestRtsanContext, IsProbablyThreadSafe) {
+  std::atomic<int> num_threads_started{0};
+  std::atomic<bool> all_threads_wait{true};
+  std::atomic<bool> all_threads_continue{true};
+  Context context{};
+
+  auto const expect_context_state =
+      [&context](bool expected_in_realtime_context, bool expected_is_bypassed) {
+        EXPECT_THAT(context.InRealtimeContext(),
+                    Eq(expected_in_realtime_context));
+        EXPECT_THAT(context.IsBypassed(), Eq(expected_is_bypassed));
+      };
+
+  auto const test_thread_work = [&]() {
+    num_threads_started.fetch_add(1);
+    while (all_threads_wait.load())
+      std::this_thread::yield();
+
+    while (all_threads_continue.load()) {
+      context.RealtimePush();
+      expect_context_state(true, false);
+      context.RealtimePush();
+      expect_context_state(true, false);
+
+      context.BypassPush();
+      expect_context_state(true, true);
+      context.BypassPop();
+      expect_context_state(true, false);
+
+      context.RealtimePop();
+      expect_context_state(true, false);
+      context.RealtimePop();
+      expect_context_state(false, false);
+    }
+  };
+
+  auto const time_now = []() { return std::chrono::steady_clock::now(); };
+
+  int const num_threads = 32;
+  std::vector<std::thread> test_threads{};
+  auto const start_time = std::chrono::steady_clock::now();
+  for (int n = 0; n < num_threads; ++n)
+    test_threads.push_back(std::thread(test_thread_work));
+
+  std::chrono::duration timeout = std::chrono::milliseconds(100);
+  while (num_threads_started.load() != num_threads) {
+    if ((time_now() - start_time) > timeout) {
+        FAIL();
+    }
+    std::this_thread::yield();
+  }
+
+  all_threads_wait.store(false);
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  all_threads_continue.store(false);
+
+  for (auto &test_thread : test_threads)
+    test_thread.join();
 }

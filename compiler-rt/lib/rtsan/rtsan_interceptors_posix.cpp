@@ -719,6 +719,11 @@ INTERCEPTOR(void, _os_nospin_lock_lock, _os_nospin_lock_t lock) {
   __rtsan_notify_intercepted_call("_os_nospin_lock_lock");
   return REAL(_os_nospin_lock_lock)(lock);
 }
+
+INTERCEPTOR(void, _os_nospin_lock_unlock, _os_nospin_lock_t lock) {
+  __rtsan_notify_intercepted_call("_os_nospin_lock_unlock");
+  return REAL(_os_nospin_lock_unlock)(lock);
+}
 #pragma clang diagnostic pop // "-Wdeprecated-declarations"
 #endif                       // SANITIZER_APPLE
 
@@ -728,10 +733,10 @@ INTERCEPTOR(void, os_unfair_lock_lock, os_unfair_lock_t lock) {
   return REAL(os_unfair_lock_lock)(lock);
 }
 
-//INTERCEPTOR(void, os_unfair_lock_unlock, os_unfair_lock_t lock) {
-//  __rtsan_notify_intercepted_call("os_unfair_lock_unlock");
-//  return REAL(os_unfair_lock_unlock)(lock);
-//}
+INTERCEPTOR(void, os_unfair_lock_unlock, os_unfair_lock_t lock) {
+  __rtsan_notify_intercepted_call("os_unfair_lock_unlock");
+  return REAL(os_unfair_lock_unlock)(lock);
+}
 #define RTSAN_MAYBE_INTERCEPT_OS_UNFAIR_LOCK_LOCK                              \
   INTERCEPT_FUNCTION(os_unfair_lock_lock)
 #else
