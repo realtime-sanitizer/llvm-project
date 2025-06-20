@@ -114,19 +114,19 @@ SANITIZER_INTERFACE_ATTRIBUTE bool __rtsan_is_initialized() {
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE void __rtsan_realtime_enter() {
-  GetContextForThisThread().RealtimePush();
+  GetContext().RealtimePush();
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE void __rtsan_realtime_exit() {
-  GetContextForThisThread().RealtimePop();
+  GetContext().RealtimePop();
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE void __rtsan_disable() {
-  GetContextForThisThread().BypassPush();
+  GetContext().BypassPush();
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE void __rtsan_enable() {
-  GetContextForThisThread().BypassPop();
+  GetContext().BypassPop();
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE void
@@ -137,7 +137,7 @@ __rtsan_notify_intercepted_call(const char *func_name) {
 
   __rtsan_ensure_initialized();
   GET_CALLER_PC_BP;
-  ExpectNotRealtime(GetContextForThisThread(),
+  ExpectNotRealtime(GetContext(),
                     {DiagnosticsInfoType::InterceptedCall, func_name, pc, bp},
                     OnViolation);
 }
@@ -146,7 +146,7 @@ SANITIZER_INTERFACE_ATTRIBUTE void
 __rtsan_notify_blocking_call(const char *func_name) {
   __rtsan_ensure_initialized();
   GET_CALLER_PC_BP;
-  ExpectNotRealtime(GetContextForThisThread(),
+  ExpectNotRealtime(GetContext(),
                     {DiagnosticsInfoType::BlockingCall, func_name, pc, bp},
                     OnViolation);
 }
