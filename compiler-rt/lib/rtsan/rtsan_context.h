@@ -27,15 +27,23 @@ public:
   bool InRealtimeContext() const;
   bool IsBypassed() const;
 
-  static Context &get();
-
 private:
   static constexpr int max_concurrent_threads_{4096};
   struct Depth {
     int realtime{0};
     int bypass{0};
+    bool operator==(Depth const &other) const {
+      return realtime == other.realtime && bypass == other.bypass;
+    }
   };
 
+  void MaybeCleanup(pthread_t thread_id);
+
+  // This map serves as thread-local storage implemented entirely in user space.
+  // If an OS's implementation of pthread tls initialisation calls one of the
+  // intercepted functions in rtsan, an infinite recursion can occur when trying
+  // to initialize TLS for a thread. Using this user-space TLS avoids the problem
+  // entirely.
   __sanitizer::DenseMap<pthread_t, Depth> depths_{max_concurrent_threads_};
   mutable __sanitizer::SpinMutex spin_mutex_;
 };

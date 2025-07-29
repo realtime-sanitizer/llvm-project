@@ -41,7 +41,9 @@ void __rtsan::Context::RealtimePush() {
 
 void __rtsan::Context::RealtimePop() {
   __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  depths_[pthread_self()].realtime--;
+  pthread_t const thread_id = pthread_self();
+  depths_[thread_id].realtime--;
+  MaybeCleanup(thread_id);
 }
 
 void __rtsan::Context::BypassPush() {
@@ -51,7 +53,9 @@ void __rtsan::Context::BypassPush() {
 
 void __rtsan::Context::BypassPop() {
   __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  depths_[pthread_self()].bypass--;
+  pthread_t const thread_id = pthread_self();
+  depths_[thread_id].bypass--;
+  MaybeCleanup(thread_id);
 }
 
 bool __rtsan::Context::InRealtimeContext() const {
@@ -62,6 +66,11 @@ bool __rtsan::Context::InRealtimeContext() const {
 bool __rtsan::Context::IsBypassed() const {
   __sanitizer::SpinMutexLock lock{&spin_mutex_};
   return depths_.lookup(pthread_self()).bypass > 0;
+}
+
+void __rtsan::Context::MaybeCleanup(pthread_t thread_id) {
+  if (depths_[thread_id] == Depth{})
+    depths_.erase(thread_id);
 }
 
 Context &__rtsan::GetContext() { return GetContextImpl(); }
