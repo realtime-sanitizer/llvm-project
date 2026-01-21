@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 using namespace __sanitizer;
 using namespace __rtsan;
@@ -28,11 +29,9 @@ static void InitializeContext() {
   new (context) Context();
 }
 
-static __rtsan::Context &GetContextImpl() {
-  if (context == nullptr)
-    InitializeContext();
-  return *context;
-}
+static constexpr unsigned init_depths_capacity = 512u;
+
+__rtsan::Context::Context() : depths_(init_depths_capacity) {}
 
 void __rtsan::Context::RealtimePush() {
   __sanitizer::SpinMutexLock lock{&spin_mutex_};
@@ -73,4 +72,9 @@ void __rtsan::Context::MaybeCleanup(pthread_t thread_id) {
     depths_.erase(thread_id);
 }
 
-Context &__rtsan::GetContext() { return GetContextImpl(); }
+Context &__rtsan::GetContext() {
+  if (context == nullptr) {
+    InitializeContext();
+  }
+  return *context;
+}
