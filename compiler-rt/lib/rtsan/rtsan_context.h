@@ -18,6 +18,8 @@ namespace __rtsan {
 
 class Context {
 public:
+  Context();
+
   void RealtimePush();
   void RealtimePop();
 
@@ -42,9 +44,9 @@ private:
   // This map serves as thread-local storage implemented entirely in user space.
   // If an OS's implementation of pthread tls initialisation calls one of the
   // intercepted functions in rtsan, an infinite recursion can occur when trying
-  // to initialize TLS for a thread. Using this user-space TLS avoids the problem
-  // entirely.
-  __sanitizer::DenseMap<pthread_t, Depth> depths_{max_concurrent_threads_};
+  // to initialize TLS for a thread. Using this user-space TLS avoids the
+  // problem entirely.
+  __sanitizer::DenseMap<pthread_t, Depth> depths_;
   mutable __sanitizer::SpinMutex spin_mutex_;
 };
 
