@@ -23,6 +23,7 @@ set(RTSAN_NOINST_TEST_SOURCES
     ../rtsan_preinit.cpp
     rtsan_test_assertions.cpp
     rtsan_test_context.cpp
+    rtsan_test_atomic_hash_table.cpp
     rtsan_test_main.cpp)
 
 set(RTSAN_UNITTEST_HEADERS
@@ -65,12 +66,17 @@ if(APPLE)
   darwin_filter_host_archs(RTSAN_SUPPORTED_ARCH RTSAN_TEST_ARCH)
 endif()
 
+set(RTSAN_RTL_HEADERS)
+foreach (header ${RTSAN_HEADERS})
+  list(APPEND RTSAN_RTL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../${header})
+endforeach()
+
 foreach(arch ${RTSAN_TEST_ARCH})
   set(RtsanTestObjects)
 
   generate_compiler_rt_tests(RtsanTestObjects
     RtsanUnitTests "Rtsan-${arch}-Test" ${arch}
-    COMPILE_DEPS ${RTSAN_UNITTEST_HEADERS}
+    COMPILE_DEPS ${RTSAN_UNITTEST_HEADERS} ${RTSAN_RTL_HEADERS}
     SOURCES ${RTSAN_INST_TEST_SOURCES} ${COMPILER_RT_GOOGLETEST_SOURCES}
     DEPS rtsan
     CFLAGS ${RTSAN_UNITTEST_CFLAGS} -fsanitize=realtime
@@ -81,7 +87,7 @@ foreach(arch ${RTSAN_TEST_ARCH})
     set(RtsanTestObjects_FileOffset64)
     generate_compiler_rt_tests(RtsanTestObjects_FileOffset64
       RtsanUnitTests "Rtsan-${arch}-FileOffset64-Test" ${arch}
-      COMPILE_DEPS ${RTSAN_UNITTEST_HEADERS}
+      COMPILE_DEPS ${RTSAN_UNITTEST_HEADERS} ${RTSAN_RTL_HEADERS}
       SOURCES ${RTSAN_INST_TEST_SOURCES} ${COMPILER_RT_GOOGLETEST_SOURCES}
       DEPS rtsan
       CFLAGS ${RTSAN_UNITTEST_CFLAGS} -D_FILE_OFFSET_BITS=64 -fsanitize=realtime
@@ -115,7 +121,7 @@ foreach(arch ${RTSAN_TEST_ARCH})
   set(RtsanNoInstTestObjects)
   generate_compiler_rt_tests(RtsanNoInstTestObjects
     RtsanUnitTests "Rtsan-${arch}-NoInstTest" ${arch}
-    COMPILE_DEPS ${RTSAN_UNITTEST_HEADERS}
+    COMPILE_DEPS ${RTSAN_UNITTEST_HEADERS} ${RTSAN_RTL_HEADERS}
     SOURCES ${RTSAN_NOINST_TEST_SOURCES}
             ${COMPILER_RT_GOOGLETEST_SOURCES}
     CFLAGS ${RTSAN_UNITTEST_CFLAGS}

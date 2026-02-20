@@ -144,10 +144,10 @@ TEST_F(TestRtsanContext, IsProbablyThreadSafe) {
   for (int n = 0; n < num_threads; ++n)
     test_threads.push_back(std::thread(test_thread_work));
 
-  std::chrono::duration timeout = std::chrono::milliseconds(100);
+  std::chrono::duration<double> timeout = std::chrono::milliseconds(100);
   while (num_threads_started.load() != num_threads) {
     if ((time_now() - start_time) > timeout) {
-        FAIL();
+      FAIL();
     }
     std::this_thread::yield();
   }

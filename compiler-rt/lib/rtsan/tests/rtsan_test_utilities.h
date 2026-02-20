@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include "rtsan.h"
-#include "gmock/gmock.h"
+#include "rtsan/rtsan.h"
+#include <gmock/gmock.h>
 #include <string>
 
 namespace rtsan_testing {

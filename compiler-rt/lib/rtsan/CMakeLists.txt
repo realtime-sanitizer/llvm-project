@@ -15,6 +15,7 @@ set(RTSAN_PREINIT_SOURCES
 
 set(RTSAN_HEADERS
   rtsan.h
+  rtsan_atomic_hash_table.h
   rtsan_checks.inc
   rtsan_assertions.h
   rtsan_context.h
