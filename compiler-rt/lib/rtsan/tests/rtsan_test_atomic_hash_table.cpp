@@ -29,7 +29,56 @@ public:
 private:
   int val_{};
 };
+
+template <typename T, size_t Size> class HistoryBuffer {
+public:
+  HistoryBuffer(T init = T{}) {
+    std::fill(std::begin(data_), std::end(data_), init);
+  }
+
+  template <typename U> void Push(U &&item) {
+    data_[cursor_] = std::forward<U>(item);
+    CircularIncrement(cursor_);
+  }
+
+  T LookBack(size_t num_items) {
+    return data_[(cursor_ + Size - num_items) % Size];
+  }
+
+private:
+  static void CircularIncrement(size_t &index) { index = (index + 1) % Size; }
+
+  std::array<T, Size> data_;
+  size_t cursor_{0u};
+};
 } // namespace
+
+namespace __rtsan {
+std::ostream &operator<<(std::ostream &os,
+                         InsertResult const &result) {
+  switch (result) {
+  case InsertResult::OK:
+    return os << "OK";
+  case InsertResult::AlreadyExists:
+    return os << "AlreadyExists";
+  case InsertResult::Overflow:
+    return os << "Overflow";
+  }
+
+  return os;
+}
+std::ostream &operator<<(std::ostream &os,
+                         RemoveResult const &result) {
+  switch (result) {
+  case RemoveResult::Removed:
+    return os << "Removed";
+  case RemoveResult::NotFound:
+    return os << "NotFound";
+  }
+
+  return os;
+}
+} // namespace __rtsan
 
 TEST(TestRtsanAtomicHashTable, sizeIsZeroAfterDefaultConstruction) {
   const TestTableTy table{1};
@@ -45,40 +94,40 @@ TEST(TestRtsanAtomicHashTable, sizeIsIncreasedWithInsertions) {
   TestTableTy table{100};
   EXPECT_THAT(table.ApproxSize(), Eq(0));
   for (int n = 10; n < 25; ++n) {
-    ASSERT_THAT(table.Insert(n, 4.0f), Eq(HashTableInsertResult::OK));
+    ASSERT_THAT(table.Insert(n, 4.0f), Eq(InsertResult::OK));
     EXPECT_THAT(table.ApproxSize(), Eq(n - 10 + 1));
   }
 }
 
 TEST(TestRtsanAtomicHashTable, searchForNonexistentValueReturnsEmptyResult) {
   TestTableTy table{10};
-  ASSERT_THAT(table.Insert(7, 7.0f), Eq(HashTableInsertResult::OK));
+  ASSERT_THAT(table.Insert(7, 7.0f), Eq(InsertResult::OK));
 
-  auto const test_search = [](auto &t) {
+  const auto test_search = [](auto &t) {
     EXPECT_THAT(t.Search(6).HasValue(), Eq(false));
   };
 
-  auto &mutable_table = table;
-  const auto &const_table = table;
+  TestTableTy &mutable_table = table;
+  const TestTableTy &const_table = table;
   test_search(const_table);
   test_search(mutable_table);
 }
 
 TEST(TestRtsanAtomicHashTable, canInsertAndRetrieveValuesBothConstAndMutable) {
   TestTableTy table{100};
-  ASSERT_THAT(table.Insert(3, 3.0f), Eq(HashTableInsertResult::OK));
-  ASSERT_THAT(table.Insert(5, 5.0f), Eq(HashTableInsertResult::OK));
+  ASSERT_THAT(table.Insert(3, 3.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(5, 5.0f), Eq(InsertResult::OK));
 
-  auto const test_search_const = [](TestTableTy const &t) {
-    auto const three = t.Search(3);
-    auto const five = t.Search(5);
+  const auto test_search_const = [](TestTableTy const &t) {
+    const auto three = t.Search(3);
+    const auto five = t.Search(5);
     ASSERT_THAT(three.HasValue(), Eq(true));
     ASSERT_THAT(five.HasValue(), Eq(true));
     EXPECT_THAT(three.Value(), Eq(3.0f));
     EXPECT_THAT(five.Value(), Eq(5.0f));
   };
 
-  auto const test_search_mutation = [](TestTableTy &t) {
+  const auto test_search_mutation = [](TestTableTy &t) {
     auto number = t.Search(3);
     ASSERT_THAT(number.HasValue(), Eq(true));
     EXPECT_THAT(number.Value(), Eq(3.0f));
@@ -92,7 +141,7 @@ TEST(TestRtsanAtomicHashTable, canInsertAndRetrieveValuesBothConstAndMutable) {
 
 TEST(TestRtsanAtomicHashTable, canInsertTypesConvertibleToValueType) {
   TestTableTy table{5};
-  ASSERT_THAT(table.Insert(12, 10), Eq(HashTableInsertResult::OK));
+  ASSERT_THAT(table.Insert(12, 10), Eq(InsertResult::OK));
   const auto number = table.Search(12);
   ASSERT_THAT(number.HasValue(), Eq(true));
   EXPECT_THAT(number.Value(), Eq(10.0f));
@@ -103,7 +152,7 @@ TEST(TestRtsanAtomicHashTable, canInsertRValueTypes) {
   TableTy table{5};
   MoveOnly move_me{10};
   ASSERT_THAT(table.Insert(12, std::move(move_me)),
-              Eq(HashTableInsertResult::OK));
+              Eq(InsertResult::OK));
   const auto result = table.Search(12);
   ASSERT_THAT(result.HasValue(), Eq(true));
   EXPECT_THAT(result.Value().value(), Eq(10));
@@ -113,38 +162,37 @@ TEST(TestRtsanAtomicHashTable, canInsertImmovableValueTypes) {
   using TableTy = AtomicHashTable<int, int, 999, 1000>;
   TableTy table{5};
   const int value{11};
-  ASSERT_THAT(table.Insert(12, value), Eq(HashTableInsertResult::OK));
+  ASSERT_THAT(table.Insert(12, value), Eq(InsertResult::OK));
   const auto result = table.Search(12);
   ASSERT_THAT(result.HasValue(), Eq(true));
   EXPECT_THAT(result.Value(), Eq(value));
 }
 
-TEST(TestRtsanAtomicHashTable, canRepeatedlyInsertAtTheSameKey) {
+TEST(TestRtsanAtomicHashTable, insertAtAnExistingKeyFails) {
   TestTableTy table{5};
-  constexpr size_t num_inserts = 10u;
-  for (size_t n = 0u; n <= num_inserts; ++n) {
-    ASSERT_THAT(table.Insert(13, 13.0f + static_cast<float>(n)),
-                Eq(HashTableInsertResult::OK));
-  }
+  ASSERT_THAT(table.Insert(13, 13.0f), Eq(InsertResult::OK));
   const auto result = table.Search(13);
   ASSERT_THAT(result.HasValue(), Eq(true));
-  EXPECT_THAT(result.Value(), Eq(13.0f + static_cast<float>(num_inserts)));
+  ASSERT_THAT(result.Value(), Eq(13.0f));
+
+  EXPECT_THAT(table.Insert(13, 14.0f),
+              Eq(InsertResult::AlreadyExists));
 }
 
 TEST(TestRtsanAtomicHashTable, canRemoveEntries) {
   TestTableTy table{5};
-  ASSERT_THAT(table.Insert(1, 1.0f), Eq(HashTableInsertResult::OK));
-  ASSERT_THAT(table.Insert(2, 2.0f), Eq(HashTableInsertResult::OK));
-  ASSERT_THAT(table.Insert(3, 3.0f), Eq(HashTableInsertResult::OK));
+  ASSERT_THAT(table.Insert(1, 1.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(2, 2.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(3, 3.0f), Eq(InsertResult::OK));
 
   // Collision with key 3
-  ASSERT_THAT(table.Insert(3 + 5, 8.0f), Eq(HashTableInsertResult::OK));
+  ASSERT_THAT(table.Insert(3 + 5, 8.0f), Eq(InsertResult::OK));
 
   const auto test_remove = [&table](int key) {
     ASSERT_THAT(table.Search(key).HasValue(), Eq(true));
-    EXPECT_THAT(table.Remove(key), Eq(HashTableRemoveResult::Removed));
+    EXPECT_THAT(table.Remove(key), Eq(RemoveResult::Removed));
     ASSERT_THAT(table.Search(key).HasValue(), Eq(false));
-    EXPECT_THAT(table.Remove(key), Eq(HashTableRemoveResult::NotFound));
+    EXPECT_THAT(table.Remove(key), Eq(RemoveResult::NotFound));
   };
 
   EXPECT_THAT(table.ApproxSize(), Eq(4ul));
@@ -163,27 +211,27 @@ TEST(TestRtsanAtomicHashTable, canInsertAndRetrieveKeysWithHashCollision) {
   const size_t capacity = 10ul;
   const SlotFn hash_slot{};
   std::vector<int> colliding_keys = {7, 17, 27, 37, 47, 57, 67, 77};
-  for (auto key : colliding_keys) {
+  for (int key : colliding_keys) {
     ASSERT_THAT(hash_slot(key, capacity),
                 Eq(hash_slot(colliding_keys.front(), capacity)));
   }
 
-  TableTy table{10};
-  for (auto key : colliding_keys) {
+  TableTy table{capacity};
+  for (int key : colliding_keys) {
     ASSERT_THAT(table.Insert(key, static_cast<float>(key)),
-                Eq(HashTableInsertResult::OK));
+                Eq(InsertResult::OK));
   }
 
-  auto const check_keys = [&colliding_keys](auto &t) {
-    for (auto key : colliding_keys) {
+  const auto check_keys = [&colliding_keys](auto &t) {
+    for (int key : colliding_keys) {
       const auto result = t.Search(key);
       ASSERT_THAT(result.HasValue(), Eq(true));
       EXPECT_THAT(result.Value(), Eq(static_cast<float>(key)));
     }
   };
 
-  auto &mutable_table = table;
-  const auto &const_table = table;
+  TableTy &mutable_table = table;
+  const TableTy &const_table = table;
   check_keys(mutable_table);
   check_keys(const_table);
 }
@@ -192,15 +240,57 @@ TEST(TestRtsanAtomicHashTable, insertReportsOverflowOnOverflow) {
   TestTableTy table{5};
   for (size_t n = 0u; n < table.Capacity(); ++n) {
     ASSERT_THAT(table.Insert(static_cast<int>(n), static_cast<float>(n)),
-                Eq(HashTableInsertResult::OK));
+                Eq(InsertResult::OK));
   }
-  EXPECT_THAT(table.Insert(100, 10.0f), Eq(HashTableInsertResult::Overflow));
-  EXPECT_THAT(table.Insert(101, 10.0f), Eq(HashTableInsertResult::Overflow));
+  EXPECT_THAT(table.Insert(100, 10.0f), Eq(InsertResult::Overflow));
+  EXPECT_THAT(table.Insert(101, 10.0f), Eq(InsertResult::Overflow));
+}
+
+TEST(TestRtsanAtomicHashTable, canReclaimTombstonesCorrectly) {
+  TestTableTy table{3};
+  ASSERT_THAT(table.Insert(0, 0.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(1, 1.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(2, 2.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Remove(0), Eq(RemoveResult::Removed));
+  ASSERT_THAT(table.Remove(1), Eq(RemoveResult::Removed));
+  ASSERT_THAT(table.Remove(2), Eq(RemoveResult::Removed));
+  EXPECT_THAT(table.Insert(2, 2000.0f), Eq(InsertResult::OK));
 }
 
 TEST(TestRtsanAtomicHashTable,
-     DISABLED_handlesManyInsertionsAndRemovalsIncludingCollidingHashes) {
-  FAIL() << "TODO";
+     handlesManyInsertionsAndRemovalsIncludingCollidingHashes) {
+  using SlotFn = DefaultSlotFn<int, DefaultHashFn<int>>;
+  using TableTy = AtomicHashTable<int, int, 999, 1000, SlotFn>;
+  constexpr size_t capacity{10u};
+  TableTy table{capacity};
+  HistoryBuffer<int, capacity> inserted_key_history{};
+  const std::vector<int> keys = {4,  14, 24,  34,  44,  54,  64,  74,
+                                 84, 94, 104, 114, 124, 134, 144, 154};
+  const auto make_value = [](int key) { return 100 * key; };
+  for (size_t n = 0u; n < capacity; ++n) {
+    ASSERT_THAT(table.Insert(keys[n], make_value(keys[n])),
+                Eq(InsertResult::OK));
+    inserted_key_history.Push(keys[n]);
+  }
+
+  const auto assert_all_inserted_keys_findable = [&]() {
+    for (auto n = 0u; n < capacity; ++n) {
+      const int key = inserted_key_history.LookBack(capacity - n);
+      ASSERT_THAT(table.Search(key).HasValue(), Eq(true));
+    }
+  };
+
+  for (int repeat = 0; repeat < 1; ++repeat) {
+    for (int key : keys) {
+      assert_all_inserted_keys_findable();
+      const int key_to_remove = inserted_key_history.LookBack(capacity);
+      inserted_key_history.Push(key);
+      ASSERT_THAT(table.Remove(key_to_remove),
+                  Eq(RemoveResult::Removed));
+      ASSERT_THAT(table.Insert(key, make_value(key)),
+                  Eq(InsertResult::OK));
+    }
+  }
 }
 
 TEST(TestRtsanAtomicHashTable, DISABLED_multiThreadedStressTest) {

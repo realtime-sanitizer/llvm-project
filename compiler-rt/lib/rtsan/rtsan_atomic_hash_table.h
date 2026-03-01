@@ -14,9 +14,12 @@
 
 // TODO is it OK to include these C++ headers for size_t and std::move?
 #include <cstddef>
-#include <utility>
+#include <iostream> // TODO remove
+// #include <utility>
 
 namespace __rtsan {
+
+using Slot = size_t;
 
 // TODO actually implement conversion and move into own header
 // (and add header to CMake proj!)
@@ -32,8 +35,64 @@ template <> struct AtomicKey<int> {
   using Type = __sanitizer::atomic_sint32_t;
 };
 
-enum class HashTableInsertResult { OK, Overflow };
-enum class HashTableRemoveResult { Removed, NotFound };
+enum class InsertResult { OK, AlreadyExists, Overflow };
+enum class RemoveResult { Removed, NotFound };
+
+template <typename KeyTy> struct DefaultHashFn {
+  size_t operator()(const KeyTy &key) const { return static_cast<size_t>(key); }
+};
+
+template <typename KeyTy, typename HashFn> struct DefaultSlotFn {
+  size_t operator()(const KeyTy &key, size_t table_capacity) const {
+    return HashFn{}(key) % table_capacity;
+  }
+};
+
+template <typename ValueTy> class Optional {
+public:
+  Optional() : has_value_(false) {}
+  // TODO tighten up ref semantics
+  Optional(ValueTy value) : has_value_(true), value_(value) {}
+  static Optional Nullopt() { return Optional{}; }
+
+  bool HasValue() const { return has_value_; }
+  const ValueTy &Value() const { return value_; }
+
+private:
+  bool has_value_{false};
+  ValueTy value_{};
+};
+
+template <typename ValueTy, typename ErrorTy> class Expected {
+public:
+  Expected(ValueTy value) : Expected(true, value, {}) {}
+  static Expected Unexpected(ErrorTy error) {
+    return Expected(false, {}, error);
+  }
+
+  bool HasValue() const { return has_value_; }
+  const ValueTy &Value() const { return value_; }
+  const ErrorTy &Error() const { return error_; }
+
+private:
+  Expected(bool has_value, ValueTy value, ErrorTy error)
+      : has_value_(has_value), value_(value), error_(error) {}
+
+  bool has_value_{false};
+  ValueTy value_{};
+  ErrorTy error_{};
+};
+
+enum class TryClaimInsertSlotError { AlreadyExists, Overflow };
+using TryClaimInsertSlotResult = Expected<Slot, TryClaimInsertSlotError>;
+
+// TODO better name
+enum class ClaimSlotError { FailedCompareExchange };
+using ClaimSlotResult = Expected<Slot, ClaimSlotError>;
+
+enum class SearchError { NotFound };
+template <typename ValueTy>
+using SearchResult = Expected<ValueTy *, SearchError>;
 
 template <typename ValueTy> class HashTableSearchResult {
 public:
@@ -52,30 +111,6 @@ private:
   HashTableSearchResult(ValueTy *value_addr) : value_addr_(value_addr) {}
 
   ValueTy *value_addr_{nullptr};
-};
-
-template <typename KeyTy> struct DefaultHashFn {
-  size_t operator()(const KeyTy &key) const { return static_cast<size_t>(key); }
-};
-
-template <typename KeyTy, typename HashFn> struct DefaultSlotFn {
-  size_t operator()(const KeyTy &key, size_t table_capacity) const {
-    return HashFn{}(key) % table_capacity;
-  }
-};
-
-class OptionalSlot {
-public:
-  OptionalSlot() : has_value_(false) {}
-  OptionalSlot(size_t slot) : has_value_(true), slot_(slot) {}
-  static OptionalSlot Nullopt() { return OptionalSlot{}; }
-
-  bool HasValue() const { return has_value_; }
-  size_t Value() const { return slot_; }
-
-private:
-  bool has_value_{false};
-  size_t slot_{0ul};
 };
 
 /*
@@ -106,33 +141,39 @@ public:
     return atomic_load(&approx_size_, memory_order::memory_order_relaxed);
   }
 
-  template <typename U>
-  HashTableInsertResult Insert(const KeyTy &key, U &&value) {
-    OptionalSlot slot = TryClaimInsertSlot(key);
-    if (!slot.HasValue())
-      return HashTableInsertResult::Overflow;
+  // TODO should InsertResult return the slot index as a value?
+  template <typename U> InsertResult Insert(const KeyTy &key, U &&value) {
+    TryClaimInsertSlotResult slot = TryClaimInsertSlot(key);
+    if (!slot.HasValue()) {
+      switch (slot.Error()) { // TODO put in a fn
+      case TryClaimInsertSlotError::AlreadyExists:
+        return InsertResult::AlreadyExists;
+      case TryClaimInsertSlotError::Overflow:
+        return InsertResult::Overflow;
+      }
+    }
 
     using namespace __sanitizer;
     atomic_fetch_add(&approx_size_, 1ul, memory_order::memory_order_acq_rel);
     values_[slot.Value()] = std::forward<U>(value);
-    return HashTableInsertResult::OK;
+    return InsertResult::OK;
   }
 
-  HashTableRemoveResult Remove(const KeyTy &key) {
-    OptionalSlot slot = SearchForKeySlot(key);
+  RemoveResult Remove(const KeyTy &key) {
+    Optional<Slot> slot = SearchForKeySlot(key);
     if (!slot.HasValue())
-      return HashTableRemoveResult::NotFound;
+      return RemoveResult::NotFound;
 
-    TombstoneSlot(slot.Value());
+    StoreSlotKey(slot.Value(), TombstoneKey);
     using namespace __sanitizer;
     // TODO do we need a zero check here?
     atomic_fetch_sub(&approx_size_, 1ul, memory_order::memory_order_acq_rel);
-    return HashTableRemoveResult::Removed;
+    return RemoveResult::Removed;
   }
 
   HashTableSearchResult<ValueTy> Search(const KeyTy &key) {
     using Result = HashTableSearchResult<ValueTy>;
-    OptionalSlot slot = SearchForKeySlot(key);
+    Optional<Slot> slot = SearchForKeySlot(key);
     if (!slot.HasValue())
       return Result::NotFound();
     return Result::Found(&values_[slot.Value()]);
@@ -141,7 +182,7 @@ public:
   // TODO remove duplication
   HashTableSearchResult<const ValueTy> Search(const KeyTy &key) const {
     using Result = HashTableSearchResult<const ValueTy>;
-    OptionalSlot slot = SearchForKeySlot(key);
+    Optional<Slot> slot = SearchForKeySlot(key);
     if (!slot.HasValue())
       return Result::NotFound();
     return Result::Found(&values_[slot.Value()]);
@@ -156,55 +197,100 @@ private:
     return (current_slot + 1ul) % Capacity();
   }
 
-  OptionalSlot TryClaimInsertSlot(const KeyTy &key) {
+  TryClaimInsertSlotResult TryClaimInsertSlot(const KeyTy &key) {
+
     size_t slot = TargetHashSlot(key);
-    for (size_t n = 0u; n < Capacity(); ++n) {
-      if (SlotKey(slot) == key) {
-        return OptionalSlot(slot);
-      } else if (IsEmptySlot(slot) && ClaimEmptySlot(slot, key)) {
-        return OptionalSlot(slot);
+    Optional<Slot> first_tombstone_slot{};
+
+    for (size_t probe_iter = 0u; probe_iter < Capacity(); ++probe_iter) {
+      const KeyTy loaded_slot_key = LoadSlotKey(slot);
+
+      if (IsEmpty(loaded_slot_key)) {
+        if (first_tombstone_slot
+                .HasValue()) { // TODO how to get this under test? Return slot
+                               // in result value?
+          return ClaimInsertSlotOrTryAgain(first_tombstone_slot.Value(),
+                                           TombstoneKey, key);
+        }
+        return ClaimInsertSlotOrTryAgain(slot, EmptyKey, key);
       }
+
+      if (loaded_slot_key == key)
+        return TryClaimInsertSlotResult::Unexpected(
+            TryClaimInsertSlotError::AlreadyExists);
+
+      if (IsTombstone(loaded_slot_key) && !first_tombstone_slot.HasValue())
+        first_tombstone_slot = slot;
+
       slot = NextSlotLinearProbe(slot);
     }
-    return OptionalSlot::Nullopt();
+
+    if (first_tombstone_slot.HasValue())
+      return ClaimInsertSlotOrTryAgain(first_tombstone_slot.Value(),
+                                       TombstoneKey, key);
+
+    return TryClaimInsertSlotResult::Unexpected(
+        TryClaimInsertSlotError::Overflow);
   }
 
-  OptionalSlot SearchForKeySlot(const KeyTy &key) const {
+  Optional<Slot> SearchForKeySlot(const KeyTy &key) const {
     size_t slot = TargetHashSlot(key);
 
-    for (size_t n = 0u; n < Capacity(); ++n) {
-      KeyTy slot_key = SlotKey(slot);
+    for (size_t probe_iter = 0u; probe_iter < Capacity(); ++probe_iter) {
+      const KeyTy loaded_slot_key = LoadSlotKey(slot);
 
-      if (slot_key == key)
-        return OptionalSlot(slot);
-      if (slot_key == EmptyKey)
-        return OptionalSlot::Nullopt();
+      if (loaded_slot_key == key)
+        return Optional<Slot>(slot);
+      if (loaded_slot_key == EmptyKey)
+        return Optional<Slot>::Nullopt();
 
       slot = NextSlotLinearProbe(slot);
     }
 
-    return OptionalSlot::Nullopt();
+    return Optional<Slot>::Nullopt();
   }
 
-  bool ClaimEmptySlot(size_t slot, const KeyTy &desired_key) {
+  // TODO add max attempts fallback with appropriate error? Or just don't try
+  // again and simply continue probing?
+  TryClaimInsertSlotResult ClaimInsertSlotOrTryAgain(size_t slot,
+                                                     const KeyTy &expected_key,
+                                                     const KeyTy &desired_key) {
+    const ClaimSlotResult result = ClaimSlot(slot, expected_key, desired_key);
+
+    if (!result.HasValue()) {
+      switch (result.Error()) {
+      case ClaimSlotError::FailedCompareExchange: // TODO is this the right
+                                                  // thing to do?
+        return TryClaimInsertSlot(desired_key);
+      }
+    }
+
+    return TryClaimInsertSlotResult(result.Value());
+  }
+
+  ClaimSlotResult ClaimSlot(size_t slot, KeyTy expected_key,
+                            const KeyTy &desired_key) {
     using namespace __sanitizer;
-    KeyTy expected_key{EmptyKey};
-    return atomic_compare_exchange_strong(&keys_[slot], &expected_key,
-                                          desired_key,
-                                          memory_order::memory_order_acq_rel);
+    const bool successfully_exchanged =
+        atomic_compare_exchange_strong(&keys_[slot], &expected_key, desired_key,
+                                       memory_order::memory_order_acq_rel);
+
+    return successfully_exchanged ? ClaimSlotResult(slot)
+                                  : ClaimSlotResult::Unexpected(
+                                        ClaimSlotError::FailedCompareExchange);
   }
 
-  void TombstoneSlot(size_t slot) {
-    using namespace __sanitizer;
-    atomic_store(&keys_[slot], TombstoneKey,
-                 memory_order::memory_order_release);
-  }
+  bool IsEmpty(const KeyTy &key) { return key == EmptyKey; }
+  bool IsTombstone(const KeyTy &key) { return key == TombstoneKey; }
 
-  bool IsEmptySlot(size_t slot) const { return SlotKey(slot) == EmptyKey; }
-
-  KeyTy SlotKey(size_t slot) const {
+  KeyTy LoadSlotKey(size_t slot) const {
     using namespace __sanitizer;
     return atomic_load(&keys_[slot], memory_order::memory_order_acquire);
+  }
+
+  void StoreSlotKey(size_t slot, const KeyTy &key) {
+    using namespace __sanitizer;
+    atomic_store(&keys_[slot], key, memory_order::memory_order_release);
   }
 
   const SlotFn slot_fn_{};
