@@ -7,17 +7,13 @@
 //===----------------------------------------------------------------------===//
 //
 //===----------------------------------------------------------------------===//
-
 #include "rtsan/rtsan_context.h"
 
 #include "sanitizer_common/sanitizer_allocator_internal.h"
-#include "sanitizer_common/sanitizer_dense_map.h"
 #include "sanitizer_common/sanitizer_placement_new.h"
 
 #include <pthread.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 using namespace __sanitizer;
 using namespace __rtsan;
@@ -29,47 +25,66 @@ static void InitializeContext() {
   new (context) Context();
 }
 
-static constexpr unsigned init_depths_capacity = 512u;
+static constexpr unsigned tls_capacity_ = 512u;
 
-__rtsan::Context::Context() : depths_(init_depths_capacity) {}
+__rtsan::Context::Context() : tls_(tls_capacity_) {}
 
 void __rtsan::Context::RealtimePush() {
-  __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  depths_[pthread_self()].realtime++;
+  const ThreadId thread_id = GetTid();
+  auto depths = tls_.Search(thread_id);
+  if (depths.HasValue())
+    depths.Value().realtime++;
+  else
+    tls_.Insert(thread_id, Depths{.realtime = 1, .bypass = 0});
+  // TODO handle failure
 }
 
 void __rtsan::Context::RealtimePop() {
-  __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  pthread_t const thread_id = pthread_self();
-  depths_[thread_id].realtime--;
-  MaybeCleanup(thread_id);
+  const ThreadId thread_id = GetTid();
+  auto depths = tls_.Search(thread_id);
+  if (depths.HasValue()) {
+    depths.Value().realtime--;
+    // TODO removing this is pretty gnarly while depths is in scope
+    if (depths.Value() == Depths{0, 0})
+      tls_.Remove(thread_id);
+  }
+  // TODO handle failure
 }
 
 void __rtsan::Context::BypassPush() {
-  __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  depths_[pthread_self()].bypass++;
+  const ThreadId thread_id = GetTid();
+  auto depths = tls_.Search(thread_id);
+  if (depths.HasValue())
+    depths.Value().bypass++;
+  else
+    tls_.Insert(thread_id, Depths{.realtime = 0, .bypass = 1});
+  // TODO handle failure
 }
 
 void __rtsan::Context::BypassPop() {
-  __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  pthread_t const thread_id = pthread_self();
-  depths_[thread_id].bypass--;
-  MaybeCleanup(thread_id);
+  const ThreadId thread_id = GetTid();
+  auto depths = tls_.Search(thread_id);
+  if (depths.HasValue()) {
+    depths.Value().bypass--;
+    // TODO removing this is pretty gnarly while depths is in scope
+    if (depths.Value() == Depths{0, 0})
+      tls_.Remove(thread_id);
+  }
+  // TODO handle failure
 }
 
 bool __rtsan::Context::InRealtimeContext() const {
-  __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  return depths_.lookup(pthread_self()).realtime > 0;
+  const auto depths = tls_.Search(GetTid());
+  if (!depths.HasValue())
+    return false;
+  return depths.Value().realtime > 0;
 }
 
 bool __rtsan::Context::IsBypassed() const {
-  __sanitizer::SpinMutexLock lock{&spin_mutex_};
-  return depths_.lookup(pthread_self()).bypass > 0;
-}
-
-void __rtsan::Context::MaybeCleanup(pthread_t thread_id) {
-  if (depths_[thread_id] == Depth{})
-    depths_.erase(thread_id);
+  const auto depths = tls_.Search(GetTid());
+  if (!depths.HasValue())
+    return false;
+  return depths.Value().bypass > 0;
 }
 
 Context &__rtsan::GetContext() {

@@ -10,9 +10,11 @@
 
 #pragma once
 
-#include "sanitizer_common/sanitizer_dense_map.h"
-#include "sanitizer_common/sanitizer_mutex.h"
-#include <pthread.h>
+#include "sanitizer_common/sanitizer_common.h"
+
+#include "rtsan/rtsan_atomic_hash_table.h"
+
+#include <stdint.h>
 
 namespace __rtsan {
 
@@ -30,24 +32,45 @@ public:
   bool IsBypassed() const;
 
 private:
-  static constexpr int max_concurrent_threads_{4096};
-  struct Depth {
+  using ThreadId = __sanitizer::ThreadID;
+  /*
+    Big TODO: in theory, these could collide with a valid ThreadId, which
+    is a uint64_t. Maybe there is some way we can guarantee that the ThreadId
+    isn't one of these values, or throw an error in the extremely unlikely case
+    that there's a collision. Or, maybe, is there a way in which the idea
+    of tagged keys (which will be required if we want to do any sort of tombstone
+    reclamation) might be handy here? Perhaps we can lay out the atomic key
+    type in the hash table as
+
+        enum class KeyKind : public uint32_t
+        {
+            Valid,
+            Empty,
+            Tombstone
+        };
+
+        using KeyTag = uint32_t;   // result of atomic<uint32_t>::fetch_add
+
+        // Total size 128 bits (small enough for double-width compare and swap)
+        struct TaggedKey
+        {
+            Key key;               // 64 bits (ThreadId)
+            KeyKind kind;          // 32 bits
+            KeyTag tag;            // 32 bits
+        };
+  */
+  static constexpr ThreadId empty_key{UINT64_MAX};
+  static constexpr ThreadId tombstone_key{UINT64_MAX - 1u};
+
+  struct Depths {
     int realtime{0};
     int bypass{0};
-    bool operator==(Depth const &other) const {
+    bool operator==(Depths const &other) const {
       return realtime == other.realtime && bypass == other.bypass;
     }
   };
 
-  void MaybeCleanup(pthread_t thread_id);
-
-  // This map serves as thread-local storage implemented entirely in user space.
-  // If an OS's implementation of pthread tls initialisation calls one of the
-  // intercepted functions in rtsan, an infinite recursion can occur when trying
-  // to initialize TLS for a thread. Using this user-space TLS avoids the
-  // problem entirely.
-  __sanitizer::DenseMap<pthread_t, Depth> depths_;
-  mutable __sanitizer::SpinMutex spin_mutex_;
+  AtomicHashTable<ThreadId, Depths, empty_key, tombstone_key> tls_;
 };
 
 class ScopedBypass {

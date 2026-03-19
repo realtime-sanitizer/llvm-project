@@ -54,8 +54,7 @@ private:
 } // namespace
 
 namespace __rtsan {
-std::ostream &operator<<(std::ostream &os,
-                         InsertResult const &result) {
+std::ostream &operator<<(std::ostream &os, InsertResult const &result) {
   switch (result) {
   case InsertResult::OK:
     return os << "OK";
@@ -67,8 +66,7 @@ std::ostream &operator<<(std::ostream &os,
 
   return os;
 }
-std::ostream &operator<<(std::ostream &os,
-                         RemoveResult const &result) {
+std::ostream &operator<<(std::ostream &os, RemoveResult const &result) {
   switch (result) {
   case RemoveResult::Removed:
     return os << "Removed";
@@ -80,22 +78,30 @@ std::ostream &operator<<(std::ostream &os,
 }
 } // namespace __rtsan
 
-TEST(TestRtsanAtomicHashTable, sizeIsZeroAfterDefaultConstruction) {
+TEST(TestRtsanAtomicHashTable, approxSizeIsZeroAfterDefaultConstruction) {
   const TestTableTy table{1};
   EXPECT_THAT(table.ApproxSize(), Eq(0));
 }
 
-TEST(TestRtsanAtomicHashTable, capacityIsReportedAsSameAsConstructionArg) {
+TEST(TestRtsanAtomicHashTable, capacityIsSameAsConstructionArg) {
   const TestTableTy table{100};
   EXPECT_THAT(table.Capacity(), Eq(100));
 }
 
-TEST(TestRtsanAtomicHashTable, sizeIsIncreasedWithInsertions) {
+TEST(TestRtsanAtomicHashTable,
+     approxSizeIsIncreasedWithInsertionsAndDecreasedWithRemovals) {
   TestTableTy table{100};
   EXPECT_THAT(table.ApproxSize(), Eq(0));
-  for (int n = 10; n < 25; ++n) {
-    ASSERT_THAT(table.Insert(n, 4.0f), Eq(InsertResult::OK));
-    EXPECT_THAT(table.ApproxSize(), Eq(n - 10 + 1));
+
+  const int start = 10;
+  const int finish = 25;
+  for (int n = start; n < finish; ++n) {
+    ASSERT_THAT(table.Insert(n, 1.0f), Eq(InsertResult::OK));
+    EXPECT_THAT(table.ApproxSize(), Eq(n - start + 1));
+  }
+  for (int n = start; n < finish; ++n) {
+    ASSERT_THAT(table.Remove(n), Eq(RemoveResult::Removed));
+    EXPECT_THAT(table.ApproxSize(), Eq(finish - n - 1));
   }
 }
 
@@ -151,8 +157,7 @@ TEST(TestRtsanAtomicHashTable, canInsertRValueTypes) {
   using TableTy = AtomicHashTable<int, MoveOnly, 999, 1000>;
   TableTy table{5};
   MoveOnly move_me{10};
-  ASSERT_THAT(table.Insert(12, std::move(move_me)),
-              Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(12, std::move(move_me)), Eq(InsertResult::OK));
   const auto result = table.Search(12);
   ASSERT_THAT(result.HasValue(), Eq(true));
   EXPECT_THAT(result.Value().value(), Eq(10));
@@ -175,18 +180,19 @@ TEST(TestRtsanAtomicHashTable, insertAtAnExistingKeyFails) {
   ASSERT_THAT(result.HasValue(), Eq(true));
   ASSERT_THAT(result.Value(), Eq(13.0f));
 
-  EXPECT_THAT(table.Insert(13, 14.0f),
-              Eq(InsertResult::AlreadyExists));
+  EXPECT_THAT(table.Insert(13, 14.0f), Eq(InsertResult::AlreadyExists));
 }
 
 TEST(TestRtsanAtomicHashTable, canRemoveEntries) {
-  TestTableTy table{5};
+  const size_t capacity = 5;
+  TestTableTy table{capacity};
   ASSERT_THAT(table.Insert(1, 1.0f), Eq(InsertResult::OK));
   ASSERT_THAT(table.Insert(2, 2.0f), Eq(InsertResult::OK));
   ASSERT_THAT(table.Insert(3, 3.0f), Eq(InsertResult::OK));
 
   // Collision with key 3
-  ASSERT_THAT(table.Insert(3 + 5, 8.0f), Eq(InsertResult::OK));
+  ASSERT_THAT(table.Insert(3 + capacity, 3.0f + capacity),
+              Eq(InsertResult::OK));
 
   const auto test_remove = [&table](int key) {
     ASSERT_THAT(table.Search(key).HasValue(), Eq(true));
@@ -198,7 +204,7 @@ TEST(TestRtsanAtomicHashTable, canRemoveEntries) {
   EXPECT_THAT(table.ApproxSize(), Eq(4ul));
   test_remove(2);
   EXPECT_THAT(table.ApproxSize(), Eq(3ul));
-  test_remove(8);
+  test_remove(3 + capacity);
   EXPECT_THAT(table.ApproxSize(), Eq(2ul));
   test_remove(3);
   EXPECT_THAT(table.ApproxSize(), Eq(1ul));
@@ -285,10 +291,8 @@ TEST(TestRtsanAtomicHashTable,
       assert_all_inserted_keys_findable();
       const int key_to_remove = inserted_key_history.LookBack(capacity);
       inserted_key_history.Push(key);
-      ASSERT_THAT(table.Remove(key_to_remove),
-                  Eq(RemoveResult::Removed));
-      ASSERT_THAT(table.Insert(key, make_value(key)),
-                  Eq(InsertResult::OK));
+      ASSERT_THAT(table.Remove(key_to_remove), Eq(RemoveResult::Removed));
+      ASSERT_THAT(table.Insert(key, make_value(key)), Eq(InsertResult::OK));
     }
   }
 }

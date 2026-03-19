@@ -12,14 +12,14 @@
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_vector.h"
 
-// TODO is it OK to include these C++ headers for size_t and std::move?
-#include <cstddef>
-#include <iostream> // TODO remove
-// #include <utility>
+#include <stddef.h>
+#include <stdint.h>
 
 namespace __rtsan {
 
-using Slot = size_t;
+// TODO what is better? Using this or just using size_t? Be consistent
+// throughout impl.
+using SlotIndex = size_t;
 
 // TODO actually implement conversion and move into own header
 // (and add header to CMake proj!)
@@ -84,11 +84,11 @@ private:
 };
 
 enum class TryClaimInsertSlotError { AlreadyExists, Overflow };
-using TryClaimInsertSlotResult = Expected<Slot, TryClaimInsertSlotError>;
+using TryClaimInsertSlotResult = Expected<SlotIndex, TryClaimInsertSlotError>;
 
 // TODO better name
 enum class ClaimSlotError { FailedCompareExchange };
-using ClaimSlotResult = Expected<Slot, ClaimSlotError>;
+using ClaimSlotResult = Expected<SlotIndex, ClaimSlotError>;
 
 enum class SearchError { NotFound };
 template <typename ValueTy>
@@ -119,6 +119,15 @@ private:
     - probing strategy
     - restrictions on key type
     - once inserted, access to value must be serialized externally
+    - how tagged keys solve the ABA problem in tombstone reclamation (if
+      we get there and confirm it)
+
+    Big TODOs:
+
+    - Do we need 128 bit keys to accommodate all 64-bit ThreadIDs?
+    - tombstone reclamation, requiring:
+        - tagged keys
+        - proof that with tagged keys it's safe
 */
 template <typename KeyTy, typename ValueTy, KeyTy EmptyKey, KeyTy TombstoneKey,
           typename SlotFn = DefaultSlotFn<KeyTy, DefaultHashFn<KeyTy>>>
@@ -155,14 +164,20 @@ public:
 
     using namespace __sanitizer;
     atomic_fetch_add(&approx_size_, 1ul, memory_order::memory_order_acq_rel);
-    values_[slot.Value()] = std::forward<U>(value);
+    values_[slot.Value()] = static_cast<U&&>(value);
     return InsertResult::OK;
   }
 
+  // TODO can we get a function like `operator[]`? I.e. searches and if it
+  // doesn't find anything, it claims an insert slot with a default-constructed
+  // value?
+
   RemoveResult Remove(const KeyTy &key) {
-    Optional<Slot> slot = SearchForKeySlot(key);
+    Optional<SlotIndex> slot = SearchForKeySlot(key);
     if (!slot.HasValue())
       return RemoveResult::NotFound;
+
+    // TODO would it make sense to set the value to {} at this point?
 
     StoreSlotKey(slot.Value(), TombstoneKey);
     using namespace __sanitizer;
@@ -171,18 +186,19 @@ public:
     return RemoveResult::Removed;
   }
 
+  // TODO simplify to `earchResult<ValueTy>
   HashTableSearchResult<ValueTy> Search(const KeyTy &key) {
     using Result = HashTableSearchResult<ValueTy>;
-    Optional<Slot> slot = SearchForKeySlot(key);
+    Optional<SlotIndex> slot = SearchForKeySlot(key);
     if (!slot.HasValue())
       return Result::NotFound();
     return Result::Found(&values_[slot.Value()]);
   }
 
-  // TODO remove duplication
+  // TODO remove duplication and simplify to SearchResult<const ValueTy>
   HashTableSearchResult<const ValueTy> Search(const KeyTy &key) const {
     using Result = HashTableSearchResult<const ValueTy>;
-    Optional<Slot> slot = SearchForKeySlot(key);
+    Optional<SlotIndex> slot = SearchForKeySlot(key);
     if (!slot.HasValue())
       return Result::NotFound();
     return Result::Found(&values_[slot.Value()]);
@@ -197,25 +213,23 @@ private:
     return (current_slot + 1ul) % Capacity();
   }
 
-  TryClaimInsertSlotResult TryClaimInsertSlot(const KeyTy &key) {
+  TryClaimInsertSlotResult TryClaimInsertSlot(const KeyTy &desired_key) {
 
-    size_t slot = TargetHashSlot(key);
-    Optional<Slot> first_tombstone_slot{};
+    size_t slot = TargetHashSlot(desired_key);
+    Optional<SlotIndex> first_tombstone_slot{};
 
     for (size_t probe_iter = 0u; probe_iter < Capacity(); ++probe_iter) {
       const KeyTy loaded_slot_key = LoadSlotKey(slot);
 
       if (IsEmpty(loaded_slot_key)) {
-        if (first_tombstone_slot
-                .HasValue()) { // TODO how to get this under test? Return slot
-                               // in result value?
+        if (first_tombstone_slot.HasValue()) {
           return ClaimInsertSlotOrTryAgain(first_tombstone_slot.Value(),
-                                           TombstoneKey, key);
+                                           TombstoneKey, desired_key);
         }
-        return ClaimInsertSlotOrTryAgain(slot, EmptyKey, key);
+        return ClaimInsertSlotOrTryAgain(slot, EmptyKey, desired_key);
       }
 
-      if (loaded_slot_key == key)
+      if (loaded_slot_key == desired_key)
         return TryClaimInsertSlotResult::Unexpected(
             TryClaimInsertSlotError::AlreadyExists);
 
@@ -227,27 +241,27 @@ private:
 
     if (first_tombstone_slot.HasValue())
       return ClaimInsertSlotOrTryAgain(first_tombstone_slot.Value(),
-                                       TombstoneKey, key);
+                                       TombstoneKey, desired_key);
 
     return TryClaimInsertSlotResult::Unexpected(
         TryClaimInsertSlotError::Overflow);
   }
 
-  Optional<Slot> SearchForKeySlot(const KeyTy &key) const {
+  Optional<SlotIndex> SearchForKeySlot(const KeyTy &key) const {
     size_t slot = TargetHashSlot(key);
 
     for (size_t probe_iter = 0u; probe_iter < Capacity(); ++probe_iter) {
       const KeyTy loaded_slot_key = LoadSlotKey(slot);
 
       if (loaded_slot_key == key)
-        return Optional<Slot>(slot);
+        return Optional<SlotIndex>(slot);
       if (loaded_slot_key == EmptyKey)
-        return Optional<Slot>::Nullopt();
+        return Optional<SlotIndex>::Nullopt();
 
       slot = NextSlotLinearProbe(slot);
     }
 
-    return Optional<Slot>::Nullopt();
+    return Optional<SlotIndex>::Nullopt();
   }
 
   // TODO add max attempts fallback with appropriate error? Or just don't try
