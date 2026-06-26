@@ -15,13 +15,16 @@ set(RTSAN_PREINIT_SOURCES
 
 set(RTSAN_HEADERS
   rtsan.h
-  rtsan_atomic_hash_table.h
-  rtsan_checks.inc
   rtsan_assertions.h
+  rtsan_atomic_hash_table.h
+  rtsan_atomic_hash_table_types.h
+  rtsan_checks.inc
   rtsan_context.h
   rtsan_diagnostics.h
+  rtsan_expected.h
   rtsan_flags.h
   rtsan_flags.inc
+  rtsan_optional.h
   rtsan_stats.h
   rtsan_suppressions.h
   )

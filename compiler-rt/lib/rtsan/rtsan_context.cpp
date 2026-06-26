@@ -33,7 +33,7 @@ void __rtsan::Context::RealtimePush() {
   const ThreadId thread_id = GetTid();
   auto depths = tls_.Search(thread_id);
   if (depths.HasValue())
-    depths.Value().realtime++;
+    depths.Value()->realtime++;
   else
     tls_.Insert(thread_id, Depths{.realtime = 1, .bypass = 0});
   // TODO handle failure
@@ -43,9 +43,9 @@ void __rtsan::Context::RealtimePop() {
   const ThreadId thread_id = GetTid();
   auto depths = tls_.Search(thread_id);
   if (depths.HasValue()) {
-    depths.Value().realtime--;
+    depths.Value()->realtime--;
     // TODO removing this is pretty gnarly while depths is in scope
-    if (depths.Value() == Depths{0, 0})
+    if (*depths.Value() == Depths{0, 0})
       tls_.Remove(thread_id);
   }
   // TODO handle failure
@@ -55,7 +55,7 @@ void __rtsan::Context::BypassPush() {
   const ThreadId thread_id = GetTid();
   auto depths = tls_.Search(thread_id);
   if (depths.HasValue())
-    depths.Value().bypass++;
+    depths.Value()->bypass++;
   else
     tls_.Insert(thread_id, Depths{.realtime = 0, .bypass = 1});
   // TODO handle failure
@@ -65,9 +65,9 @@ void __rtsan::Context::BypassPop() {
   const ThreadId thread_id = GetTid();
   auto depths = tls_.Search(thread_id);
   if (depths.HasValue()) {
-    depths.Value().bypass--;
+    depths.Value()->bypass--;
     // TODO removing this is pretty gnarly while depths is in scope
-    if (depths.Value() == Depths{0, 0})
+    if (*depths.Value() == Depths{0, 0})
       tls_.Remove(thread_id);
   }
   // TODO handle failure
@@ -77,14 +77,14 @@ bool __rtsan::Context::InRealtimeContext() const {
   const auto depths = tls_.Search(GetTid());
   if (!depths.HasValue())
     return false;
-  return depths.Value().realtime > 0;
+  return depths.Value()->realtime > 0;
 }
 
 bool __rtsan::Context::IsBypassed() const {
   const auto depths = tls_.Search(GetTid());
   if (!depths.HasValue())
     return false;
-  return depths.Value().bypass > 0;
+  return depths.Value()->bypass > 0;
 }
 
 Context &__rtsan::GetContext() {

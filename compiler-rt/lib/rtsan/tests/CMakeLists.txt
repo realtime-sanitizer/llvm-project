@@ -22,9 +22,11 @@ set(RTSAN_INST_TEST_SOURCES
 set(RTSAN_NOINST_TEST_SOURCES
     ../rtsan_preinit.cpp
     rtsan_test_assertions.cpp
-    rtsan_test_context.cpp
     rtsan_test_atomic_hash_table.cpp
-    rtsan_test_main.cpp)
+    rtsan_test_context.cpp
+    rtsan_test_expected.cpp
+    rtsan_test_main.cpp
+    rtsan_test_optional.cpp)
 
 set(RTSAN_UNITTEST_HEADERS
     rtsan_test_utilities.h)
