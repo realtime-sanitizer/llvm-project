@@ -15,7 +15,26 @@ using namespace __rtsan;
 using namespace ::testing;
 
 namespace {
-using TestTableTy = AtomicHashTable<int, float, 999, 1000>;
+template <typename K> using TestSlotFn = DefaultSlotFn<K, DefaultHashFn<K>>;
+
+struct TestHashTableConfig {
+  using KeyType = int;
+  using ValueType = float;
+  using SlotFn = TestSlotFn<KeyType>;
+  static constexpr KeyType EmptyKey = 999;
+  static constexpr KeyType TombstoneKey = 1000;
+};
+
+template <typename K, typename V, K Empty, K Tombstone, typename S>
+struct ConfigWith {
+  using KeyType = K;
+  using ValueType = V;
+  using SlotFn = S;
+  static constexpr KeyType EmptyKey = Empty;
+  static constexpr KeyType TombstoneKey = Tombstone;
+};
+
+using TestTableTy = AtomicHashTable<TestHashTableConfig>;
 using InsertError = TestTableTy::InsertError;
 using RemoveError = TestTableTy::RemoveError;
 
@@ -58,7 +77,7 @@ private:
 namespace __rtsan {
 std::ostream &operator<<(std::ostream &os, InsertError const &error) {
   switch (error) {
-  case InsertError::AlreadyExists:
+  case InsertError::KeyAlreadyExists:
     return os << "AlreadyExists";
   case InsertError::Overflow:
     return os << "Overflow";
@@ -68,7 +87,7 @@ std::ostream &operator<<(std::ostream &os, InsertError const &error) {
 }
 std::ostream &operator<<(std::ostream &os, RemoveError const &error) {
   switch (error) {
-  case RemoveError::NotFound:
+  case RemoveError::KeyNotFound:
     return os << "NotFound";
   }
 
@@ -152,7 +171,8 @@ TEST(TestRtsanAtomicHashTable, canInsertTypesConvertibleToValueType) {
 }
 
 TEST(TestRtsanAtomicHashTable, canInsertRValueTypes) {
-  using TableTy = AtomicHashTable<int, MoveOnly, 999, 1000>;
+  using Config = ConfigWith<int, MoveOnly, 999, 1000, TestSlotFn<int>>;
+  using TableTy = AtomicHashTable<Config>;
   TableTy table{5};
   MoveOnly move_me{10};
   ASSERT_THAT(table.Insert(12, std::move(move_me)).HasValue(), Eq(true));
@@ -162,7 +182,8 @@ TEST(TestRtsanAtomicHashTable, canInsertRValueTypes) {
 }
 
 TEST(TestRtsanAtomicHashTable, canInsertImmovableValueTypes) {
-  using TableTy = AtomicHashTable<int, int, 999, 1000>;
+  using Config = ConfigWith<int, int, 999, 1000, TestSlotFn<int>>;
+  using TableTy = AtomicHashTable<Config>;
   TableTy table{5};
   const int value{11};
   ASSERT_THAT(table.Insert(12, value).HasValue(), Eq(true));
@@ -180,7 +201,7 @@ TEST(TestRtsanAtomicHashTable, insertAtAnExistingKeyFails) {
 
   const auto insert_result = table.Insert(13, 14.0f);
   ASSERT_THAT(insert_result.HasValue(), Eq(false));
-  EXPECT_THAT(insert_result.Error(), Eq(InsertError::AlreadyExists));
+  EXPECT_THAT(insert_result.Error(), Eq(InsertError::KeyAlreadyExists));
 }
 
 TEST(TestRtsanAtomicHashTable, canRemoveEntries) {
@@ -199,7 +220,7 @@ TEST(TestRtsanAtomicHashTable, canRemoveEntries) {
     ASSERT_THAT(table.Search(key).HasValue(), Eq(false));
     const auto remove_result = table.Remove(key);
     ASSERT_THAT(remove_result.HasValue(), Eq(false));
-    EXPECT_THAT(remove_result.Error(), Eq(RemoveError::NotFound));
+    EXPECT_THAT(remove_result.Error(), Eq(RemoveError::KeyNotFound));
   };
 
   EXPECT_THAT(table.ApproxSize(), Eq(4ul));
@@ -214,7 +235,7 @@ TEST(TestRtsanAtomicHashTable, canRemoveEntries) {
 TEST(TestRtsanAtomicHashTable, canInsertAndRetrieveKeysWithHashCollision) {
   using HashFn = DefaultHashFn<int>;
   using SlotFn = DefaultSlotFn<int, HashFn>;
-  using TableTy = AtomicHashTable<int, float, 999, 1000, SlotFn>;
+  using TableTy = AtomicHashTable<ConfigWith<int, float, 999, 1000, SlotFn>>;
   const size_t capacity = 10ul;
   const SlotFn hash_slot{};
   std::vector<int> colliding_keys = {7, 17, 27, 37, 47, 57, 67, 77};
@@ -274,7 +295,7 @@ TEST(TestRtsanAtomicHashTable, canReclaimTombstonesCorrectly) {
 TEST(TestRtsanAtomicHashTable,
      handlesManyInsertionsAndRemovalsIncludingCollidingHashes) {
   using SlotFn = DefaultSlotFn<int, DefaultHashFn<int>>;
-  using TableTy = AtomicHashTable<int, int, 999, 1000, SlotFn>;
+  using TableTy = AtomicHashTable<ConfigWith<int, int, 999, 1000, SlotFn>>;
   constexpr size_t capacity{10u};
   TableTy table{capacity};
   HistoryBuffer<int, capacity> inserted_key_history{};

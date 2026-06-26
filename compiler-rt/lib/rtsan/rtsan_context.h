@@ -32,15 +32,24 @@ public:
   bool IsBypassed() const;
 
 private:
+  struct Depths {
+    int realtime{0};
+    int bypass{0};
+    bool operator==(Depths const &other) const {
+      return realtime == other.realtime && bypass == other.bypass;
+    }
+  };
+
   using ThreadId = __sanitizer::ThreadID;
+
   /*
     Big TODO: in theory, these could collide with a valid ThreadId, which
     is a uint64_t. Maybe there is some way we can guarantee that the ThreadId
     isn't one of these values, or throw an error in the extremely unlikely case
     that there's a collision. Or, maybe, is there a way in which the idea
-    of tagged keys (which will be required if we want to do any sort of tombstone
-    reclamation) might be handy here? Perhaps we can lay out the atomic key
-    type in the hash table as
+    of tagged keys (which will be required if we want to do any sort of
+    tombstone reclamation) might be handy here? Perhaps we can lay out the
+    atomic key type in the hash table as
 
         enum class KeyKind : public uint32_t
         {
@@ -59,18 +68,15 @@ private:
             KeyTag tag;            // 32 bits
         };
   */
-  static constexpr ThreadId empty_key{UINT64_MAX};
-  static constexpr ThreadId tombstone_key{UINT64_MAX - 1u};
-
-  struct Depths {
-    int realtime{0};
-    int bypass{0};
-    bool operator==(Depths const &other) const {
-      return realtime == other.realtime && bypass == other.bypass;
-    }
+  struct TLSAtomicHashTableConfig {
+    using KeyType = ThreadId;
+    using ValueType = Depths;
+    using SlotFn = DefaultSlotFn<KeyType, DefaultHashFn<KeyType>>;
+    static constexpr KeyType EmptyKey = UINT64_MAX;
+    static constexpr KeyType TombstoneKey = UINT64_MAX - 1u;
   };
 
-  AtomicHashTable<ThreadId, Depths, empty_key, tombstone_key> tls_;
+  AtomicHashTable<TLSAtomicHashTableConfig> tls_;
 };
 
 class ScopedBypass {
